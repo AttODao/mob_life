@@ -1,0 +1,10 @@
+{
+	"mob_life.create_world.morph": "プレイ形態",
+	"mob_life.create_world.morph.locked": "後から/moblife morphコマンドで変更できます",
+	"mob_life.morph.player": "通常プレイヤー",
+	"mob_life.morph.cow": "牛",
+	"mob_life.morph.sheep": "ヒツジ",
+	"mob_life.morph.chicken": "ニワトリ",
+	"commands.mob_life.morph.success": "プレイ形態を%sに変更しました",
+	"commands.mob_life.morph.unsupported": "%sには変身できません"
+}

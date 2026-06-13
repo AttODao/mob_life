@@ -1,0 +1,28 @@
+{
+	"required": true,
+	"package": "cc.attodao.mob_life.client.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"gameplay.ClientChargedJumpMixin",
+		"gameplay.LocalPlayerMovementMixin",
+		"gameplay.MultiPlayerGameModeMixin",
+		"inventory.AbstractContainerScreenMixin",
+		"inventory.MouseHandlerInventoryMixin",
+		"player.ClientPlayerDimensionsMixin",
+		"player.ClientPlayerEyeHeightMixin",
+		"render.GameRendererMixin",
+		"render.GuiMixin",
+		"render.ItemInHandRendererMixin",
+		"render.PlayerRendererMixin",
+		"render.WalkAnimationStateAccessor",
+		"world.CreateWorldScreenMixin",
+		"world.GridLayoutAccessor",
+		"world.GridLayoutTabAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

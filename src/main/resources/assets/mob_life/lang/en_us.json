@@ -1,0 +1,10 @@
+{
+	"mob_life.create_world.morph": "Play Form",
+	"mob_life.create_world.morph.locked": "You can change this later with /moblife morph",
+	"mob_life.morph.player": "Normal Player",
+	"mob_life.morph.cow": "Cow",
+	"mob_life.morph.sheep": "Sheep",
+	"mob_life.morph.chicken": "Chicken",
+	"commands.mob_life.morph.success": "Play form changed to %s",
+	"commands.mob_life.morph.unsupported": "You cannot morph into %s"
+}

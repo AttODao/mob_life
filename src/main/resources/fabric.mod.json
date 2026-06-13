@@ -1,31 +1,31 @@
 {
 	"schemaVersion": 1,
-	"id": "modid",
+	"id": "mob_life",
 	"version": "${version}",
-	"name": "Example Mod",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"name": "Mob Life",
+	"description": "Live as a mob selected when the world is created.",
 	"authors": [
-		"Me!"
+		"attodao"
 	],
-	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
-	},
-	"license": "CC0-1.0",
-	"icon": "assets/modid/icon.png",
+	"contact": {},
+	"license": [
+		"CC0-1.0",
+		"MIT"
+	],
+	"icon": "assets/mob_life/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.example.ExampleMod"
+			"cc.attodao.mob_life.MobLife"
 		],
 		"client": [
-			"com.example.client.ExampleModClient"
+			"cc.attodao.mob_life.client.MobLifeClient"
 		]
 	},
 	"mixins": [
-		"modid.mixins.json",
+		"mob_life.mixins.json",
 		{
-			"config": "modid.client.mixins.json",
+			"config": "mob_life.client.mixins.json",
 			"environment": "client"
 		}
 	],

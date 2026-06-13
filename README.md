@@ -1,9 +1,9 @@
-# Example Mod
+# Mob Life
 
-## Setup
+ワールド作成時に牛・ヒツジ・ニワトリから姿を選び、そのMobとして生活するFabric Modです。
 
-For setup instructions, please see the [Fabric Documentation page](https://docs.fabricmc.net/develop/getting-started/creating-a-project#setting-up) related to the IDE that you are using.
+- 選択はワールドごとに保存され、作成後は変更できません。
+- 見た目、モーション、当たり判定、視点の高さ、移動速度が選択したMobに変わります。
+- ニワトリは空中でゆっくり落下します。
 
-## License
-
-This template is available under the CC0 license. Feel free to learn from it and incorporate it in your own projects.
+対象: Minecraft 26.1.2 / Fabric Loader 0.19.3 / Java 25
