@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.mixin.player;
 
-import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -17,9 +16,8 @@ public abstract class ServerPlayerEyeHeightMixin {
 			return;
 		}
 
-		MorphType morph = ServerMorphManager.activeMorph();
-		if (morph != null && !morph.isPlayer()) {
-			cir.setReturnValue(morph.entityType().getDimensions().eyeHeight());
+		if (ServerMorphManager.activeDimensions() != null) {
+			cir.setReturnValue(ServerMorphManager.activeEyeHeight());
 		}
 	}
 }

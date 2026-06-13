@@ -1,20 +1,24 @@
 package cc.attodao.mob_life.world;
 
+import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 
 public final class PendingWorldSelection {
-	private static MorphType pending;
 
-	private PendingWorldSelection() {
-	}
+    private static MorphDefinition pending;
 
-	public static synchronized void setForNextWorld(MorphType morphType) {
-		pending = morphType;
-	}
+    private PendingWorldSelection() {}
 
-	public static synchronized MorphType consumeOrDefault() {
-		MorphType result = pending != null ? pending : MorphType.PLAYER;
-		pending = null;
-		return result;
-	}
+    public static synchronized void setForNextWorld(
+        MorphDefinition definition
+    ) {
+        pending = definition;
+    }
+
+    public static synchronized MorphDefinition consumeOrDefault() {
+        MorphDefinition result =
+            pending != null ? pending : MorphDefinition.of(MorphType.PLAYER);
+        pending = null;
+        return result;
+    }
 }

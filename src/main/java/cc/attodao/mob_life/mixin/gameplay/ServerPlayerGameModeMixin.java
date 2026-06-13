@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.mixin.gameplay;
 
+import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -96,6 +97,7 @@ public abstract class ServerPlayerGameModeMixin {
 	) {
 		if (ServerMorphManager.hasMobForm() && cir.getReturnValue()) {
 			player.causeFoodExhaustion(0.2F);
+			ServerMorphManager.adjustAwkwardness(player, 2.0F);
 		}
 	}
 
@@ -109,8 +111,9 @@ public abstract class ServerPlayerGameModeMixin {
 			CallbackInfoReturnable<InteractionResult> cir
 	) {
 		if (
-				itemStack.getItem() instanceof BlockItem
-						&& mobLife$isBlockActionRestricted()
+				mobLife$isAnyInteractionRestricted()
+						|| itemStack.getItem() instanceof BlockItem
+						&& mobLife$isMovementRestricted()
 		) {
 			cir.setReturnValue(InteractionResult.FAIL);
 		}
@@ -127,16 +130,32 @@ public abstract class ServerPlayerGameModeMixin {
 	) {
 		if (
 				ServerMorphManager.hasMobForm()
-						&& itemStack.getItem() instanceof BlockItem
 						&& cir.getReturnValue().consumesAction()
 		) {
-			player.causeFoodExhaustion(0.1F);
+			if (itemStack.getItem() instanceof BlockItem) {
+				player.causeFoodExhaustion(0.1F);
+				ServerMorphManager.adjustAwkwardness(player, 2.0F);
+			} else {
+				ServerMorphManager.adjustAwkwardness(player, 4.0F);
+			}
 		}
 	}
 
 	private boolean mobLife$isBlockActionRestricted() {
 		return ServerMorphManager.hasMobForm()
-				&& (!player.onGround() || player.isSprinting());
+				&& (
+						mobLife$isMovementRestricted()
+								|| mobLife$isAnyInteractionRestricted()
+				);
+	}
+
+	private boolean mobLife$isMovementRestricted() {
+		return !player.onGround() || player.isSprinting();
+	}
+
+	private boolean mobLife$isAnyInteractionRestricted() {
+		return ServerMorphManager.hasMobForm()
+				&& MorphAwkwardness.blocksWorldInteraction(player);
 	}
 
 	private void mobLife$clearDestroyState() {

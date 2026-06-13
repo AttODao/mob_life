@@ -2,12 +2,14 @@ package cc.attodao.mob_life.client.state;
 
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
+import cc.attodao.mob_life.morph.MorphDefinition;
+import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
-import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.animal.chicken.Chicken;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.Vec3;
@@ -20,13 +22,21 @@ public final class ClientMorphState {
 	private static final Map<UUID, Entity> RENDER_ENTITIES = new HashMap<>();
 	private static final ClientChargedJumpController CHARGED_JUMP =
 			new ClientChargedJumpController();
+	private static MorphDefinition definition;
 	private static MorphType morph;
+	private static EntityDimensions dimensions;
+	private static float eyeHeight;
+	private static float awkwardness;
 
 	private ClientMorphState() {
 	}
 
-	public static void setMorph(MorphType newMorph) {
+	public static void setMorph(MorphDefinition newDefinition) {
+		MorphType newMorph = newDefinition.type();
+		definition = newMorph.isPlayer() ? null : newDefinition;
 		morph = newMorph.isPlayer() ? null : newMorph;
+		dimensions = null;
+		eyeHeight = 0.0F;
 		RENDER_ENTITIES.clear();
 		CHARGED_JUMP.reset();
 
@@ -35,9 +45,22 @@ public final class ClientMorphState {
 			return;
 		}
 
+		if (definition != null) {
+			Entity template = MorphEntityFactory.create(
+					definition,
+					client.level
+			);
+			if (template != null) {
+				dimensions = template.getDimensions(Pose.STANDING);
+				eyeHeight = template.getEyeHeight();
+			}
+		}
+		float morphHeight = dimensions != null
+				? dimensions.height()
+				: newMorph.entityType().getDimensions().height();
 		for (Player player : client.level.players()) {
-			MorphInventoryCapacity.apply(player, newMorph);
-			MorphFoodCapacity.apply(player, newMorph);
+			MorphInventoryCapacity.apply(player, newMorph, morphHeight);
+			MorphFoodCapacity.apply(player, newMorph, morphHeight);
 			player.refreshDimensions();
 			player.setBoundingBox(player.getDimensions(player.getPose()).makeBoundingBox(player.position()));
 		}
@@ -45,6 +68,14 @@ public final class ClientMorphState {
 
 	public static MorphType morph() {
 		return morph;
+	}
+
+	public static float awkwardness() {
+		return awkwardness;
+	}
+
+	public static void setAwkwardness(float value) {
+		awkwardness = value;
 	}
 
 	public static boolean shouldShowChargedJumpBar() {
@@ -60,7 +91,11 @@ public final class ClientMorphState {
 	}
 
 	public static EntityDimensions dimensions() {
-		return morph != null ? morph.entityType().getDimensions() : null;
+		return dimensions;
+	}
+
+	public static float eyeHeight() {
+		return eyeHeight;
 	}
 
 	public static Entity renderEntity(Player player) {
@@ -69,7 +104,7 @@ public final class ClientMorphState {
 		}
 
 		return RENDER_ENTITIES.computeIfAbsent(player.getUUID(), uuid -> {
-			Entity entity = morph.entityType().create(player.level(), EntitySpawnReason.LOAD);
+			Entity entity = MorphEntityFactory.create(definition, player.level());
 			if (entity != null) {
 				entity.setPos(player.position());
 			}
@@ -90,7 +125,11 @@ public final class ClientMorphState {
 	}
 
 	public static void clear() {
+		definition = null;
 		morph = null;
+		dimensions = null;
+		eyeHeight = 0.0F;
+		awkwardness = 0.0F;
 		RENDER_ENTITIES.clear();
 		CHARGED_JUMP.reset();
 	}

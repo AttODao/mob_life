@@ -1,7 +1,7 @@
 package cc.attodao.mob_life.gameplay.food;
 
 public interface MorphFoodDataHolder {
-	int mobLife$getMaxFood();
+    int mobLife$getMaxFood();
 
-	void mobLife$setMaxFood(int maximum);
+    void mobLife$setMaxFood(int maximum);
 }

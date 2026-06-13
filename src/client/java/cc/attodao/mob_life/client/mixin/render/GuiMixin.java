@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client.mixin.render;
 
 import cc.attodao.mob_life.client.render.MorphJumpBarRenderer;
 import cc.attodao.mob_life.client.render.SizedHotbarRenderer;
+import cc.attodao.mob_life.client.config.MobLifeClientConfig;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import net.minecraft.client.DeltaTracker;
@@ -9,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.contextualbar.ContextualBarRenderer;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -19,6 +21,8 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Gui.class)
 public abstract class GuiMixin {
@@ -98,5 +102,36 @@ public abstract class GuiMixin {
 		} else {
 			renderer.extractBackground(graphics, deltaTracker);
 		}
+	}
+
+	@Inject(method = "extractHotbarAndDecorations", at = @At("TAIL"))
+	private void mobLife$renderAwkwardness(
+			GuiGraphicsExtractor graphics,
+			DeltaTracker deltaTracker,
+			CallbackInfo ci
+	) {
+		if (
+				ClientMorphState.morph() == null
+						|| !MobLifeClientConfig.showAwkwardnessDebug()
+		) {
+			return;
+		}
+
+		float awkwardness = ClientMorphState.awkwardness();
+		int color = awkwardness >= 90.0F
+				? 0xFFFF5555
+				: awkwardness >= 70.0F
+						? 0xFFFFAA00
+						: 0xFFFFFFFF;
+		graphics.text(
+				minecraft.font,
+				Component.translatable(
+						"mob_life.hud.awkwardness",
+						Math.round(awkwardness)
+				),
+				6,
+				6,
+				color
+		);
 	}
 }

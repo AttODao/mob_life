@@ -3,17 +3,23 @@
 	"package": "cc.attodao.mob_life.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
+		"awkwardness.PlayerAwkwardnessMixin",
 		"food.FoodDataMixin",
 		"food.ItemMorphFoodMixin",
 		"gameplay.LivingEntityChargedJumpMixin",
+		"gameplay.LivingEntitySleepMixin",
 		"gameplay.ServerPlayerGameModeMixin",
+		"gameplay.ServerVehicleInputMixin",
 		"inventory.AbstractContainerMenuMixin",
 		"inventory.InventoryMixin",
 		"inventory.PlayerInventoryCapacityMixin",
 		"inventory.ServerGamePacketListenerInventoryMixin",
 		"inventory.SlotMixin",
 		"player.ServerPlayerDimensionsMixin",
-		"player.ServerPlayerEyeHeightMixin"
+		"player.ServerPlayerEyeHeightMixin",
+		"targeting.AbstractSkeletonAimMixin",
+		"targeting.AvoidEntityGoalMixin",
+		"targeting.MobTargetingMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

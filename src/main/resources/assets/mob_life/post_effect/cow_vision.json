@@ -10,6 +10,11 @@
         {
           "sampler_name": "In",
           "target": "minecraft:main"
+        },
+        {
+          "sampler_name": "Depth",
+          "target": "minecraft:main",
+          "use_depth_buffer": true
         }
       ],
       "output": "swap",
@@ -18,22 +23,39 @@
           {
             "name": "RedResponse",
             "type": "vec4",
-            "value": [ 0.5667, 0.4333, 0.0, 0.0 ]
+            "value": [0.5667, 0.4333, 0.0, 0.0]
           },
           {
             "name": "GreenResponse",
             "type": "vec4",
-            "value": [ 0.5583, 0.4417, 0.0, 0.0 ]
+            "value": [0.5583, 0.4417, 0.0, 0.0]
           },
           {
             "name": "BlueResponse",
             "type": "vec4",
-            "value": [ 0.0, 0.2417, 0.7583, 0.0 ]
+            "value": [0.0, 0.2417, 0.7583, 0.0]
           },
           {
             "name": "Settings",
             "type": "vec4",
-            "value": [ 0.5, 0.98, 1.0, 0.0 ]
+            "value": [0.5, 0.98, 1.0, 0.0]
+          }
+        ],
+        "DistanceBlur": [
+          {
+            "name": "Parameters",
+            "type": "vec4",
+            "value": [4.0, 16.0, 32.0, 48.0]
+          },
+          {
+            "name": "Effects",
+            "type": "vec4",
+            "value": [32.0, 0.08, 0.22, 0.92]
+          },
+          {
+            "name": "DepthRange",
+            "type": "vec4",
+            "value": [0.05, 256.0, 0.0, 0.0]
           }
         ]
       }
@@ -52,7 +74,7 @@
           {
             "name": "ColorModulate",
             "type": "vec4",
-            "value": [ 1.0, 1.0, 1.0, 1.0 ]
+            "value": [1.0, 1.0, 1.0, 1.0]
           }
         ]
       },

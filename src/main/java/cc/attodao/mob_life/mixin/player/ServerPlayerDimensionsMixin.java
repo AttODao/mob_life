@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.mixin.player;
 
-import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -21,9 +20,9 @@ public abstract class ServerPlayerDimensionsMixin {
 			return;
 		}
 
-		MorphType morph = ServerMorphManager.activeMorph();
-		if (morph != null && !morph.isPlayer()) {
-			cir.setReturnValue(morph.entityType().getDimensions());
+		EntityDimensions dimensions = ServerMorphManager.activeDimensions();
+		if (dimensions != null) {
+			cir.setReturnValue(dimensions);
 		}
 	}
 }

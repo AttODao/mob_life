@@ -19,7 +19,7 @@ public abstract class ClientPlayerEyeHeightMixin {
 
 		EntityDimensions dimensions = ClientMorphState.dimensions();
 		if (dimensions != null) {
-			cir.setReturnValue(dimensions.eyeHeight());
+			cir.setReturnValue(ClientMorphState.eyeHeight());
 		}
 	}
 }

@@ -20,6 +20,9 @@
 		],
 		"client": [
 			"cc.attodao.mob_life.client.MobLifeClient"
+		],
+		"modmenu": [
+			"cc.attodao.mob_life.client.MobLifeModMenu"
 		]
 	},
 	"mixins": [
@@ -33,6 +36,7 @@
 		"fabricloader": ">=0.19.3",
 		"minecraft": "~26.1.2",
 		"java": ">=25",
-		"fabric-api": "*"
+		"fabric-api": "*",
+		"modmenu": ">=18.0.0-beta.1"
 	}
 }
