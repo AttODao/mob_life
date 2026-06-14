@@ -50,7 +50,7 @@
           {
             "name": "Effects",
             "type": "vec4",
-            "value": [32.0, 0.08, 0.22, 0.92]
+            "value": [32.0, 1.0, 1.0, 1.0]
           },
           {
             "name": "DepthRange",

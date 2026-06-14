@@ -25,6 +25,8 @@ layout(std140) uniform DistanceBlur {
 
 out vec4 fragColor;
 
+const vec3 LUMINANCE_RESPONSE = vec3(0.2126, 0.7152, 0.0722);
+
 vec3 sampleDistanceBlur(float blurAmount) {
     if (blurAmount < 0.001) {
         return texture(InSampler, texCoord).rgb;
@@ -61,7 +63,7 @@ void main() {
         );
         float luminance = dot(
             shiftedColor,
-            vec3(0.2126, 0.7152, 0.0722)
+            LUMINANCE_RESPONSE
         );
         float interference = DepthRange.w;
         float retainedSaturation = Settings.x
@@ -76,7 +78,15 @@ void main() {
         float baseBrightness = Settings.z
             * mix(1.0, 0.82, interference);
         baseVisionColor = (baseVisionColor - 0.5) * baseContrast + 0.5;
-        baseVisionColor *= baseBrightness;
+        baseVisionColor = max(baseVisionColor, vec3(0.0));
+        float transformedLuminance = max(
+            dot(baseVisionColor, LUMINANCE_RESPONSE),
+            0.001
+        );
+        float sourceLuminance = dot(sourceColor.rgb, LUMINANCE_RESPONSE);
+        baseVisionColor *= sourceLuminance
+            * baseBrightness
+            / transformedLuminance;
         fragColor = vec4(
             clamp(baseVisionColor, 0.0, 1.0),
             sourceColor.a
@@ -101,15 +111,19 @@ void main() {
         ? 0.0
         : smoothstep(Parameters.x, Parameters.w, linearDistance);
     vec3 sourceRgb = sampleDistanceBlur(blurAmount);
-    vec3 darkenedColor = (sourceRgb - 0.5) * Effects.y + 0.5;
-    darkenedColor *= Effects.z;
-    vec3 distantColor = mix(sourceRgb, darkenedColor, darkAmount);
     float extraInterference = clamp(DepthRange.w - 1.0, 0.0, 1.0);
-    vec3 hazeColor = mix(
+    float skyBrightness = Effects.y;
+    float distantBrightness = mix(0.30, 0.52, skyBrightness)
+        * mix(1.0, 0.7, extraInterference);
+    vec3 darkenedColor = sourceRgb * distantBrightness;
+    vec3 distantColor = mix(sourceRgb, darkenedColor, darkAmount);
+    vec3 hazeTint = mix(
         vec3(0.32, 0.34, 0.36),
         vec3(0.20, 0.21, 0.23),
         extraInterference
     );
+    float hazeBrightness = mix(0.05, 0.72, skyBrightness);
+    vec3 hazeColor = hazeTint * hazeBrightness;
     vec3 finalColor = mix(
         distantColor,
         hazeColor,

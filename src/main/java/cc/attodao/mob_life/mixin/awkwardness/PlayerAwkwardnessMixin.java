@@ -113,6 +113,26 @@ public abstract class PlayerAwkwardnessMixin
 				: amount;
 	}
 
+	@Inject(
+			method = "causeFallDamage",
+			at = @At("HEAD"),
+			cancellable = true
+	)
+	private void mobLife$applyMorphFallDamageImmunity(
+			double fallDistance,
+			float damageModifier,
+			DamageSource damageSource,
+			CallbackInfoReturnable<Boolean> cir
+	) {
+		if (
+				(Object) this instanceof ServerPlayer player
+						&& ServerMorphManager.activeMorphFallsImmune()
+		) {
+			player.resetFallDistance();
+			cir.setReturnValue(false);
+		}
+	}
+
 	@ModifyConstant(
 			method = "tick",
 			constant = @Constant(intValue = Player.SLEEP_DURATION)

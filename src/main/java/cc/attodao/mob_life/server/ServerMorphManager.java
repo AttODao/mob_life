@@ -2,6 +2,7 @@ package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
@@ -20,10 +21,13 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
+import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
 
 public final class ServerMorphManager {
@@ -35,6 +39,8 @@ public final class ServerMorphManager {
         new HashMap<>();
 
     private static final float PASSIVE_DECAY_PER_SECOND = 0.2F;
+    private static final float EMPTY_INVENTORY_DECAY_MULTIPLIER = 5.0F;
+    private static final float ITEM_DECAY_SCALE = 16.0F;
     private static final float SAME_MOB_DECAY_PER_SECOND = 1.0F;
     private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
     private static final float LONG_SPRINT_GAIN = 0.08F;
@@ -43,6 +49,7 @@ public final class ServerMorphManager {
     private static MorphDefinition activeDefinition;
     private static EntityDimensions activeDimensions;
     private static float activeEyeHeight;
+    private static boolean activeFallDamageImmune;
 
     private ServerMorphManager() {}
 
@@ -64,6 +71,7 @@ public final class ServerMorphManager {
             activeDefinition = null;
             activeDimensions = null;
             activeEyeHeight = 0.0F;
+            activeFallDamageImmune = false;
             LAST_CHARGED_JUMP_TICK.clear();
             SPRINT_TICKS.clear();
             LAST_SYNCED_AWKWARDNESS.clear();
@@ -112,6 +120,10 @@ public final class ServerMorphManager {
 
     public static boolean hasMobForm() {
         return activeDefinition != null && activeDefinition.hasMobForm();
+    }
+
+    public static boolean activeMorphFallsImmune() {
+        return hasMobForm() && activeFallDamageImmune;
     }
 
     public static void performChargedJump(
@@ -195,6 +207,7 @@ public final class ServerMorphManager {
         activeDefinition = definition;
         activeDimensions = null;
         activeEyeHeight = 0.0F;
+        activeFallDamageImmune = false;
         if (!definition.hasMobForm()) {
             return;
         }
@@ -206,6 +219,9 @@ public final class ServerMorphManager {
         if (entity != null) {
             activeDimensions = entity.getDimensions(Pose.STANDING);
             activeEyeHeight = entity.getEyeHeight();
+            activeFallDamageImmune = entity
+                .typeHolder()
+                .is(EntityTypeTags.FALL_DAMAGE_IMMUNE);
         }
     }
 
@@ -255,7 +271,9 @@ public final class ServerMorphManager {
         }
 
         if (player.tickCount % 20 == 0) {
-            delta -= PASSIVE_DECAY_PER_SECOND;
+            delta -=
+                PASSIVE_DECAY_PER_SECOND *
+                passiveDecayMultiplier(player);
             if (hasNearbySameMob(player)) {
                 delta -= SAME_MOB_DECAY_PER_SECOND;
             }
@@ -267,6 +285,31 @@ public final class ServerMorphManager {
         if (player.tickCount % 5 == 0) {
             syncAwkwardness(player, false);
         }
+    }
+
+    private static float passiveDecayMultiplier(ServerPlayer player) {
+        int itemCount = countCarriedItems(player);
+        return (
+            1.0F +
+            (EMPTY_INVENTORY_DECAY_MULTIPLIER - 1.0F) /
+                (1.0F + itemCount / ITEM_DECAY_SCALE)
+        );
+    }
+
+    private static int countCarriedItems(ServerPlayer player) {
+        Inventory inventory = player.getInventory();
+        int itemCount = 0;
+        for (int slot = 0; slot < Inventory.INVENTORY_SIZE; slot++) {
+            if (!MorphInventoryCapacity.isActiveInventorySlot(player, slot)) {
+                continue;
+            }
+
+            ItemStack stack = inventory.getItem(slot);
+            if (!stack.isEmpty()) {
+                itemCount += stack.getCount();
+            }
+        }
+        return itemCount;
     }
 
     private static boolean hasNearbySameMob(ServerPlayer player) {

@@ -61,6 +61,8 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
 - Dedicated servers require gamemaster permission for the command.
 - Mob forms replace player rendering, animation, dimensions, collision box, eye height, movement speed, and maximum health.
 - Chicken form has slower falling.
+- Forms whose entity type is in `minecraft:fall_damage_immune` do not take
+  fall damage; among the currently available forms this applies to chicken.
 - Mob forms use a horse-style charged jump: hold jump to charge and release to jump. Maximum charge has the same height as a normal player jump.
 - Maximum jump charge is reached after 8 ticks and remains full while jump is held.
 - While charging, the vanilla horse jump gauge replaces the experience bar; its cooldown texture is shown briefly after jumping.
@@ -97,6 +99,9 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
 - Breaking, placing, block interaction, non-forward movement, prolonged
   sprinting, and attacking increase awkwardness. Eating, staying near the same
   mob, and passive decay reduce it.
+- Passive awkwardness decay depends on the total item count in active inventory
+  slots. An empty inventory decays at `5x` the base rate, with the multiplier
+  approaching `1x` as more items are carried.
 - Successful block breaking and block placement each add 2 awkwardness.
 - Awkwardness multiplies mob-form exhaustion up to `3x` at 100.
 - Monsters ignore mob-form players at 70 or below. At 70 and above, vision
@@ -138,6 +143,8 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
 - The shared shader applies form-specific dichromatic color and mild
   desaturation across the full image. The main depth buffer progressively adds
   blur, lower contrast, darkening, and haze to distant scenery.
+- The base pass preserves the source luminance, and distant darkening and haze
+  use the current sky brightness so daytime and nighttime remain distinguishable.
 - Vision rendering uses two passes: distant effects run immediately after
   world rendering while the world depth buffer still exists; base dichromatic
   vision runs after first-person hand rendering without consulting depth.

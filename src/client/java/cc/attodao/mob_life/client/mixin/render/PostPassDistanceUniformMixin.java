@@ -9,6 +9,7 @@ import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.PostPass;
+import net.minecraft.util.Mth;
 import org.lwjgl.system.MemoryStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -55,11 +56,15 @@ public abstract class PostPassDistanceUniformMixin {
 			buffer = writableBuffer;
 		}
 
+		Minecraft client = Minecraft.getInstance();
 		float farPlane = Math.max(
 				FULL_FOG_DISTANCE,
-				Minecraft.getInstance().options.getEffectiveRenderDistance()
+				client.options.getEffectiveRenderDistance()
 						* 16.0F
 		);
+		float skyBrightness = client.level == null
+				? 1.0F
+				: 1.0F - Mth.clamp(client.level.getSkyDarken() / 15.0F, 0.0F, 1.0F);
 		float interference = MorphAwkwardness.visionInterference(
 				ClientMorphState.awkwardness()
 		);
@@ -77,14 +82,8 @@ public abstract class PostPassDistanceUniformMixin {
 					)
 					.putVec4(
 							MAXIMUM_BLUR_RADIUS * (1.0F + interference),
-							Math.max(
-									0.015F,
-									0.08F - 0.05F * interference
-							),
-							Math.max(
-									0.05F,
-									0.22F - 0.10F * interference
-							),
+							skyBrightness,
+							1.0F,
 							1.0F
 					)
 					.putVec4(
