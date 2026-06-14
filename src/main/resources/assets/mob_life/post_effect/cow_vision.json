@@ -38,7 +38,7 @@
           {
             "name": "Settings",
             "type": "vec4",
-            "value": [0.5, 0.98, 1.0, 0.0]
+            "value": [0.5, 0.98, 1.0, 5.0]
           }
         ],
         "DistanceBlur": [
@@ -50,7 +50,7 @@
           {
             "name": "Effects",
             "type": "vec4",
-            "value": [32.0, 1.0, 1.0, 1.0]
+            "value": [32.0, 1.0, 0.4, 1.0]
           },
           {
             "name": "DepthRange",

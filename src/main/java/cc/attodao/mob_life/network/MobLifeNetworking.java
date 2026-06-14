@@ -13,131 +13,93 @@ import net.minecraft.resources.Identifier;
 
 public final class MobLifeNetworking {
 
-    private MobLifeNetworking() {}
+  private MobLifeNetworking() {}
 
-    public static void registerPayloads() {
-        PayloadTypeRegistry.clientboundPlay().register(
-            MorphSelectionPayload.TYPE,
-            MorphSelectionPayload.CODEC
-        );
-        PayloadTypeRegistry.clientboundPlay().register(
-            AwkwardnessPayload.TYPE,
-            AwkwardnessPayload.CODEC
-        );
-        PayloadTypeRegistry.serverboundPlay().register(
-            ChargedJumpPayload.TYPE,
-            ChargedJumpPayload.CODEC
-        );
-        PayloadTypeRegistry.serverboundPlay().register(
-            SleepRequestPayload.TYPE,
-            SleepRequestPayload.CODEC
-        );
-        ServerPlayNetworking.registerGlobalReceiver(
-            ChargedJumpPayload.TYPE,
-            (payload, context) ->
-                ServerMorphManager.performChargedJump(
-                    context.player(),
-                    payload.chargeAmount()
-                )
-        );
-        ServerPlayNetworking.registerGlobalReceiver(
-            SleepRequestPayload.TYPE,
-            (payload, context) -> MorphSleep.requestSleep(context.player())
-        );
-    }
+  public static void registerPayloads() {
+    PayloadTypeRegistry.clientboundPlay()
+        .register(MorphSelectionPayload.TYPE, MorphSelectionPayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(AwkwardnessPayload.TYPE, AwkwardnessPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(ChargedJumpPayload.TYPE, ChargedJumpPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(SleepRequestPayload.TYPE, SleepRequestPayload.CODEC);
+    ServerPlayNetworking.registerGlobalReceiver(
+        ChargedJumpPayload.TYPE,
+        (payload, context) ->
+            ServerMorphManager.performChargedJump(context.player(), payload.chargeAmount()));
+    ServerPlayNetworking.registerGlobalReceiver(
+        SleepRequestPayload.TYPE, (payload, context) -> MorphSleep.requestSleep(context.player()));
+  }
 
-    public record MorphSelectionPayload(
-        String morphId,
-        CompoundTag nbt
-    ) implements CustomPacketPayload {
-        public static final Type<MorphSelectionPayload> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "morph_selection")
-        );
-        public static final StreamCodec<
-            RegistryFriendlyByteBuf,
-            MorphSelectionPayload
-        > CODEC = StreamCodec.of(
+  public record MorphSelectionPayload(String morphId, CompoundTag nbt)
+      implements CustomPacketPayload {
+    public static final Type<MorphSelectionPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "morph_selection"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MorphSelectionPayload> CODEC =
+        StreamCodec.of(
             (buffer, payload) -> {
-                buffer.writeUtf(payload.morphId());
-                buffer.writeNbt(payload.nbt());
+              buffer.writeUtf(payload.morphId());
+              buffer.writeNbt(payload.nbt());
             },
             buffer -> {
-                String morphId = buffer.readUtf();
-                CompoundTag nbt = buffer.readNbt();
-                return new MorphSelectionPayload(
-                    morphId,
-                    nbt != null ? nbt : new CompoundTag()
-                );
-            }
-        );
+              String morphId = buffer.readUtf();
+              CompoundTag nbt = buffer.readNbt();
+              return new MorphSelectionPayload(morphId, nbt != null ? nbt : new CompoundTag());
+            });
 
-        public MorphSelectionPayload {
-            nbt = nbt.copy();
-        }
-
-        @Override
-        public CompoundTag nbt() {
-            return nbt.copy();
-        }
-
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
+    public MorphSelectionPayload {
+      nbt = nbt.copy();
     }
 
-    public record ChargedJumpPayload(
-        int chargeAmount
-    ) implements CustomPacketPayload {
-        public static final Type<ChargedJumpPayload> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "charged_jump")
-        );
-        public static final StreamCodec<
-            RegistryFriendlyByteBuf,
-            ChargedJumpPayload
-        > CODEC = StreamCodec.of(
+    @Override
+    public CompoundTag nbt() {
+      return nbt.copy();
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record ChargedJumpPayload(int chargeAmount) implements CustomPacketPayload {
+    public static final Type<ChargedJumpPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "charged_jump"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ChargedJumpPayload> CODEC =
+        StreamCodec.of(
             (buffer, payload) -> buffer.writeVarInt(payload.chargeAmount()),
-            buffer -> new ChargedJumpPayload(buffer.readVarInt())
-        );
+            buffer -> new ChargedJumpPayload(buffer.readVarInt()));
 
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
     }
+  }
 
-    public record AwkwardnessPayload(
-        float value
-    ) implements CustomPacketPayload {
-        public static final Type<AwkwardnessPayload> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "awkwardness")
-        );
-        public static final StreamCodec<
-            RegistryFriendlyByteBuf,
-            AwkwardnessPayload
-        > CODEC = StreamCodec.of(
+  public record AwkwardnessPayload(float value) implements CustomPacketPayload {
+    public static final Type<AwkwardnessPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "awkwardness"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, AwkwardnessPayload> CODEC =
+        StreamCodec.of(
             (buffer, payload) -> buffer.writeFloat(payload.value()),
-            buffer -> new AwkwardnessPayload(buffer.readFloat())
-        );
+            buffer -> new AwkwardnessPayload(buffer.readFloat()));
 
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
     }
+  }
 
-    public record SleepRequestPayload() implements CustomPacketPayload {
-        public static final Type<SleepRequestPayload> TYPE = new Type<>(
-            Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "sleep_request")
-        );
-        public static final StreamCodec<
-            RegistryFriendlyByteBuf,
-            SleepRequestPayload
-        > CODEC = StreamCodec.unit(new SleepRequestPayload());
+  public record SleepRequestPayload() implements CustomPacketPayload {
+    public static final Type<SleepRequestPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "sleep_request"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, SleepRequestPayload> CODEC =
+        StreamCodec.unit(new SleepRequestPayload());
 
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
     }
+  }
 }

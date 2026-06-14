@@ -15,51 +15,49 @@ import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;
 
 public final class MobLifeClient implements ClientModInitializer {
-	private static final KeyMapping SLEEP_KEY = KeyMappingHelper.registerKeyMapping(
-			new KeyMapping(
-					"key.mob_life.sleep",
-					InputConstants.Type.KEYSYM,
-					GLFW.GLFW_KEY_V,
-					KeyMapping.Category.GAMEPLAY
-			)
-	);
+  private static final KeyMapping SLEEP_KEY =
+      KeyMappingHelper.registerKeyMapping(
+          new KeyMapping(
+              "key.mob_life.sleep",
+              InputConstants.Type.KEYSYM,
+              GLFW.GLFW_KEY_V,
+              KeyMapping.Category.GAMEPLAY));
 
-	@Override
-	public void onInitializeClient() {
-		MobLifeClientConfig.load();
-		ClientPlayNetworking.registerGlobalReceiver(
-				MobLifeNetworking.MorphSelectionPayload.TYPE,
-				(payload, context) -> context.client().execute(() -> {
-					ClientMorphState.setMorph(new MorphDefinition(
-							MorphType.fromId(payload.morphId()),
-							payload.nbt()
-					));
-					context.client().gameRenderer.checkEntityPostEffect(context.client().getCameraEntity());
-				})
-		);
-		ClientPlayNetworking.registerGlobalReceiver(
-				MobLifeNetworking.AwkwardnessPayload.TYPE,
-				(payload, context) -> context.client().execute(
-						() -> ClientMorphState.setAwkwardness(payload.value())
-				)
-		);
+  @Override
+  public void onInitializeClient() {
+    MobLifeClientConfig.load();
+    ClientPlayNetworking.registerGlobalReceiver(
+        MobLifeNetworking.MorphSelectionPayload.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () -> {
+                      ClientMorphState.setMorph(
+                          new MorphDefinition(MorphType.fromId(payload.morphId()), payload.nbt()));
+                      context
+                          .client()
+                          .gameRenderer
+                          .checkEntityPostEffect(context.client().getCameraEntity());
+                    }));
+    ClientPlayNetworking.registerGlobalReceiver(
+        MobLifeNetworking.AwkwardnessPayload.TYPE,
+        (payload, context) ->
+            context.client().execute(() -> ClientMorphState.setAwkwardness(payload.value())));
 
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-			ClientMorphState.clear();
-			client.gameRenderer.clearPostEffect();
-		});
-		ClientTickEvents.END_CLIENT_TICK.register(client -> {
-			while (SLEEP_KEY.consumeClick()) {
-				if (
-						client.player != null
-								&& ClientMorphState.morph() != null
-				) {
-					ClientPlayNetworking.send(
-							new MobLifeNetworking.SleepRequestPayload()
-					);
-				}
-			}
-			ClientMorphState.tick(client);
-		});
-	}
+    ClientPlayConnectionEvents.DISCONNECT.register(
+        (handler, client) -> {
+          ClientMorphState.clear();
+          client.gameRenderer.clearPostEffect();
+        });
+    ClientTickEvents.END_CLIENT_TICK.register(
+        client -> {
+          while (SLEEP_KEY.consumeClick()) {
+            if (client.player != null && ClientMorphState.morph() != null) {
+              ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());
+            }
+          }
+          ClientMorphState.tick(client);
+        });
+  }
 }

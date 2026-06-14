@@ -5,20 +5,17 @@ import cc.attodao.mob_life.morph.MorphType;
 
 public final class PendingWorldSelection {
 
-    private static MorphDefinition pending;
+  private static MorphDefinition pending;
 
-    private PendingWorldSelection() {}
+  private PendingWorldSelection() {}
 
-    public static synchronized void setForNextWorld(
-        MorphDefinition definition
-    ) {
-        pending = definition;
-    }
+  public static synchronized void setForNextWorld(MorphDefinition definition) {
+    pending = definition;
+  }
 
-    public static synchronized MorphDefinition consumeOrDefault() {
-        MorphDefinition result =
-            pending != null ? pending : MorphDefinition.of(MorphType.PLAYER);
-        pending = null;
-        return result;
-    }
+  public static synchronized MorphDefinition consumeOrDefault() {
+    MorphDefinition result = pending != null ? pending : MorphDefinition.of(MorphType.PLAYER);
+    pending = null;
+    return result;
+  }
 }

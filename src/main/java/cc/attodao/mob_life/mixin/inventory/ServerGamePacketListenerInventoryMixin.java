@@ -10,17 +10,15 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerGamePacketListenerInventoryMixin {
-	@Shadow
-	public ServerPlayer player;
+  @Shadow public ServerPlayer player;
 
-	@Redirect(
-			method = "handleSetCarriedItem",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/world/entity/player/Inventory;getSelectionSize()I"
-			)
-	)
-	private int mobLife$getActiveHotbarSize() {
-		return MorphInventoryCapacity.hotbarSlots(player);
-	}
+  @Redirect(
+      method = "handleSetCarriedItem",
+      at =
+          @At(
+              value = "INVOKE",
+              target = "Lnet/minecraft/world/entity/player/Inventory;getSelectionSize()I"))
+  private int mobLife$getActiveHotbarSize() {
+    return MorphInventoryCapacity.hotbarSlots(player);
+  }
 }

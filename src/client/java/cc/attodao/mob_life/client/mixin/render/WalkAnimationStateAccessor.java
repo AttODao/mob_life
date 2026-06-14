@@ -6,21 +6,21 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(WalkAnimationState.class)
 public interface WalkAnimationStateAccessor {
-	@Accessor("speedOld")
-	float mobLife$getSpeedOld();
+  @Accessor("speedOld")
+  float mobLife$getSpeedOld();
 
-	@Accessor("speedOld")
-	void mobLife$setSpeedOld(float value);
+  @Accessor("speedOld")
+  void mobLife$setSpeedOld(float value);
 
-	@Accessor("speed")
-	float mobLife$getSpeed();
+  @Accessor("speed")
+  float mobLife$getSpeed();
 
-	@Accessor("speed")
-	void mobLife$setSpeed(float value);
+  @Accessor("speed")
+  void mobLife$setSpeed(float value);
 
-	@Accessor("position")
-	float mobLife$getPosition();
+  @Accessor("position")
+  float mobLife$getPosition();
 
-	@Accessor("position")
-	void mobLife$setPosition(float value);
+  @Accessor("position")
+  void mobLife$setPosition(float value);
 }

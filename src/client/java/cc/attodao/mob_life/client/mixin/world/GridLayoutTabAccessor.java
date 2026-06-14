@@ -7,6 +7,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(GridLayoutTab.class)
 public interface GridLayoutTabAccessor {
-	@Accessor("layout")
-	GridLayout mobLife$getLayout();
+  @Accessor("layout")
+  GridLayout mobLife$getLayout();
 }

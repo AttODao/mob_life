@@ -13,16 +13,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LivingEntity.class)
 public abstract class ClientPlayerDimensionsMixin {
-	@Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
-	private void mobLife$useMorphDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
-		Entity self = (Entity) (Object) this;
-		if (!(self instanceof Player)) {
-			return;
-		}
+  @Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
+  private void mobLife$useMorphDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
+    Entity self = (Entity) (Object) this;
+    if (!(self instanceof Player)) {
+      return;
+    }
 
-		EntityDimensions dimensions = ClientMorphState.dimensions();
-		if (dimensions != null) {
-			cir.setReturnValue(dimensions);
-		}
-	}
+    EntityDimensions dimensions = ClientMorphState.dimensions();
+    if (dimensions != null) {
+      cir.setReturnValue(dimensions);
+    }
+  }
 }

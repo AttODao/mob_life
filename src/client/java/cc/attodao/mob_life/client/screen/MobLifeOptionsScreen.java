@@ -8,46 +8,32 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 public final class MobLifeOptionsScreen extends Screen {
-	private final Screen parent;
+  private final Screen parent;
 
-	public MobLifeOptionsScreen(Screen parent) {
-		super(Component.translatable("mob_life.options.title"));
-		this.parent = parent;
-	}
+  public MobLifeOptionsScreen(Screen parent) {
+    super(Component.translatable("mob_life.options.title"));
+    this.parent = parent;
+  }
 
-	@Override
-	protected void init() {
-		addRenderableWidget(
-				CycleButton.onOffBuilder(
-						MobLifeClientConfig.showAwkwardnessDebug()
-				).create(
-						width / 2 - 100,
-						height / 2 - 24,
-						200,
-						20,
-						Component.translatable(
-								"mob_life.options.awkwardness_debug"
-						),
-						(button, value) ->
-								MobLifeClientConfig
-										.setShowAwkwardnessDebug(value)
-				)
-		);
-		addRenderableWidget(
-				Button.builder(
-						CommonComponents.GUI_DONE,
-						button -> onClose()
-				).bounds(
-						width / 2 - 100,
-						height / 2 + 8,
-						200,
-						20
-				).build()
-		);
-	}
+  @Override
+  protected void init() {
+    addRenderableWidget(
+        CycleButton.onOffBuilder(MobLifeClientConfig.showAwkwardnessDebug())
+            .create(
+                width / 2 - 100,
+                height / 2 - 24,
+                200,
+                20,
+                Component.translatable("mob_life.options.awkwardness_debug"),
+                (button, value) -> MobLifeClientConfig.setShowAwkwardnessDebug(value)));
+    addRenderableWidget(
+        Button.builder(CommonComponents.GUI_DONE, button -> onClose())
+            .bounds(width / 2 - 100, height / 2 + 8, 200, 20)
+            .build());
+  }
 
-	@Override
-	public void onClose() {
-		minecraft.setScreen(parent);
-	}
+  @Override
+  public void onClose() {
+    minecraft.setScreen(parent);
+  }
 }

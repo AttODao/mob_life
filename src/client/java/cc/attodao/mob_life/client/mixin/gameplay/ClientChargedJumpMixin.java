@@ -10,10 +10,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
 public abstract class ClientChargedJumpMixin {
-	@Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
-	private void mobLife$preventRepeatedMobJump(CallbackInfo ci) {
-		if ((Object) this instanceof Player && ClientMorphState.morph() != null) {
-			ci.cancel();
-		}
-	}
+  @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventRepeatedMobJump(CallbackInfo ci) {
+    if ((Object) this instanceof Player && ClientMorphState.morph() != null) {
+      ci.cancel();
+    }
+  }
 }

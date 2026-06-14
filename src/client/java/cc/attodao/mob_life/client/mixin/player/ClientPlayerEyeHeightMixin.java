@@ -11,15 +11,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(Entity.class)
 public abstract class ClientPlayerEyeHeightMixin {
-	@Inject(method = "getEyeHeight()F", at = @At("HEAD"), cancellable = true)
-	private void mobLife$useMorphEyeHeight(CallbackInfoReturnable<Float> cir) {
-		if ((Object) this != Minecraft.getInstance().player) {
-			return;
-		}
+  @Inject(method = "getEyeHeight()F", at = @At("HEAD"), cancellable = true)
+  private void mobLife$useMorphEyeHeight(CallbackInfoReturnable<Float> cir) {
+    if ((Object) this != Minecraft.getInstance().player) {
+      return;
+    }
 
-		EntityDimensions dimensions = ClientMorphState.dimensions();
-		if (dimensions != null) {
-			cir.setReturnValue(ClientMorphState.eyeHeight());
-		}
-	}
+    EntityDimensions dimensions = ClientMorphState.dimensions();
+    if (dimensions != null) {
+      cir.setReturnValue(ClientMorphState.eyeHeight());
+    }
+  }
 }

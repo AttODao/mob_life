@@ -11,20 +11,17 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 
 @Mixin(MouseHandler.class)
 public abstract class MouseHandlerInventoryMixin {
-	@Shadow
-	@Final
-	private Minecraft minecraft;
+  @Shadow @Final private Minecraft minecraft;
 
-	@Redirect(
-			method = "onScroll",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/world/entity/player/Inventory;getSelectionSize()I"
-			)
-	)
-	private int mobLife$getActiveHotbarSize() {
-		return minecraft.player == null
-				? MorphInventoryCapacity.MAX_HOTBAR_SLOTS
-				: MorphInventoryCapacity.hotbarSlots(minecraft.player);
-	}
+  @Redirect(
+      method = "onScroll",
+      at =
+          @At(
+              value = "INVOKE",
+              target = "Lnet/minecraft/world/entity/player/Inventory;getSelectionSize()I"))
+  private int mobLife$getActiveHotbarSize() {
+    return minecraft.player == null
+        ? MorphInventoryCapacity.MAX_HOTBAR_SLOTS
+        : MorphInventoryCapacity.hotbarSlots(minecraft.player);
+  }
 }

@@ -12,38 +12,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ItemInHandRenderer.class)
 public abstract class ItemInHandRendererMixin {
-	@Inject(method = "renderPlayerArm", at = @At("HEAD"), cancellable = true)
-	private void mobLife$renderMorphEmptyHand(
-			PoseStack poseStack,
-			SubmitNodeCollector collector,
-			int lightCoords,
-			float inverseArmHeight,
-			float attackValue,
-			HumanoidArm arm,
-			CallbackInfo ci
-	) {
-		if (FirstPersonMorphHandRenderer.renderEmptyHand(
-				poseStack,
-				collector,
-				lightCoords,
-				inverseArmHeight,
-				attackValue,
-				arm
-		)) {
-			ci.cancel();
-		}
-	}
+  @Inject(method = "renderPlayerArm", at = @At("HEAD"), cancellable = true)
+  private void mobLife$renderMorphEmptyHand(
+      PoseStack poseStack,
+      SubmitNodeCollector collector,
+      int lightCoords,
+      float inverseArmHeight,
+      float attackValue,
+      HumanoidArm arm,
+      CallbackInfo ci) {
+    if (FirstPersonMorphHandRenderer.renderEmptyHand(
+        poseStack, collector, lightCoords, inverseArmHeight, attackValue, arm)) {
+      ci.cancel();
+    }
+  }
 
-	@Inject(method = "renderMapHand", at = @At("HEAD"), cancellable = true)
-	private void mobLife$renderMorphMapHand(
-			PoseStack poseStack,
-			SubmitNodeCollector collector,
-			int lightCoords,
-			HumanoidArm arm,
-			CallbackInfo ci
-	) {
-		if (FirstPersonMorphHandRenderer.shouldHideHandWithItem()) {
-			ci.cancel();
-		}
-	}
+  @Inject(method = "renderMapHand", at = @At("HEAD"), cancellable = true)
+  private void mobLife$renderMorphMapHand(
+      PoseStack poseStack,
+      SubmitNodeCollector collector,
+      int lightCoords,
+      HumanoidArm arm,
+      CallbackInfo ci) {
+    if (FirstPersonMorphHandRenderer.shouldHideHandWithItem()) {
+      ci.cancel();
+    }
+  }
 }

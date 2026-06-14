@@ -14,33 +14,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityChargedJumpMixin implements ChargedJumpingPlayer {
-	@Shadow
-	protected abstract float getJumpPower(float multiplier);
+  @Shadow
+  protected abstract float getJumpPower(float multiplier);
 
-	@Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
-	private void mobLife$preventRepeatedMobJump(CallbackInfo ci) {
-		if ((Object) this instanceof ServerPlayer && ServerMorphManager.hasMobForm()) {
-			ci.cancel();
-		}
-	}
+  @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventRepeatedMobJump(CallbackInfo ci) {
+    if ((Object) this instanceof ServerPlayer && ServerMorphManager.hasMobForm()) {
+      ci.cancel();
+    }
+  }
 
-	@Override
-	public void mobLife$performChargedJump(float scale) {
-		LivingEntity entity = (LivingEntity) (Object) this;
-		float jumpPower = getJumpPower(scale);
-		if (jumpPower <= 1.0E-5F) {
-			return;
-		}
+  @Override
+  public void mobLife$performChargedJump(float scale) {
+    LivingEntity entity = (LivingEntity) (Object) this;
+    float jumpPower = getJumpPower(scale);
+    if (jumpPower <= 1.0E-5F) {
+      return;
+    }
 
-		Vec3 movement = entity.getDeltaMovement();
-		entity.setDeltaMovement(movement.x, Math.max(jumpPower, movement.y), movement.z);
-		if (entity.isSprinting()) {
-			float angle = entity.getYRot() * (float) (Math.PI / 180.0);
-			entity.addDeltaMovement(new Vec3(
-					-Mth.sin(angle) * 0.2F * scale,
-					0.0,
-					Mth.cos(angle) * 0.2F * scale
-			));
-		}
-	}
+    Vec3 movement = entity.getDeltaMovement();
+    entity.setDeltaMovement(movement.x, Math.max(jumpPower, movement.y), movement.z);
+    if (entity.isSprinting()) {
+      float angle = entity.getYRot() * (float) (Math.PI / 180.0);
+      entity.addDeltaMovement(
+          new Vec3(-Mth.sin(angle) * 0.2F * scale, 0.0, Mth.cos(angle) * 0.2F * scale));
+    }
+  }
 }

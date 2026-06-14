@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "#minecraft:logs"
+  ],
+  "result": {
+    "id": "minecraft:crafting_table"
+  },
+  "show_notification": false
+}

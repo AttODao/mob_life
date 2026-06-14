@@ -11,20 +11,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(AbstractContainerMenu.class)
 public abstract class AbstractContainerMenuMixin {
-	@Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
-	private void mobLife$preventSwapToInactiveHotbarSlot(
-			int slotIndex,
-			int buttonNum,
-			ContainerInput containerInput,
-			Player player,
-			CallbackInfo ci
-	) {
-		if (
-				containerInput == ContainerInput.SWAP
-						&& buttonNum >= MorphInventoryCapacity.hotbarSlots(player)
-						&& buttonNum < MorphInventoryCapacity.MAX_HOTBAR_SLOTS
-		) {
-			ci.cancel();
-		}
-	}
+  @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventSwapToInactiveHotbarSlot(
+      int slotIndex, int buttonNum, ContainerInput containerInput, Player player, CallbackInfo ci) {
+    if (containerInput == ContainerInput.SWAP
+        && buttonNum >= MorphInventoryCapacity.hotbarSlots(player)
+        && buttonNum < MorphInventoryCapacity.MAX_HOTBAR_SLOTS) {
+      ci.cancel();
+    }
+  }
 }

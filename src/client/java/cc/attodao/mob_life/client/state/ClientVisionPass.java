@@ -1,16 +1,15 @@
 package cc.attodao.mob_life.client.state;
 
 public final class ClientVisionPass {
-	private static boolean distancePass;
+  private static boolean distancePass;
 
-	private ClientVisionPass() {
-	}
+  private ClientVisionPass() {}
 
-	public static boolean isDistancePass() {
-		return distancePass;
-	}
+  public static boolean isDistancePass() {
+    return distancePass;
+  }
 
-	public static void setDistancePass(boolean active) {
-		distancePass = active;
-	}
+  public static void setDistancePass(boolean active) {
+    distancePass = active;
+  }
 }

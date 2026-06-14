@@ -27,6 +27,51 @@ out vec4 fragColor;
 
 const vec3 LUMINANCE_RESPONSE = vec3(0.2126, 0.7152, 0.0722);
 
+float peripheralAmount() {
+    vec2 edgePosition = abs(texCoord * 2.0 - 1.0);
+    float roundedEdgeDistance = pow(
+        pow(edgePosition.x, 4.0) + pow(edgePosition.y, 4.0),
+        0.25
+    );
+    return smoothstep(0.30, 1.0, roundedEdgeDistance);
+}
+
+vec3 samplePeripheralBlur(float blurAmount) {
+    if (blurAmount < 0.001 || Settings.w < 0.001) {
+        return texture(InSampler, texCoord).rgb;
+    }
+
+    vec2 offset = Settings.w * blurAmount / InSize;
+    vec3 color = texture(InSampler, texCoord).rgb * 0.2;
+    color += texture(
+        InSampler,
+        texCoord + vec2(offset.x, 0.0)
+    ).rgb * 0.12;
+    color += texture(
+        InSampler,
+        texCoord - vec2(offset.x, 0.0)
+    ).rgb * 0.12;
+    color += texture(
+        InSampler,
+        texCoord + vec2(0.0, offset.y)
+    ).rgb * 0.12;
+    color += texture(
+        InSampler,
+        texCoord - vec2(0.0, offset.y)
+    ).rgb * 0.12;
+    color += texture(InSampler, texCoord + offset).rgb * 0.08;
+    color += texture(InSampler, texCoord - offset).rgb * 0.08;
+    color += texture(
+        InSampler,
+        texCoord + vec2(offset.x, -offset.y)
+    ).rgb * 0.08;
+    color += texture(
+        InSampler,
+        texCoord + vec2(-offset.x, offset.y)
+    ).rgb * 0.08;
+    return color;
+}
+
 vec3 sampleDistanceBlur(float blurAmount) {
     if (blurAmount < 0.001) {
         return texture(InSampler, texCoord).rgb;
@@ -56,6 +101,8 @@ vec3 sampleDistanceBlur(float blurAmount) {
 void main() {
     vec4 sourceColor = texture(InSampler, texCoord);
     if (DepthRange.z < 0.5) {
+        float peripheral = peripheralAmount();
+        sourceColor.rgb = samplePeripheralBlur(peripheral);
         vec3 shiftedColor = vec3(
             dot(sourceColor.rgb, RedResponse.rgb),
             dot(sourceColor.rgb, GreenResponse.rgb),
@@ -87,6 +134,7 @@ void main() {
         baseVisionColor *= sourceLuminance
             * baseBrightness
             / transformedLuminance;
+        baseVisionColor *= mix(1.0, Effects.z, peripheral);
         fragColor = vec4(
             clamp(baseVisionColor, 0.0, 1.0),
             sourceColor.a

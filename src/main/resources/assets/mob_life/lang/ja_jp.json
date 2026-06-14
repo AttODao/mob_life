@@ -1,5 +1,7 @@
 {
 	"mob_life.create_world.morph": "プレイ形態",
+	"mob_life.create_world.morph.button": "プレイ形態: %s",
+	"mob_life.create_world.morph.select": "プレイ形態を選択",
 	"mob_life.create_world.morph.locked": "後から/moblife morphコマンドで変更できます",
 	"mob_life.create_world.nbt": "変身MobのNBT",
 	"mob_life.create_world.nbt.hint": "任意: {Age:-24000}",
@@ -9,6 +11,14 @@
 	"mob_life.morph.cow": "牛",
 	"mob_life.morph.sheep": "ヒツジ",
 	"mob_life.morph.chicken": "ニワトリ",
+	"mob_life.morph.cat": "ネコ",
+	"mob_life.morph.ocelot": "ヤマネコ",
+	"mob_life.morph.wolf": "オオカミ",
+	"mob_life.morph.pig": "ブタ",
+	"mob_life.morph.horse": "ウマ",
+	"mob_life.morph.donkey": "ロバ",
+	"mob_life.morph.mule": "ラバ",
+	"mob_life.morph.rabbit": "ウサギ",
 	"commands.mob_life.morph.success": "プレイ形態を%sに変更しました",
 	"commands.mob_life.morph.unsupported": "%sには変身できません",
 	"commands.mob_life.awkwardness.success": "違和感を%sに設定しました",
@@ -19,5 +29,6 @@
 	"mob_life.sleep.too_awkward": "違和感が強すぎて眠れません",
 	"mob_life.sleep.not_enough_food": "眠るには満腹度が%sより多く必要です",
 	"mob_life.sleep.soft_surface_required": "柔らかいブロックの上でのみ眠れます",
-	"mob_life.sleep.not_possible": "ここでは眠れません"
+	"mob_life.sleep.not_possible": "ここでは眠れません",
+	"mob_life.sleep.nocturnal_night": "夜行性の姿では夜に眠れません"
 }

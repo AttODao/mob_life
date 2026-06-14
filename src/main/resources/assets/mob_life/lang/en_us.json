@@ -1,5 +1,7 @@
 {
 	"mob_life.create_world.morph": "Play Form",
+	"mob_life.create_world.morph.button": "Play Form: %s",
+	"mob_life.create_world.morph.select": "Select Play Form",
 	"mob_life.create_world.morph.locked": "You can change this later with /moblife morph",
 	"mob_life.create_world.nbt": "Morph Mob NBT",
 	"mob_life.create_world.nbt.hint": "Optional: {Age:-24000}",
@@ -9,6 +11,14 @@
 	"mob_life.morph.cow": "Cow",
 	"mob_life.morph.sheep": "Sheep",
 	"mob_life.morph.chicken": "Chicken",
+	"mob_life.morph.cat": "Cat",
+	"mob_life.morph.ocelot": "Ocelot",
+	"mob_life.morph.wolf": "Wolf",
+	"mob_life.morph.pig": "Pig",
+	"mob_life.morph.horse": "Horse",
+	"mob_life.morph.donkey": "Donkey",
+	"mob_life.morph.mule": "Mule",
+	"mob_life.morph.rabbit": "Rabbit",
 	"commands.mob_life.morph.success": "Play form changed to %s",
 	"commands.mob_life.morph.unsupported": "You cannot morph into %s",
 	"commands.mob_life.awkwardness.success": "Awkwardness set to %s",
@@ -19,5 +29,6 @@
 	"mob_life.sleep.too_awkward": "You feel too awkward to sleep",
 	"mob_life.sleep.not_enough_food": "Sleeping requires more than %s food points",
 	"mob_life.sleep.soft_surface_required": "You can only sleep on a soft block",
-	"mob_life.sleep.not_possible": "You cannot sleep here"
+	"mob_life.sleep.not_possible": "You cannot sleep here",
+	"mob_life.sleep.nocturnal_night": "Nocturnal forms cannot sleep at night"
 }

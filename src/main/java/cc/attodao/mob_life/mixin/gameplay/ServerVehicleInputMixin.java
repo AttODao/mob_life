@@ -16,65 +16,48 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ServerGamePacketListenerImpl.class)
 public abstract class ServerVehicleInputMixin {
-	@Shadow
-	public ServerPlayer player;
+  @Shadow public ServerPlayer player;
 
-	@ModifyArg(
-			method = "handlePlayerInput",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/server/level/ServerPlayer;setLastClientInput(Lnet/minecraft/world/entity/player/Input;)V"
-			),
-			index = 0
-	)
-	private Input mobLife$keepOnlyDismountInput(Input input) {
-		if (!mobLife$isRestrictedVehicle()) {
-			return input;
-		}
+  @ModifyArg(
+      method = "handlePlayerInput",
+      at =
+          @At(
+              value = "INVOKE",
+              target =
+                  "Lnet/minecraft/server/level/ServerPlayer;setLastClientInput(Lnet/minecraft/world/entity/player/Input;)V"),
+      index = 0)
+  private Input mobLife$keepOnlyDismountInput(Input input) {
+    if (!mobLife$isRestrictedVehicle()) {
+      return input;
+    }
 
-		player.setSprinting(false);
-		return new Input(
-				false,
-				false,
-				false,
-				false,
-				false,
-				input.shift(),
-				false
-		);
-	}
+    player.setSprinting(false);
+    return new Input(false, false, false, false, false, input.shift(), false);
+  }
 
-	@Inject(
-			method = "handlePlayerCommand",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/server/level/ServerPlayer;resetLastActionTime()V",
-					shift = At.Shift.AFTER
-			),
-			cancellable = true
-	)
-	private void mobLife$preventVehicleMovementCommands(
-			ServerboundPlayerCommandPacket packet,
-			CallbackInfo ci
-	) {
-		if (!mobLife$isRestrictedVehicle()) {
-			return;
-		}
+  @Inject(
+      method = "handlePlayerCommand",
+      at =
+          @At(
+              value = "INVOKE",
+              target = "Lnet/minecraft/server/level/ServerPlayer;resetLastActionTime()V",
+              shift = At.Shift.AFTER),
+      cancellable = true)
+  private void mobLife$preventVehicleMovementCommands(
+      ServerboundPlayerCommandPacket packet, CallbackInfo ci) {
+    if (!mobLife$isRestrictedVehicle()) {
+      return;
+    }
 
-		switch (packet.getAction()) {
-			case START_SPRINTING, START_RIDING_JUMP, STOP_RIDING_JUMP ->
-					ci.cancel();
-			default -> {
-			}
-		}
-	}
+    switch (packet.getAction()) {
+      case START_SPRINTING, START_RIDING_JUMP, STOP_RIDING_JUMP -> ci.cancel();
+      default -> {}
+    }
+  }
 
-	private boolean mobLife$isRestrictedVehicle() {
-		return ServerMorphManager.hasMobForm()
-				&& (
-						player.getVehicle() instanceof AbstractBoat
-								|| player.getVehicle()
-								instanceof AbstractMinecart
-				);
-	}
+  private boolean mobLife$isRestrictedVehicle() {
+    return ServerMorphManager.hasMobForm()
+        && (player.getVehicle() instanceof AbstractBoat
+            || player.getVehicle() instanceof AbstractMinecart);
+  }
 }
