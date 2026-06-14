@@ -33,11 +33,7 @@ public final class MobLifeCommand {
         (dispatcher, buildContext, selection) -> {
           dispatcher.register(
               Commands.literal("moblife")
-                  .requires(
-                      source ->
-                          source.getServer() == null
-                              || !source.getServer().isDedicatedServer()
-                              || Commands.hasPermission(Commands.LEVEL_GAMEMASTERS).test(source))
+                  .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                   .then(
                       Commands.literal("morph")
                           .then(

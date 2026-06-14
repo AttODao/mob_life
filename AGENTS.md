@@ -85,7 +85,8 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
   before the NBT is applied to the morph template.
 - `Health` overrides the transformed player's maximum health. Other visual and
   entity attributes, including age and color, are loaded by the target entity.
-- Dedicated servers require gamemaster permission for the command.
+- The `/moblife` command tree is a cheat command and requires vanilla
+  gamemaster command permission, including in integrated singleplayer worlds.
 - Mob forms replace player rendering, animation, dimensions, collision box, eye height, movement speed, and maximum health.
 - The maximum step height is proportional to the actual NBT-adjusted morph
   height, using the player's vanilla 0.6-block step height as the baseline.
@@ -297,3 +298,5 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
 - Deleted `com.example` and `modid` template files are intentional.
 - Do not restore template files or revert unrelated user changes.
 - Third-party attribution is recorded in `THIRD_PARTY_NOTICES.md`.
+- Mob Life itself is released under the MIT License; third-party dependencies and
+  implementation references retain their own licenses.

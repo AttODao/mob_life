@@ -1,8 +1,7 @@
 plugins {
 	id 'net.fabricmc.fabric-loom' version "${loom_version}"
 	id 'maven-publish'
-
-    id 'com.diffplug.spotless' version '8.6.0'
+	id 'com.diffplug.spotless' version '8.6.0'
 }
 
 version = project.mod_version
@@ -51,8 +50,8 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-	implementation "com.terraformersmc:modmenu:${project.modmenu_version}"
-
+	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+	localRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
 
 processResources {
@@ -109,7 +108,18 @@ publishing {
 }
 
 spotless {
-    java {
-        googleJavaFormat()
-    }
+	java {
+		target 'src/**/*.java'
+		googleJavaFormat('1.28.0')
+		removeUnusedImports()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
+
+	format('gradle') {
+		target '*.gradle'
+		leadingSpacesToTabs(4)
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
 }

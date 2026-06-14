@@ -7,3 +7,10 @@
 - ニワトリは空中でゆっくり落下します。
 
 対象: Minecraft 26.1.2 / Fabric Loader 0.19.3 / Java 25
+
+## License
+
+Mob Life is released under the [MIT License](LICENSE).
+
+Third-party projects used as dependencies or implementation references are
+listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

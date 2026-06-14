@@ -11,93 +11,74 @@ import net.minecraft.world.item.equipment.Equippable;
 
 public final class MorphEquipment {
 
-    private MorphEquipment() {}
+  private MorphEquipment() {}
 
-    public static boolean isSlotActive(Player player, int inventorySlot) {
-        MorphType morph = morph(player);
-        if (morph.isPlayer()) {
-            return true;
-        }
-        return switch (inventorySlot) {
-            case 36, 37, 38, 39 -> false;
-            case Inventory.SLOT_BODY_ARMOR -> morph.canEquipBodyArmor() ||
-                morph.canEquipChest();
-            case Inventory.SLOT_SADDLE -> morph.canEquipSaddle();
-            default -> true;
-        };
+  public static boolean isSlotActive(Player player, int inventorySlot) {
+    MorphType morph = morph(player);
+    if (morph.isPlayer()) {
+      return true;
+    }
+    return switch (inventorySlot) {
+      case 36, 37, 38, 39 -> false;
+      case Inventory.SLOT_BODY_ARMOR -> morph.canEquipBodyArmor() || morph.canEquipChest();
+      case Inventory.SLOT_SADDLE -> morph.canEquipSaddle();
+      default -> true;
+    };
+  }
+
+  public static boolean mayPlaceBody(Player player, ItemStack stack) {
+    MorphType morph = morph(player);
+    if (morph.canEquipChest() && stack.is(Items.CHEST)) {
+      return true;
+    }
+    return (morph.canEquipBodyArmor() && isEquippableForMorph(morph, stack, EquipmentSlot.BODY));
+  }
+
+  public static boolean mayPlaceSaddle(Player player, ItemStack stack) {
+    MorphType morph = morph(player);
+    return (morph.canEquipSaddle() && isEquippableForMorph(morph, stack, EquipmentSlot.SADDLE));
+  }
+
+  public static void removeUnsupportedEquipment(Player player) {
+    MorphType morph = morph(player);
+    if (!morph.canEquipChest()) {
+      MorphChestInventory.get(player).returnTo(player);
+    }
+    if (morph.isPlayer()) {
+      return;
     }
 
-    public static boolean mayPlaceBody(Player player, ItemStack stack) {
-        MorphType morph = morph(player);
-        if (morph.canEquipChest() && stack.is(Items.CHEST)) {
-            return true;
-        }
-        return (
-            morph.canEquipBodyArmor() &&
-            isEquippableForMorph(morph, stack, EquipmentSlot.BODY)
-        );
+    moveToInventory(player, EquipmentSlot.HEAD);
+    moveToInventory(player, EquipmentSlot.CHEST);
+    moveToInventory(player, EquipmentSlot.LEGS);
+    moveToInventory(player, EquipmentSlot.FEET);
+    if (!mayPlaceBody(player, player.getItemBySlot(EquipmentSlot.BODY))) {
+      moveToInventory(player, EquipmentSlot.BODY);
+    }
+    if (!mayPlaceSaddle(player, player.getItemBySlot(EquipmentSlot.SADDLE))) {
+      moveToInventory(player, EquipmentSlot.SADDLE);
+    }
+  }
+
+  private static boolean isEquippableForMorph(
+      MorphType morph, ItemStack stack, EquipmentSlot slot) {
+    Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
+    return (equippable != null
+        && equippable.slot() == slot
+        && equippable.canBeEquippedBy(morph.entityType().builtInRegistryHolder()));
+  }
+
+  public static MorphType morph(Player player) {
+    return ((MorphInventoryCapacityHolder) player).mobLife$getMorph();
+  }
+
+  private static void moveToInventory(Player player, EquipmentSlot equipmentSlot) {
+    ItemStack stack = player.getItemBySlot(equipmentSlot);
+    if (stack.isEmpty()) {
+      return;
     }
 
-    public static boolean mayPlaceSaddle(Player player, ItemStack stack) {
-        MorphType morph = morph(player);
-        return (
-            morph.canEquipSaddle() &&
-            isEquippableForMorph(morph, stack, EquipmentSlot.SADDLE)
-        );
-    }
-
-    public static void removeUnsupportedEquipment(Player player) {
-        MorphType morph = morph(player);
-        if (!morph.canEquipChest()) {
-            MorphChestInventory.get(player).returnTo(player);
-        }
-        if (morph.isPlayer()) {
-            return;
-        }
-
-        moveToInventory(player, EquipmentSlot.HEAD);
-        moveToInventory(player, EquipmentSlot.CHEST);
-        moveToInventory(player, EquipmentSlot.LEGS);
-        moveToInventory(player, EquipmentSlot.FEET);
-        if (!mayPlaceBody(player, player.getItemBySlot(EquipmentSlot.BODY))) {
-            moveToInventory(player, EquipmentSlot.BODY);
-        }
-        if (
-            !mayPlaceSaddle(player, player.getItemBySlot(EquipmentSlot.SADDLE))
-        ) {
-            moveToInventory(player, EquipmentSlot.SADDLE);
-        }
-    }
-
-    private static boolean isEquippableForMorph(
-        MorphType morph,
-        ItemStack stack,
-        EquipmentSlot slot
-    ) {
-        Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
-        return (
-            equippable != null &&
-            equippable.slot() == slot &&
-            equippable.canBeEquippedBy(
-                morph.entityType().builtInRegistryHolder()
-            )
-        );
-    }
-
-    public static MorphType morph(Player player) {
-        return ((MorphInventoryCapacityHolder) player).mobLife$getMorph();
-    }
-
-    private static void moveToInventory(
-        Player player,
-        EquipmentSlot equipmentSlot
-    ) {
-        ItemStack stack = player.getItemBySlot(equipmentSlot);
-        if (stack.isEmpty()) {
-            return;
-        }
-
-        player.setItemSlot(equipmentSlot, ItemStack.EMPTY);
-        player.getInventory().placeItemBackInInventory(stack);
-    }
+    player.setItemSlot(equipmentSlot, ItemStack.EMPTY);
+    player.getInventory().placeItemBackInInventory(stack);
+  }
 }

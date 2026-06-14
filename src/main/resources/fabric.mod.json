@@ -8,10 +8,7 @@
 		"attodao"
 	],
 	"contact": {},
-	"license": [
-		"CC0-1.0",
-		"MIT"
-	],
+	"license": "MIT",
 	"icon": "assets/mob_life/icon.png",
 	"environment": "*",
 	"entrypoints": {
@@ -36,7 +33,9 @@
 		"fabricloader": ">=0.19.3",
 		"minecraft": "~26.1.2",
 		"java": ">=25",
-		"fabric-api": "*",
+		"fabric-api": "*"
+	},
+	"suggests": {
 		"modmenu": ">=18.0.0-beta.1"
 	}
 }
