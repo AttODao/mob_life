@@ -3,6 +3,7 @@ package cc.attodao.mob_life.server;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
@@ -25,6 +26,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -41,6 +43,8 @@ import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 public final class ServerMorphManager {
@@ -49,6 +53,7 @@ public final class ServerMorphManager {
   private static final Map<UUID, Integer> SPRINT_TICKS = new HashMap<>();
   private static final Map<UUID, Integer> RABBIT_HOP_COOLDOWNS = new HashMap<>();
   private static final Map<UUID, Integer> AMBIENT_SOUND_TIMES = new HashMap<>();
+  private static final Map<UUID, Integer> GRASS_EATING_TICKS = new HashMap<>();
   private static final Map<UUID, Float> LAST_SYNCED_AWKWARDNESS = new HashMap<>();
 
   private static final float PASSIVE_DECAY_PER_SECOND = 0.2F;
@@ -58,10 +63,13 @@ public final class ServerMorphManager {
   private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
   private static final float LONG_SPRINT_GAIN = 0.08F;
   private static final int LONG_SPRINT_START_TICKS = 60;
+  private static final int GRASS_EATING_DURATION_TICKS = 40;
+  private static final int GRASS_FOOD_RESTORE = 2;
 
   private static MorphDefinition activeDefinition;
   private static EntityDimensions activeDimensions;
   private static float activeEyeHeight;
+  private static float activeWaterMovementInputScale = 1.0F;
   private static boolean activeFallDamageImmune;
   private static boolean activeHasAttackAi;
   private static Mob activeSoundMob;
@@ -86,6 +94,7 @@ public final class ServerMorphManager {
           activeDefinition = null;
           activeDimensions = null;
           activeEyeHeight = 0.0F;
+          activeWaterMovementInputScale = 1.0F;
           activeFallDamageImmune = false;
           activeHasAttackAi = false;
           activeSoundMob = null;
@@ -93,6 +102,7 @@ public final class ServerMorphManager {
           SPRINT_TICKS.clear();
           RABBIT_HOP_COOLDOWNS.clear();
           AMBIENT_SOUND_TIMES.clear();
+          GRASS_EATING_TICKS.clear();
           LAST_SYNCED_AWKWARDNESS.clear();
         });
     ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
@@ -110,6 +120,7 @@ public final class ServerMorphManager {
     ServerPlayerEvents.AFTER_RESPAWN.register(
         (oldPlayer, newPlayer, alive) -> {
           MorphAwkwardness.set(newPlayer, MorphAwkwardness.get(oldPlayer));
+          MorphAbility.copy(oldPlayer, newPlayer);
           initializePlayer(newPlayer);
         });
 
@@ -120,6 +131,8 @@ public final class ServerMorphManager {
           }
 
           for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            MorphAbility.tick(player);
+            tickGrassEating(player);
             addMovementExhaustion(player);
             tickAwkwardness(player);
             tickAmbientSound(player);
@@ -150,6 +163,10 @@ public final class ServerMorphManager {
 
   public static float activeEyeHeight() {
     return activeEyeHeight;
+  }
+
+  public static float activeWaterMovementInputScale() {
+    return activeWaterMovementInputScale;
   }
 
   public static boolean hasMobForm() {
@@ -230,6 +247,7 @@ public final class ServerMorphManager {
     setActiveDefinition(server, resolvedDefinition);
 
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+      MorphAbility.clearFastSprint(player);
       ServerPlayerMorphApplier.apply(player, resolvedDefinition, true);
     }
 
@@ -245,16 +263,20 @@ public final class ServerMorphManager {
       return;
     }
 
+    GRASS_EATING_TICKS.remove(player.getUUID());
     ServerPlayerMorphApplier.apply(player, definition, false);
+    MorphAbility.restore(player);
     syncAwkwardness(player, true);
   }
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
     RABBIT_HOP_COOLDOWNS.clear();
     AMBIENT_SOUND_TIMES.clear();
+    GRASS_EATING_TICKS.clear();
     activeDefinition = definition;
     activeDimensions = null;
     activeEyeHeight = 0.0F;
+    activeWaterMovementInputScale = 1.0F;
     activeFallDamageImmune = false;
     activeHasAttackAi = false;
     activeSoundMob = null;
@@ -269,6 +291,11 @@ public final class ServerMorphManager {
       activeFallDamageImmune = activeConfig().traits().fallDamageImmune();
       if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
         activeHasAttackAi = MorphAttackDamage.hasAttackAi(definition.type(), living);
+        activeWaterMovementInputScale =
+            (float)
+                    living.getAttributeValue(
+                        net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
+                * activeConfig().movement().waterInputMultiplier();
       }
       if (entity instanceof Mob mob) {
         activeSoundMob = mob;
@@ -361,10 +388,58 @@ public final class ServerMorphManager {
       return;
     }
 
-    if (player.isSprinting()) {
+    if (MorphAbility.isFastSprintActive(player)) {
+      player.causeFoodExhaustion(0.02F * MorphAbility.FAST_SPRINT_EXHAUSTION_MULTIPLIER);
+    } else if (player.isSprinting()) {
       player.causeFoodExhaustion(0.02F);
     } else if (player.isShiftKeyDown()) {
       player.causeFoodExhaustion(0.01F);
+    }
+  }
+
+  private static void tickGrassEating(ServerPlayer player) {
+    UUID uuid = player.getUUID();
+    Input input = player.getLastClientInput();
+    boolean movingInput = input.forward() || input.backward() || input.left() || input.right();
+    BlockPos grassPos = player.blockPosition().below();
+    boolean canEat =
+        activeConfig().traits().eatsGrass()
+            && input.shift()
+            && !movingInput
+            && player.getDeltaMovement().horizontalDistanceSqr() < 1.0E-4
+            && player.onGround()
+            && !player.isPassenger()
+            && !player.getAbilities().flying
+            && player.getFoodData().needsFood()
+            && player.level().getBlockState(grassPos).is(Blocks.GRASS_BLOCK);
+    if (!canEat) {
+      if (GRASS_EATING_TICKS.remove(uuid) != null) {
+        syncGrassEating(player, 0);
+      }
+      return;
+    }
+
+    int elapsed = GRASS_EATING_TICKS.merge(uuid, 1, Integer::sum);
+    syncGrassEating(player, GRASS_EATING_DURATION_TICKS - elapsed + 1);
+    if (elapsed < GRASS_EATING_DURATION_TICKS) {
+      return;
+    }
+
+    var grassState = player.level().getBlockState(grassPos);
+    if (player.level().setBlockAndUpdate(grassPos, Blocks.DIRT.defaultBlockState())) {
+      player.level().levelEvent(player, 2001, grassPos, Block.getId(grassState));
+      player.getFoodData().eat(GRASS_FOOD_RESTORE, 0.0F);
+    }
+    GRASS_EATING_TICKS.remove(uuid);
+    syncGrassEating(player, 0);
+  }
+
+  private static void syncGrassEating(ServerPlayer eatingPlayer, int remainingTicks) {
+    MobLifeNetworking.GrassEatingStatePayload payload =
+        new MobLifeNetworking.GrassEatingStatePayload(
+            eatingPlayer.getId(), Math.max(0, remainingTicks));
+    for (ServerPlayer player : eatingPlayer.level().getServer().getPlayerList().getPlayers()) {
+      ServerPlayNetworking.send(player, payload);
     }
   }
 
@@ -388,15 +463,18 @@ public final class ServerMorphManager {
     float delta = 0.0F;
     Input input = player.getLastClientInput();
     boolean moving = input.forward() || input.backward() || input.left() || input.right();
-    if (moving && (input.backward() || input.left() || input.right())) {
-      delta += NON_FORWARD_MOVEMENT_GAIN;
-    }
-
     UUID uuid = player.getUUID();
-    if (moving && player.isSprinting()) {
-      int sprintTicks = SPRINT_TICKS.merge(uuid, 1, Integer::sum);
-      if (sprintTicks > LONG_SPRINT_START_TICKS) {
-        delta += LONG_SPRINT_GAIN;
+    if (!MorphAbility.isFastSprintActive(player)) {
+      if (moving && (input.backward() || input.left() || input.right())) {
+        delta += NON_FORWARD_MOVEMENT_GAIN;
+      }
+      if (moving && player.isSprinting()) {
+        int sprintTicks = SPRINT_TICKS.merge(uuid, 1, Integer::sum);
+        if (sprintTicks > LONG_SPRINT_START_TICKS) {
+          delta += LONG_SPRINT_GAIN;
+        }
+      } else {
+        SPRINT_TICKS.remove(uuid);
       }
     } else {
       SPRINT_TICKS.remove(uuid);

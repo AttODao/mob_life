@@ -79,6 +79,7 @@
     "maximum_awkwardness": 30,
     "food_cost": 7
   },
+  "abilities": [],
   "traits": [
     "can_equip_saddle",
     "can_equip_chest"

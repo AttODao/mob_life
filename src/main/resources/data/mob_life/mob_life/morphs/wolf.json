@@ -84,6 +84,9 @@
     "maximum_awkwardness": 30,
     "food_cost": 4
   },
+  "abilities": [
+    "fast_sprint"
+  ],
   "traits": [
     "can_equip_wolf_armor"
   ]

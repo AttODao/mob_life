@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.network;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -20,16 +21,24 @@ public final class MobLifeNetworking {
         .register(MorphSelectionPayload.TYPE, MorphSelectionPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
         .register(AwkwardnessPayload.TYPE, AwkwardnessPayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(FastSprintStatePayload.TYPE, FastSprintStatePayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(GrassEatingStatePayload.TYPE, GrassEatingStatePayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(ChargedJumpPayload.TYPE, ChargedJumpPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(SleepRequestPayload.TYPE, SleepRequestPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(AbilityRequestPayload.TYPE, AbilityRequestPayload.CODEC);
     ServerPlayNetworking.registerGlobalReceiver(
         ChargedJumpPayload.TYPE,
         (payload, context) ->
             ServerMorphManager.performChargedJump(context.player(), payload.chargeAmount()));
     ServerPlayNetworking.registerGlobalReceiver(
         SleepRequestPayload.TYPE, (payload, context) -> MorphSleep.requestSleep(context.player()));
+    ServerPlayNetworking.registerGlobalReceiver(
+        AbilityRequestPayload.TYPE, (payload, context) -> MorphAbility.request(context.player()));
   }
 
   public record MorphSelectionPayload(String morphId, CompoundTag nbt, String configJson)
@@ -93,11 +102,55 @@ public final class MobLifeNetworking {
     }
   }
 
+  public record FastSprintStatePayload(boolean active) implements CustomPacketPayload {
+    public static final Type<FastSprintStatePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "fast_sprint_state"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, FastSprintStatePayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> buffer.writeBoolean(payload.active()),
+            buffer -> new FastSprintStatePayload(buffer.readBoolean()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record GrassEatingStatePayload(int entityId, int remainingTicks)
+      implements CustomPacketPayload {
+    public static final Type<GrassEatingStatePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "grass_eating_state"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, GrassEatingStatePayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeVarInt(payload.entityId());
+              buffer.writeVarInt(payload.remainingTicks());
+            },
+            buffer -> new GrassEatingStatePayload(buffer.readVarInt(), buffer.readVarInt()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
   public record SleepRequestPayload() implements CustomPacketPayload {
     public static final Type<SleepRequestPayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "sleep_request"));
     public static final StreamCodec<RegistryFriendlyByteBuf, SleepRequestPayload> CODEC =
         StreamCodec.unit(new SleepRequestPayload());
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record AbilityRequestPayload() implements CustomPacketPayload {
+    public static final Type<AbilityRequestPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "ability_request"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, AbilityRequestPayload> CODEC =
+        StreamCodec.unit(new AbilityRequestPayload());
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

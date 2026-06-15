@@ -17,6 +17,7 @@ public record MorphConfig(
     Attributes attributes,
     Inventory inventory,
     Sleep sleep,
+    Abilities abilities,
     Traits traits) {
 
   public record Movement(
@@ -87,8 +88,47 @@ public record MorphConfig(
       int foodCost,
       float maximumAwkwardness) {}
 
+  public enum Ability {
+    FAST_SPRINT("fast_sprint"),
+    EGG_LAYING("egg_laying");
+
+    private final String id;
+
+    Ability(String id) {
+      this.id = id;
+    }
+
+    public String id() {
+      return id;
+    }
+
+    static Ability fromId(String id) {
+      for (Ability ability : values()) {
+        if (ability.id.equals(id)) {
+          return ability;
+        }
+      }
+      throw new IllegalArgumentException("Unknown morph ability: " + id);
+    }
+  }
+
+  public record Abilities(Set<Ability> values) {
+    public Abilities {
+      values = Set.copyOf(values);
+    }
+
+    public boolean fastSprint() {
+      return values.contains(Ability.FAST_SPRINT);
+    }
+
+    public boolean eggLaying() {
+      return values.contains(Ability.EGG_LAYING);
+    }
+  }
+
   public enum Trait {
     FALL_DAMAGE_IMMUNE("fall_damage_immune"),
+    EATS_GRASS("eats_grass"),
     CAN_EQUIP_SADDLE("can_equip_saddle"),
     CAN_EQUIP_HORSE_ARMOR("can_equip_horse_armor"),
     CAN_EQUIP_WOLF_ARMOR("can_equip_wolf_armor"),
@@ -121,6 +161,10 @@ public record MorphConfig(
 
     public boolean fallDamageImmune() {
       return values.contains(Trait.FALL_DAMAGE_IMMUNE);
+    }
+
+    public boolean eatsGrass() {
+      return values.contains(Trait.EATS_GRASS);
     }
 
     public boolean canEquipSaddle() {
@@ -182,10 +226,14 @@ public record MorphConfig(
     boolean canEquipWolfArmor = false;
     boolean canEquipChest = false;
     boolean fallDamageImmune = false;
+    boolean eatsGrass = false;
+    boolean fastSprint = false;
+    boolean eggLaying = false;
 
     switch (morph) {
       case PLAYER -> {}
       case COW -> {
+        fastSprint = true;
         sprint = 2.0;
         food = "#minecraft:cow_food";
         miningSpeed = 0.78;
@@ -194,6 +242,8 @@ public record MorphConfig(
         inventorySlots = 21;
       }
       case SHEEP -> {
+        eatsGrass = true;
+        fastSprint = true;
         sprint = 1.25;
         visionProfile = "sheep";
         fieldOfViewMultiplier = 1.60F;
@@ -214,6 +264,7 @@ public record MorphConfig(
         inventorySlots = 19;
       }
       case CHICKEN -> {
+        eggLaying = true;
         fallDamageImmune = true;
         sprint = 1.4;
         visionProfile = "chicken";
@@ -241,6 +292,7 @@ public record MorphConfig(
         inventorySlots = 9;
       }
       case CAT -> {
+        fastSprint = true;
         fallDamageImmune = true;
         walk = 0.8;
         sprint = 1.33;
@@ -270,6 +322,7 @@ public record MorphConfig(
         sleepSchedule = "day";
       }
       case OCELOT -> {
+        fastSprint = true;
         fallDamageImmune = true;
         walk = 0.8;
         sprint = 1.33;
@@ -299,6 +352,7 @@ public record MorphConfig(
         sleepSchedule = "day";
       }
       case WOLF -> {
+        fastSprint = true;
         sprint = 1.5;
         visionProfile = "wolf";
         fieldOfViewMultiplier = 1.25F;
@@ -331,6 +385,7 @@ public record MorphConfig(
         canEquipWolfArmor = true;
       }
       case PIG -> {
+        fastSprint = true;
         sprint = 1.25;
         visionProfile = "pig";
         fieldOfViewMultiplier = 1.55F;
@@ -414,6 +469,7 @@ public record MorphConfig(
         canEquipChest = true;
       }
       case RABBIT -> {
+        fastSprint = true;
         walk = 0.6;
         sprint = 2.2;
         visionProfile = "rabbit";
@@ -478,9 +534,11 @@ public record MorphConfig(
         new Attributes(miningSpeed, maximumFood, 1.0, 1.0),
         new Inventory(hotbarSlots, inventorySlots, canEquipChest ? 15 : 0),
         new Sleep(sleepSchedule, !morph.isPlayer(), 200, (int) Math.ceil(maximumFood * 0.4), 30.0F),
+        new Abilities(abilities(fastSprint, eggLaying)),
         new Traits(
             traits(
                 fallDamageImmune,
+                eatsGrass,
                 canEquipSaddle,
                 canEquipHorseArmor,
                 canEquipWolfArmor,
@@ -498,7 +556,6 @@ public record MorphConfig(
     JsonObject attributes = object(root, "attributes");
     JsonObject inventory = object(root, "inventory");
     JsonObject sleep = object(root, "sleep");
-
     RabbitHop defaultHop = defaults.movement.rabbitHop;
     return new MorphConfig(
         new Movement(
@@ -571,6 +628,7 @@ public record MorphConfig(
             integer(sleep, "required_ticks", defaults.sleep.requiredTicks),
             integer(sleep, "food_cost", defaults.sleep.foodCost),
             decimal(sleep, "maximum_awkwardness", defaults.sleep.maximumAwkwardness)),
+        new Abilities(abilities(root, "abilities", defaults.abilities.values)),
         new Traits(traits(root, "traits", defaults.traits.values)));
   }
 
@@ -659,6 +717,10 @@ public record MorphConfig(
     sleepJson.addProperty("maximum_awkwardness", sleep.maximumAwkwardness);
     root.add("sleep", sleepJson);
 
+    JsonArray abilitiesJson = new JsonArray();
+    abilities.values.stream().map(Ability::id).sorted().forEach(abilitiesJson::add);
+    root.add("abilities", abilitiesJson);
+
     JsonArray traitsJson = new JsonArray();
     traits.values.stream().map(Trait::id).sorted().forEach(traitsJson::add);
     root.add("traits", traitsJson);
@@ -719,8 +781,32 @@ public record MorphConfig(
     return Set.copyOf(values);
   }
 
+  private static Set<Ability> abilities(JsonObject object, String name, Set<Ability> fallback) {
+    JsonElement element = object.get(name);
+    if (element == null || !element.isJsonArray()) {
+      return fallback;
+    }
+    EnumSet<Ability> values = EnumSet.noneOf(Ability.class);
+    for (JsonElement value : element.getAsJsonArray()) {
+      values.add(Ability.fromId(value.getAsString()));
+    }
+    return Set.copyOf(values);
+  }
+
+  private static Set<Ability> abilities(boolean fastSprint, boolean eggLaying) {
+    EnumSet<Ability> values = EnumSet.noneOf(Ability.class);
+    if (fastSprint) {
+      values.add(Ability.FAST_SPRINT);
+    }
+    if (eggLaying) {
+      values.add(Ability.EGG_LAYING);
+    }
+    return Set.copyOf(values);
+  }
+
   private static Set<Trait> traits(
       boolean fallDamageImmune,
+      boolean eatsGrass,
       boolean canEquipSaddle,
       boolean canEquipHorseArmor,
       boolean canEquipWolfArmor,
@@ -728,6 +814,9 @@ public record MorphConfig(
     EnumSet<Trait> values = EnumSet.noneOf(Trait.class);
     if (fallDamageImmune) {
       values.add(Trait.FALL_DAMAGE_IMMUNE);
+    }
+    if (eatsGrass) {
+      values.add(Trait.EATS_GRASS);
     }
     if (canEquipSaddle) {
       values.add(Trait.CAN_EQUIP_SADDLE);

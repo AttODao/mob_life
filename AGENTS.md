@@ -131,7 +131,8 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
     vanilla ridden equines use their movement-speed attribute directly.
 - In water, mob-form movement input is scaled by the transformed mob's actual
   movement-speed attribute and swimming sprint is disabled, matching ordinary
-  land mobs' slow water movement. NBT attribute overrides are reflected.
+  land mobs' slow water movement. Jump ascent and sneak descent use the same
+  scale as forward water input. NBT attribute overrides are reflected.
 - Inventory capacity scales with the form's height:
   - Player: 9 hotbar + 27 inventory slots
   - Cow: 7 hotbar + 21 inventory slots

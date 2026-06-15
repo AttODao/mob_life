@@ -3,6 +3,7 @@ package cc.attodao.mob_life.gameplay.movement;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.resources.Identifier;
@@ -30,9 +31,14 @@ public final class MorphMovementSpeed {
 
     MorphType morph = MorphEquipment.morph(player);
     MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
-    if (!morph.isPlayer() && player.isSprinting()) {
+    if (!morph.isPlayer() && (player.isSprinting() || MorphAbility.isFastSprintActive(player))) {
+      double sprintMultiplier = movement.sprintMultiplier();
+      if (MorphAbility.isFastSprintActive(player) && morph == MorphType.CAT) {
+        sprintMultiplier = MorphAbility.CAT_PANIC_SPEED_MULTIPLIER;
+      }
+      double vanillaSprintMultiplier = player.isSprinting() ? PLAYER_SPRINT_MULTIPLIER : 1.0;
       double extraMultiplier =
-          movement.sprintMultiplier() / movement.walkMultiplier() / PLAYER_SPRINT_MULTIPLIER - 1.0;
+          sprintMultiplier / movement.walkMultiplier() / vanillaSprintMultiplier - 1.0;
       movementSpeed.addOrUpdateTransientModifier(
           new AttributeModifier(
               SPRINT_MODIFIER_ID,

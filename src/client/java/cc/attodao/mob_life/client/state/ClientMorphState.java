@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client.state;
 
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.ability.MorphAbilityHolder;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
@@ -27,6 +28,7 @@ import net.minecraft.world.phys.Vec3;
 
 public final class ClientMorphState {
   private static final Map<UUID, Entity> RENDER_ENTITIES = new HashMap<>();
+  private static final Map<Integer, Integer> GRASS_EATING_TICKS = new HashMap<>();
   private static final ClientChargedJumpController CHARGED_JUMP = new ClientChargedJumpController();
   private static MorphDefinition definition;
   private static MorphType morph;
@@ -46,6 +48,7 @@ public final class ClientMorphState {
     eyeHeight = 0.0F;
     waterMovementInputScale = 1.0F;
     RENDER_ENTITIES.clear();
+    GRASS_EATING_TICKS.clear();
     CHARGED_JUMP.reset();
     rabbitHopCooldown = 0;
 
@@ -89,6 +92,28 @@ public final class ClientMorphState {
     awkwardness = value;
   }
 
+  public static void setFastSprintActive(boolean active) {
+    LocalPlayer player = Minecraft.getInstance().player;
+    if (player == null) {
+      return;
+    }
+
+    ((MorphAbilityHolder) player).mobLife$setFastSprintActive(active);
+    MorphMovementSpeed.refresh(player);
+  }
+
+  public static void setGrassEatingTicks(int entityId, int ticks) {
+    if (ticks > 0) {
+      GRASS_EATING_TICKS.put(entityId, ticks);
+    } else {
+      GRASS_EATING_TICKS.remove(entityId);
+    }
+  }
+
+  public static int grassEatingTicks(Player player) {
+    return GRASS_EATING_TICKS.getOrDefault(player.getId(), 0);
+  }
+
   public static boolean shouldShowChargedJumpBar() {
     return morph != null && CHARGED_JUMP.shouldShowBar();
   }
@@ -110,7 +135,9 @@ public final class ClientMorphState {
   }
 
   public static float waterMovementInputScale() {
-    return waterMovementInputScale;
+    return morph == null
+        ? 1.0F
+        : waterMovementInputScale * MorphConfigManager.get(morph).movement().waterInputMultiplier();
   }
 
   public static Entity renderEntity(Player player) {
@@ -169,6 +196,12 @@ public final class ClientMorphState {
     eyeHeight = 0.0F;
     waterMovementInputScale = 1.0F;
     awkwardness = 0.0F;
+    GRASS_EATING_TICKS.clear();
+    LocalPlayer player = Minecraft.getInstance().player;
+    if (player != null) {
+      ((MorphAbilityHolder) player).mobLife$setFastSprintActive(false);
+      MorphMovementSpeed.refresh(player);
+    }
     RENDER_ENTITIES.clear();
     CHARGED_JUMP.reset();
     rabbitHopCooldown = 0;

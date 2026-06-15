@@ -16,12 +16,19 @@ import net.minecraft.client.KeyMapping;
 import org.lwjgl.glfw.GLFW;
 
 public final class MobLifeClient implements ClientModInitializer {
+  private static final KeyMapping ABILITY_KEY =
+      KeyMappingHelper.registerKeyMapping(
+          new KeyMapping(
+              "key.mob_life.ability",
+              InputConstants.Type.KEYSYM,
+              GLFW.GLFW_KEY_V,
+              KeyMapping.Category.GAMEPLAY));
   private static final KeyMapping SLEEP_KEY =
       KeyMappingHelper.registerKeyMapping(
           new KeyMapping(
               "key.mob_life.sleep",
               InputConstants.Type.KEYSYM,
-              GLFW.GLFW_KEY_V,
+              GLFW.GLFW_KEY_N,
               KeyMapping.Category.GAMEPLAY));
 
   @Override
@@ -46,6 +53,19 @@ public final class MobLifeClient implements ClientModInitializer {
         MobLifeNetworking.AwkwardnessPayload.TYPE,
         (payload, context) ->
             context.client().execute(() -> ClientMorphState.setAwkwardness(payload.value())));
+    ClientPlayNetworking.registerGlobalReceiver(
+        MobLifeNetworking.FastSprintStatePayload.TYPE,
+        (payload, context) ->
+            context.client().execute(() -> ClientMorphState.setFastSprintActive(payload.active())));
+    ClientPlayNetworking.registerGlobalReceiver(
+        MobLifeNetworking.GrassEatingStatePayload.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () ->
+                        ClientMorphState.setGrassEatingTicks(
+                            payload.entityId(), payload.remainingTicks())));
 
     ClientPlayConnectionEvents.DISCONNECT.register(
         (handler, client) -> {
@@ -54,6 +74,11 @@ public final class MobLifeClient implements ClientModInitializer {
         });
     ClientTickEvents.END_CLIENT_TICK.register(
         client -> {
+          while (ABILITY_KEY.consumeClick()) {
+            if (client.player != null && ClientMorphState.morph() != null) {
+              ClientPlayNetworking.send(new MobLifeNetworking.AbilityRequestPayload());
+            }
+          }
           while (SLEEP_KEY.consumeClick()) {
             if (client.player != null && ClientMorphState.morph() != null) {
               ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());

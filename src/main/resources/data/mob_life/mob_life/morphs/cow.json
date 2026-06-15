@@ -79,5 +79,8 @@
     "maximum_awkwardness": 30,
     "food_cost": 6
   },
+  "abilities": [
+    "fast_sprint"
+  ],
   "traits": []
 }

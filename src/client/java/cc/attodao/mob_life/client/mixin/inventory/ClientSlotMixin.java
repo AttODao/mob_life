@@ -17,7 +17,9 @@ public abstract class ClientSlotMixin {
     MorphType morph = ClientMorphState.morph();
     Slot slot = (Slot) (Object) this;
     if (morph != null
-        && slot.container instanceof CraftingContainer
+        && slot.container instanceof CraftingContainer crafting
+        && crafting.getWidth() == 2
+        && crafting.getHeight() == 2
         && slot.getContainerSlot() != 0) {
       cir.setReturnValue(false);
     }

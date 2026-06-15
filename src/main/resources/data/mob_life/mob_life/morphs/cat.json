@@ -84,6 +84,9 @@
     "maximum_awkwardness": 30,
     "food_cost": 4
   },
+  "abilities": [
+    "fast_sprint"
+  ],
   "traits": [
     "fall_damage_immune"
   ]

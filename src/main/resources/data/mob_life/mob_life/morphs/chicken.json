@@ -83,6 +83,9 @@
     "maximum_awkwardness": 30,
     "food_cost": 4
   },
+  "abilities": [
+    "egg_laying"
+  ],
   "traits": [
     "fall_damage_immune"
   ]

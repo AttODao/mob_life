@@ -5,6 +5,7 @@
 	"client": [
 		"gameplay.ClientChargedJumpMixin",
 		"gameplay.LocalPlayerMovementMixin",
+		"gameplay.LocalPlayerMorphFluidMovementMixin",
 		"gameplay.MultiPlayerGameModeMixin",
 		"gameplay.PlayerLeapAttackMixin",
 		"inventory.AbstractContainerScreenAccessor",
@@ -27,6 +28,7 @@
 		"render.PlayerRendererMixin",
 		"render.PostPassAccessor",
 		"render.PostPassDistanceUniformMixin",
+		"render.SheepEatAnimationAccessor",
 		"render.WalkAnimationStateAccessor",
 		"world.CreateWorldScreenMixin",
 		"world.GridLayoutAccessor",

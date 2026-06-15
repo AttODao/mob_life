@@ -81,5 +81,10 @@
     "maximum_awkwardness": 30,
     "food_cost": 6
   },
-  "traits": []
+  "abilities": [
+    "fast_sprint"
+  ],
+  "traits": [
+    "eats_grass"
+  ]
 }

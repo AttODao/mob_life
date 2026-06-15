@@ -10,9 +10,7 @@
     "slow_fall_multiplier": 1
   },
   "diet": {
-    "foods": [
-      "#minecraft:horse_food"
-    ],
+    "foods": ["#minecraft:horse_food"],
     "hunted_foods": [],
     "nutrition": 4,
     "saturation_modifier": 0.3
@@ -20,21 +18,9 @@
   "vision": {
     "profile": "horse",
     "field_of_view_multiplier": 1.65,
-    "red_response": [
-      0.61,
-      0.39,
-      0
-    ],
-    "green_response": [
-      0.66,
-      0.34,
-      0
-    ],
-    "blue_response": [
-      0,
-      0.22,
-      0.78
-    ],
+    "red_response": [0.61, 0.39, 0],
+    "green_response": [0.66, 0.34, 0],
+    "blue_response": [0, 0.22, 0.78],
     "effect_start_distance": 4,
     "full_blur_distance": 20,
     "full_darkening_distance": 36,
@@ -79,8 +65,6 @@
     "maximum_awkwardness": 30,
     "food_cost": 7
   },
-  "traits": [
-    "can_equip_saddle",
-    "can_equip_horse_armor"
-  ]
+  "abilities": [],
+  "traits": ["can_equip_saddle", "can_equip_horse_armor"]
 }

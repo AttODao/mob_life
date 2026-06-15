@@ -66,8 +66,8 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
 
     if (isInWater()) {
       float waterInputScale = ClientMorphState.waterMovementInputScale();
-      xxa *= waterInputScale * movement.waterInputMultiplier();
-      zza *= waterInputScale * movement.waterInputMultiplier();
+      xxa *= waterInputScale;
+      zza *= waterInputScale;
       setSprinting(false);
     }
   }

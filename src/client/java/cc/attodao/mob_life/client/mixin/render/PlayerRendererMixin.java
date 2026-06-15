@@ -17,6 +17,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.animal.equine.AbstractChestedHorse;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
+import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -113,6 +114,10 @@ public abstract class PlayerRendererMixin {
       } else {
         rabbit.hopAnimationState.startIfStopped(player.tickCount);
       }
+    }
+    if (livingMorph instanceof Sheep sheep) {
+      ((SheepEatAnimationAccessor) sheep)
+          .mobLife$setEatAnimationTick(ClientMorphState.grassEatingTicks(player));
     }
     ItemStack bodyEquipment = player.getItemBySlot(EquipmentSlot.BODY);
     if (livingMorph instanceof AbstractChestedHorse chestedHorse) {

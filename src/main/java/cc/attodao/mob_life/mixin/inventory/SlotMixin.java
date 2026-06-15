@@ -40,7 +40,9 @@ public abstract class SlotMixin {
 
   private boolean mobLife$isActiveInventorySlot() {
     Slot slot = (Slot) (Object) this;
-    if (slot.container instanceof CraftingContainer
+    if (slot.container instanceof CraftingContainer crafting
+        && crafting.getWidth() == 2
+        && crafting.getHeight() == 2
         && slot.getContainerSlot() != 0
         && ServerMorphManager.hasMobForm()) {
       return false;
