@@ -1,0 +1,43 @@
+{
+  "targets": {"swap": {}},
+  "passes": [
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "mob_life:post/mob_vision",
+      "inputs": [
+        {"sampler_name": "In", "target": "minecraft:main"},
+        {"sampler_name": "Depth", "target": "minecraft:main", "use_depth_buffer": true}
+      ],
+      "output": "swap",
+      "uniforms": {
+        "VisionConfig": [
+          {"name": "RedResponse", "type": "vec4", "value": [0.67, 0.33, 0.0, 0.0]},
+          {"name": "GreenResponse", "type": "vec4", "value": [0.57, 0.43, 0.0, 0.0]},
+          {"name": "BlueResponse", "type": "vec4", "value": [0.0, 0.24, 0.76, 0.0]},
+          {"name": "Settings", "type": "vec4", "value": [0.48, 0.96, 1.0, 0.7]}
+        ],
+        "DistanceBlur": [
+          {"name": "Parameters", "type": "vec4", "value": [4.0, 20.0, 36.0, 56.0]},
+          {"name": "Effects", "type": "vec4", "value": [4.8, 1.0, 0.93, 0.82]},
+          {"name": "DepthRange", "type": "vec4", "value": [0.05, 256.0, 0.0, 0.0]},
+          {"name": "ConfigOverrides", "type": "vec4", "value": [0.48, 0.96, 1.0, 0.7]},
+          {"name": "DynamicRedResponse", "type": "vec4", "value": [0.67, 0.33, 0.0, 0.0]},
+          {"name": "DynamicGreenResponse", "type": "vec4", "value": [0.57, 0.43, 0.0, 0.0]},
+          {"name": "DynamicBlueResponse", "type": "vec4", "value": [0.0, 0.24, 0.76, 0.0]},
+          {"name": "VisionBehavior", "type": "vec4", "value": [0.7, 1.08, 0.0, 1.0]}
+        ]
+      }
+    },
+    {
+      "vertex_shader": "minecraft:core/screenquad",
+      "fragment_shader": "minecraft:post/blit",
+      "inputs": [{"sampler_name": "In", "target": "swap"}],
+      "uniforms": {
+        "BlitConfig": [
+          {"name": "ColorModulate", "type": "vec4", "value": [1.0, 1.0, 1.0, 1.0]}
+        ]
+      },
+      "output": "minecraft:main"
+    }
+  ]
+}

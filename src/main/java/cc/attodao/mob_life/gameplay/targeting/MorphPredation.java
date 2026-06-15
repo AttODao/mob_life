@@ -1,10 +1,11 @@
 package cc.attodao.mob_life.gameplay.targeting;
 
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.animal.feline.Ocelot;
-import net.minecraft.world.entity.animal.fox.Fox;
 import net.minecraft.world.entity.animal.wolf.Wolf;
 
 public final class MorphPredation {
@@ -28,12 +29,11 @@ public final class MorphPredation {
   }
 
   public static boolean isPredatorFor(Mob mob, MorphType morph) {
-    return switch (morph) {
-      case SHEEP -> mob instanceof Wolf wolf && !wolf.isTame();
-      case CHICKEN -> mob instanceof Fox || mob instanceof Ocelot;
-      case RABBIT -> mob instanceof Fox || mob instanceof Wolf wolf && !wolf.isTame();
-      case PLAYER, COW, CAT, OCELOT, WOLF, PIG, HORSE, DONKEY, MULE -> false;
-    };
+    Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType());
+    if (!MorphConfigManager.get(morph).combat().predators().contains(id.toString())) {
+      return false;
+    }
+    return !(mob instanceof Wolf wolf) || !wolf.isTame();
   }
 
   public static boolean isPredatorForPlayer(Mob mob, ServerPlayer player, MorphType morph) {

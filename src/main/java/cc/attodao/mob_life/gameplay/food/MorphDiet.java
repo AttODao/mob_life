@@ -1,17 +1,19 @@
 package cc.attodao.mob_life.gameplay.food;
 
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacityHolder;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.tags.ItemTags;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 public final class MorphDiet {
-
-  public static final int BREEDING_FOOD_NUTRITION = 4;
-  public static final float BREEDING_FOOD_SATURATION_MODIFIER = 0.3F;
 
   private MorphDiet() {}
 
@@ -20,19 +22,7 @@ public final class MorphDiet {
   }
 
   public static boolean isBreedingFood(Player player, ItemStack stack) {
-    MorphType morph = morph(player);
-    return switch (morph) {
-      case COW -> stack.is(ItemTags.COW_FOOD);
-      case SHEEP -> stack.is(ItemTags.SHEEP_FOOD);
-      case CHICKEN -> stack.is(ItemTags.CHICKEN_FOOD);
-      case CAT -> stack.is(ItemTags.CAT_FOOD);
-      case OCELOT -> stack.is(ItemTags.OCELOT_FOOD);
-      case WOLF -> stack.is(ItemTags.WOLF_FOOD);
-      case PIG -> stack.is(ItemTags.PIG_FOOD);
-      case HORSE, DONKEY, MULE -> stack.is(ItemTags.HORSE_FOOD);
-      case RABBIT -> stack.is(ItemTags.RABBIT_FOOD);
-      case PLAYER -> false;
-    };
+    return matchesAny(stack, config(player).foods());
   }
 
   public static boolean isBlockedNormalFood(Player player, ItemStack stack) {
@@ -43,19 +33,48 @@ public final class MorphDiet {
   }
 
   public static boolean isHuntedMeat(Player player, ItemStack stack) {
-    return switch (morph(player)) {
-      case CAT -> stack.is(Items.RABBIT) || stack.is(Items.COOKED_RABBIT);
-      case OCELOT -> stack.is(Items.CHICKEN) || stack.is(Items.COOKED_CHICKEN);
-      case WOLF ->
-          stack.is(Items.MUTTON)
-              || stack.is(Items.COOKED_MUTTON)
-              || stack.is(Items.RABBIT)
-              || stack.is(Items.COOKED_RABBIT);
-      default -> false;
-    };
+    return matchesAny(stack, config(player).huntedFoods());
   }
 
   public static boolean canEatBreedingFood(Player player, ItemStack stack) {
     return (isBreedingFood(player, stack) && player.getFoodData().needsFood());
+  }
+
+  public static FoodProperties foodProperties(Player player) {
+    MorphConfig.Diet diet = config(player);
+    return new FoodProperties(
+        diet.nutrition(), diet.nutrition() * diet.saturationModifier() * 2.0F, false);
+  }
+
+  public static boolean isConfiguredFood(ItemStack stack) {
+    for (MorphType morph : MorphType.values()) {
+      if (matchesAny(stack, MorphConfigManager.get(morph).diet().foods())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static MorphConfig.Diet config(Player player) {
+    return MorphConfigManager.get(morph(player)).diet();
+  }
+
+  private static boolean matchesAny(ItemStack stack, Iterable<String> entries) {
+    for (String entry : entries) {
+      if (entry.startsWith("#")) {
+        Identifier id = Identifier.tryParse(entry.substring(1));
+        if (id != null && stack.is(TagKey.create(Registries.ITEM, id))) {
+          return true;
+        }
+      } else {
+        Identifier id = Identifier.tryParse(entry);
+        if (id != null
+            && BuiltInRegistries.ITEM.getOptional(id).isPresent()
+            && stack.is(BuiltInRegistries.ITEM.getValue(id))) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }

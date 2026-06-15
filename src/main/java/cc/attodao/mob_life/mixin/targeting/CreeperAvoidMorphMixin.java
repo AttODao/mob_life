@@ -1,7 +1,8 @@
 package cc.attodao.mob_life.mixin.targeting;
 
-import cc.attodao.mob_life.morph.MorphType;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.server.ServerMorphManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.goal.AvoidEntityGoal;
@@ -22,7 +23,7 @@ public abstract class CreeperAvoidMorphMixin extends Monster {
   }
 
   @Inject(method = "registerGoals", at = @At("TAIL"))
-  private void mobLife$avoidCatMorphs(CallbackInfo ci) {
+  private void mobLife$avoidConfiguredMorphs(CallbackInfo ci) {
     goalSelector.addGoal(
         3,
         new AvoidEntityGoal<>(
@@ -33,7 +34,10 @@ public abstract class CreeperAvoidMorphMixin extends Monster {
             1.2,
             entity ->
                 entity instanceof ServerPlayer
-                    && (ServerMorphManager.activeMorph() == MorphType.CAT
-                        || ServerMorphManager.activeMorph() == MorphType.OCELOT)));
+                    && ServerMorphManager.activeMorph() != null
+                    && MorphConfigManager.get(ServerMorphManager.activeMorph())
+                        .combat()
+                        .avoidedBy()
+                        .contains(BuiltInRegistries.ENTITY_TYPE.getKey(getType()).toString())));
   }
 }

@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client;
 
 import cc.attodao.mob_life.client.config.MobLifeClientConfig;
 import cc.attodao.mob_life.client.state.ClientMorphState;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -33,8 +34,9 @@ public final class MobLifeClient implements ClientModInitializer {
                 .client()
                 .execute(
                     () -> {
-                      ClientMorphState.setMorph(
-                          new MorphDefinition(MorphType.fromId(payload.morphId()), payload.nbt()));
+                      MorphType morph = MorphType.fromId(payload.morphId());
+                      MorphConfigManager.installSynced(morph, payload.configJson());
+                      ClientMorphState.setMorph(new MorphDefinition(morph, payload.nbt()));
                       context
                           .client()
                           .gameRenderer

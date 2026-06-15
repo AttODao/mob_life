@@ -1,6 +1,8 @@
 package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
@@ -8,6 +10,8 @@ import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
+import cc.attodao.mob_life.mixin.sound.LivingEntitySoundAccessor;
+import cc.attodao.mob_life.mixin.sound.MobSoundAccessor;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
@@ -23,13 +27,15 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.stats.Stats;
-import net.minecraft.tags.EntityTypeTags;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.entity.player.Inventory;
@@ -42,6 +48,7 @@ public final class ServerMorphManager {
   private static final Map<UUID, Long> LAST_CHARGED_JUMP_TICK = new HashMap<>();
   private static final Map<UUID, Integer> SPRINT_TICKS = new HashMap<>();
   private static final Map<UUID, Integer> RABBIT_HOP_COOLDOWNS = new HashMap<>();
+  private static final Map<UUID, Integer> AMBIENT_SOUND_TIMES = new HashMap<>();
   private static final Map<UUID, Float> LAST_SYNCED_AWKWARDNESS = new HashMap<>();
 
   private static final float PASSIVE_DECAY_PER_SECOND = 0.2F;
@@ -57,6 +64,7 @@ public final class ServerMorphManager {
   private static float activeEyeHeight;
   private static boolean activeFallDamageImmune;
   private static boolean activeHasAttackAi;
+  private static Mob activeSoundMob;
 
   private ServerMorphManager() {}
 
@@ -80,10 +88,22 @@ public final class ServerMorphManager {
           activeEyeHeight = 0.0F;
           activeFallDamageImmune = false;
           activeHasAttackAi = false;
+          activeSoundMob = null;
           LAST_CHARGED_JUMP_TICK.clear();
           SPRINT_TICKS.clear();
           RABBIT_HOP_COOLDOWNS.clear();
+          AMBIENT_SOUND_TIMES.clear();
           LAST_SYNCED_AWKWARDNESS.clear();
+        });
+    ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
+        (server, resourceManager, success) -> {
+          if (!success || activeDefinition == null) {
+            return;
+          }
+          setActiveDefinition(server, activeDefinition);
+          for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            ServerPlayerMorphApplier.apply(player, activeDefinition, true);
+          }
         });
 
     ServerPlayerEvents.JOIN.register(ServerMorphManager::initializePlayer);
@@ -102,13 +122,15 @@ public final class ServerMorphManager {
           for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             addMovementExhaustion(player);
             tickAwkwardness(player);
+            tickAmbientSound(player);
             if (player.tickCount % 20 == 0) {
               refreshChestedInventory(player);
             }
-            if (activeMorph() == MorphType.CHICKEN) {
+            MorphConfig.Movement movement = activeConfig().movement();
+            if (movement.slowFallMultiplier() < 1.0F) {
               slowChickenFall(player);
             }
-            if (activeMorph() == MorphType.RABBIT) {
+            if (movement.rabbitHop().enabled()) {
               tickRabbitHop(player);
             }
             if (player.tickCount % 10 == 0) {
@@ -142,9 +164,28 @@ public final class ServerMorphManager {
     return hasMobForm() && activeHasAttackAi;
   }
 
+  public static boolean playMorphHurtSound(ServerPlayer player, DamageSource source) {
+    Mob soundMob = activeSoundMob;
+    if (!hasMobForm() || soundMob == null) {
+      return false;
+    }
+
+    AMBIENT_SOUND_TIMES.put(player.getUUID(), -soundMob.getAmbientSoundInterval());
+    if (soundMob.isSilent()) {
+      return true;
+    }
+
+    LivingEntitySoundAccessor sounds = (LivingEntitySoundAccessor) soundMob;
+    SoundEvent sound = sounds.mobLife$getHurtSound(source);
+    if (sound != null) {
+      playMorphSound(player, sound, soundMob, sounds.mobLife$getSoundVolume());
+    }
+    return true;
+  }
+
   public static void performChargedJump(ServerPlayer player, int chargeAmount) {
     if (!hasMobForm()
-        || activeMorph() == MorphType.RABBIT
+        || !activeConfig().movement().chargedJump()
         || !player.onGround()
         || player.getAbilities().flying) {
       return;
@@ -210,11 +251,13 @@ public final class ServerMorphManager {
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
     RABBIT_HOP_COOLDOWNS.clear();
+    AMBIENT_SOUND_TIMES.clear();
     activeDefinition = definition;
     activeDimensions = null;
     activeEyeHeight = 0.0F;
     activeFallDamageImmune = false;
     activeHasAttackAi = false;
+    activeSoundMob = null;
     if (!definition.hasMobForm()) {
       return;
     }
@@ -223,11 +266,51 @@ public final class ServerMorphManager {
     if (entity != null) {
       activeDimensions = entity.getDimensions(Pose.STANDING);
       activeEyeHeight = entity.getEyeHeight();
-      activeFallDamageImmune = entity.typeHolder().is(EntityTypeTags.FALL_DAMAGE_IMMUNE);
+      activeFallDamageImmune = activeConfig().traits().fallDamageImmune();
       if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
         activeHasAttackAi = MorphAttackDamage.hasAttackAi(definition.type(), living);
       }
+      if (entity instanceof Mob mob) {
+        activeSoundMob = mob;
+      }
     }
+  }
+
+  private static void tickAmbientSound(ServerPlayer player) {
+    Mob soundMob = activeSoundMob;
+    if (soundMob == null || soundMob.isSilent() || !player.isAlive()) {
+      return;
+    }
+
+    UUID uuid = player.getUUID();
+    int ambientSoundTime = AMBIENT_SOUND_TIMES.getOrDefault(uuid, 0);
+    if (player.getRandom().nextInt(1000) < ambientSoundTime++) {
+      SoundEvent sound = ((MobSoundAccessor) soundMob).mobLife$getAmbientSound();
+      if (sound != null) {
+        playMorphSound(
+            player,
+            sound,
+            soundMob,
+            ((LivingEntitySoundAccessor) soundMob).mobLife$getSoundVolume());
+      }
+      ambientSoundTime = -soundMob.getAmbientSoundInterval();
+    }
+    AMBIENT_SOUND_TIMES.put(uuid, ambientSoundTime);
+  }
+
+  private static void playMorphSound(
+      ServerPlayer player, SoundEvent sound, Mob soundMob, float volume) {
+    player
+        .level()
+        .playSound(
+            null,
+            player.getX(),
+            player.getY(),
+            player.getZ(),
+            sound,
+            soundMob.getSoundSource(),
+            volume,
+            soundMob.getVoicePitch());
   }
 
   private static void slowChickenFall(ServerPlayer player) {
@@ -237,7 +320,8 @@ public final class ServerMorphManager {
 
     Vec3 velocity = player.getDeltaMovement();
     if (velocity.y < 0.0) {
-      player.setDeltaMovement(velocity.x, velocity.y * 0.6, velocity.z);
+      player.setDeltaMovement(
+          velocity.x, velocity.y * activeConfig().movement().slowFallMultiplier(), velocity.z);
     }
   }
 
@@ -379,5 +463,9 @@ public final class ServerMorphManager {
 
     LAST_SYNCED_AWKWARDNESS.put(player.getUUID(), value);
     ServerPlayNetworking.send(player, new MobLifeNetworking.AwkwardnessPayload(value));
+  }
+
+  public static MorphConfig activeConfig() {
+    return MorphConfigManager.get(activeMorph());
   }
 }

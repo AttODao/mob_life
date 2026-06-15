@@ -1,5 +1,7 @@
 package cc.attodao.mob_life.client.state;
 
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
@@ -132,13 +134,16 @@ public final class ClientMorphState {
       return;
     }
 
-    CHARGED_JUMP.tick(client, morph != null && morph != MorphType.RABBIT);
+    MorphConfig.Movement movement = morph != null ? MorphConfigManager.get(morph).movement() : null;
+    CHARGED_JUMP.tick(client, movement != null && movement.chargedJump());
     refreshChestedInventory(client.player);
-    if (morph == MorphType.CHICKEN) {
+    if (movement != null && movement.slowFallMultiplier() < 1.0F) {
       slowChickenFall(client.player);
+    }
+    if (movement != null && movement.wingAnimation()) {
       tickChickenWings(client);
     }
-    if (morph == MorphType.RABBIT) {
+    if (movement != null && movement.rabbitHop().enabled()) {
       tickRabbitHop(client.player);
     }
   }
@@ -176,7 +181,10 @@ public final class ClientMorphState {
 
     Vec3 velocity = player.getDeltaMovement();
     if (velocity.y < 0.0) {
-      player.setDeltaMovement(velocity.x, velocity.y * 0.6, velocity.z);
+      player.setDeltaMovement(
+          velocity.x,
+          velocity.y * MorphConfigManager.get(morph).movement().slowFallMultiplier(),
+          velocity.z);
     }
   }
 

@@ -1,0 +1,90 @@
+{
+  "movement": {
+    "attribute_scale": 0.25,
+    "walk_multiplier": 0.8,
+    "sprint_multiplier": 1.33,
+    "sideways_multiplier": 0.25,
+    "backward_multiplier": 0.25,
+    "water_input_multiplier": 1,
+    "charged_jump": true,
+    "slow_fall_multiplier": 1
+  },
+  "diet": {
+    "foods": [
+      "#minecraft:ocelot_food"
+    ],
+    "hunted_foods": [
+      "minecraft:chicken",
+      "minecraft:cooked_chicken"
+    ],
+    "nutrition": 4,
+    "saturation_modifier": 0.3
+  },
+  "vision": {
+    "profile": "ocelot",
+    "field_of_view_multiplier": 1,
+    "red_response": [
+      0.91,
+      0.09,
+      0
+    ],
+    "green_response": [
+      0,
+      0.46,
+      0.54
+    ],
+    "blue_response": [
+      0,
+      0.4,
+      0.6
+    ],
+    "effect_start_distance": 4,
+    "full_blur_distance": 20,
+    "full_darkening_distance": 36,
+    "full_fog_distance": 56,
+    "maximum_blur_radius": 8,
+    "peripheral_edge_brightness": 0.7,
+    "haze_strength": 0.62,
+    "retained_saturation": 0.52,
+    "contrast": 1.07,
+    "brightness": 1.02,
+    "peripheral_blur_radius": 2.7,
+    "peripheral_start": 0.44,
+    "low_light_brightness": 1.38
+  },
+  "combat": {
+    "attack_mode": "always",
+    "attack_damage": -1,
+    "leap_attack": {
+      "horizontal_speed": 0.4,
+      "vertical_speed": 0.3,
+      "maximum_distance": 4
+    },
+    "predators": [],
+    "avoided_by": [
+      "minecraft:creeper"
+    ],
+    "hostile_detection_multiplier": 1
+  },
+  "attributes": {
+    "mining_speed": 0.5,
+    "maximum_food": 10,
+    "block_reach_scale": 1,
+    "entity_reach_scale": 1
+  },
+  "inventory": {
+    "hotbar_slots": 3,
+    "inventory_slots": 9,
+    "chest_bonus_slots": 0
+  },
+  "sleep": {
+    "schedule": "day",
+    "without_bed": true,
+    "required_ticks": 200,
+    "maximum_awkwardness": 30,
+    "food_cost": 4
+  },
+  "traits": [
+    "fall_damage_immune"
+  ]
+}

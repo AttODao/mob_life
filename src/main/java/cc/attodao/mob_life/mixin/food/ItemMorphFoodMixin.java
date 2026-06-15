@@ -7,7 +7,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUseAnimation;
@@ -21,11 +20,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Item.class)
 public abstract class ItemMorphFoodMixin {
   private static final Consumable MOB_LIFE_CONSUMABLE = Consumable.builder().build();
-  private static final FoodProperties MOB_LIFE_FOOD =
-      new FoodProperties(
-          MorphDiet.BREEDING_FOOD_NUTRITION,
-          MorphDiet.BREEDING_FOOD_NUTRITION * MorphDiet.BREEDING_FOOD_SATURATION_MODIFIER * 2.0F,
-          false);
 
   @Inject(method = "use", at = @At("HEAD"), cancellable = true)
   private void mobLife$useMorphFood(
@@ -56,7 +50,7 @@ public abstract class ItemMorphFoodMixin {
     }
     if (entity instanceof Player player && MorphDiet.isBreedingFood(player, stack)) {
       if (!level.isClientSide()) {
-        player.getFoodData().eat(MOB_LIFE_FOOD);
+        player.getFoodData().eat(MorphDiet.foodProperties(player));
         if (player instanceof ServerPlayer serverPlayer) {
           ServerMorphManager.adjustAwkwardness(serverPlayer, -10.0F);
         }
@@ -80,9 +74,7 @@ public abstract class ItemMorphFoodMixin {
   @Inject(method = "getUseAnimation", at = @At("HEAD"), cancellable = true)
   private void mobLife$getMorphFoodUseAnimation(
       ItemStack stack, CallbackInfoReturnable<ItemUseAnimation> cir) {
-    if (stack.is(net.minecraft.tags.ItemTags.COW_FOOD)
-        || stack.is(net.minecraft.tags.ItemTags.SHEEP_FOOD)
-        || stack.is(net.minecraft.tags.ItemTags.CHICKEN_FOOD)) {
+    if (MorphDiet.isConfiguredFood(stack)) {
       cir.setReturnValue(ItemUseAnimation.EAT);
     }
   }

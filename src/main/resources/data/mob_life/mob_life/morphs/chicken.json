@@ -1,0 +1,89 @@
+{
+  "movement": {
+    "attribute_scale": 0.25,
+    "walk_multiplier": 1,
+    "sprint_multiplier": 1.4,
+    "sideways_multiplier": 0.25,
+    "backward_multiplier": 0.25,
+    "water_input_multiplier": 1,
+    "charged_jump": true,
+    "slow_fall_multiplier": 0.6,
+    "wing_animation": true
+  },
+  "diet": {
+    "foods": [
+      "#minecraft:chicken_food"
+    ],
+    "hunted_foods": [],
+    "nutrition": 4,
+    "saturation_modifier": 0.3
+  },
+  "vision": {
+    "profile": "chicken",
+    "field_of_view_multiplier": 1.5,
+    "red_response": [
+      1.08,
+      -0.06,
+      -0.02
+    ],
+    "green_response": [
+      -0.04,
+      1.08,
+      -0.04
+    ],
+    "blue_response": [
+      -0.03,
+      0.08,
+      1.1
+    ],
+    "effect_start_distance": 4,
+    "full_blur_distance": 32,
+    "full_darkening_distance": 48,
+    "full_fog_distance": 64,
+    "maximum_blur_radius": 4,
+    "peripheral_edge_brightness": 0.9,
+    "haze_strength": 0.55,
+    "retained_saturation": 1,
+    "contrast": 1.04,
+    "brightness": 1,
+    "peripheral_blur_radius": 0.7,
+    "peripheral_start": 0.65,
+    "low_light_brightness": 0.78
+  },
+  "combat": {
+    "attack_mode": "none",
+    "attack_damage": -1,
+    "leap_attack": {
+      "horizontal_speed": 0.4,
+      "vertical_speed": 0,
+      "maximum_distance": 4
+    },
+    "predators": [
+      "minecraft:fox",
+      "minecraft:ocelot"
+    ],
+    "avoided_by": [],
+    "hostile_detection_multiplier": 1
+  },
+  "attributes": {
+    "mining_speed": 0.5,
+    "maximum_food": 10,
+    "block_reach_scale": 1,
+    "entity_reach_scale": 1
+  },
+  "inventory": {
+    "hotbar_slots": 3,
+    "inventory_slots": 9,
+    "chest_bonus_slots": 0
+  },
+  "sleep": {
+    "schedule": "normal",
+    "without_bed": true,
+    "required_ticks": 200,
+    "maximum_awkwardness": 30,
+    "food_cost": 4
+  },
+  "traits": [
+    "fall_damage_immune"
+  ]
+}

@@ -1,5 +1,7 @@
 package cc.attodao.mob_life.gameplay.inventory;
 
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.world.entity.EntityType;
@@ -11,8 +13,6 @@ public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
   public static final int MAX_HOTBAR_SLOTS = 9;
   public static final int MAX_INVENTORY_SLOTS = 27;
   private static final float PLAYER_HEIGHT = EntityType.PLAYER.getDimensions().height();
-  private static final float SMALL_FORM_HEIGHT = EntityType.CHICKEN.getDimensions().height();
-  private static final float SMALL_FORM_CAPACITY_RATIO = 1.0F / 3.0F;
 
   public static MorphInventoryCapacity forMorph(MorphType morph) {
     float height =
@@ -23,22 +23,21 @@ public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
   }
 
   public static MorphInventoryCapacity forMorph(MorphType morph, float morphHeight) {
-    if (morph == null || morph.isPlayer()) {
-      return new MorphInventoryCapacity(MAX_HOTBAR_SLOTS, MAX_INVENTORY_SLOTS);
-    }
-
-    float capacityRatio =
-        morphHeight <= SMALL_FORM_HEIGHT
-            ? SMALL_FORM_CAPACITY_RATIO * MorphBodyScale.relativeTo(morphHeight, SMALL_FORM_HEIGHT)
-            : MorphBodyScale.relativeTo(morphHeight, PLAYER_HEIGHT);
-    return new MorphInventoryCapacity(
-        scaledSlots(MAX_HOTBAR_SLOTS, capacityRatio),
-        scaledSlots(MAX_INVENTORY_SLOTS, capacityRatio));
+    return forMorph(morph, morphHeight, false);
   }
 
   public static MorphInventoryCapacity forMorph(
       MorphType morph, float morphHeight, boolean hasChest) {
-    return forMorph(morph, morphHeight);
+    if (morph == null || morph.isPlayer()) {
+      return new MorphInventoryCapacity(MAX_HOTBAR_SLOTS, MAX_INVENTORY_SLOTS);
+    }
+    MorphConfig.Inventory config = MorphConfigManager.get(morph).inventory();
+    float capacityRatio =
+        MorphBodyScale.relativeTo(morphHeight, morph.entityType().getDimensions().height());
+    int inventorySlots = config.inventorySlots() + (hasChest ? config.chestBonusSlots() : 0);
+    return new MorphInventoryCapacity(
+        Math.min(MAX_HOTBAR_SLOTS, scaledSlots(config.hotbarSlots(), capacityRatio)),
+        Math.min(MAX_INVENTORY_SLOTS, scaledSlots(inventorySlots, capacityRatio)));
   }
 
   private static int scaledSlots(int maximum, float ratio) {

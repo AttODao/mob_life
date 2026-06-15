@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.mixin.targeting;
 
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,7 +24,10 @@ public abstract class MobTargetingMixin {
       Mob mob = (Mob) (Object) this;
       double detectionRange =
           mob.getAttributeValue(Attributes.FOLLOW_RANGE)
-              * MorphAwkwardness.hostileDetectionScale(player);
+              * MorphAwkwardness.hostileDetectionScale(player)
+              * MorphConfigManager.get(ServerMorphManager.activeMorph())
+                  .combat()
+                  .hostileDetectionMultiplier();
       if (detectionRange <= 0.0 || mob.distanceToSqr(player) > detectionRange * detectionRange) {
         cir.setReturnValue(false);
       }

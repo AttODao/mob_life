@@ -1,0 +1,90 @@
+{
+  "movement": {
+    "attribute_scale": 0.25,
+    "walk_multiplier": 1,
+    "sprint_multiplier": 1.5,
+    "sideways_multiplier": 0.25,
+    "backward_multiplier": 0.25,
+    "water_input_multiplier": 1,
+    "charged_jump": true,
+    "slow_fall_multiplier": 1
+  },
+  "diet": {
+    "foods": [
+      "#minecraft:wolf_food"
+    ],
+    "hunted_foods": [
+      "minecraft:mutton",
+      "minecraft:cooked_mutton",
+      "minecraft:rabbit",
+      "minecraft:cooked_rabbit"
+    ],
+    "nutrition": 4,
+    "saturation_modifier": 0.3
+  },
+  "vision": {
+    "profile": "wolf",
+    "field_of_view_multiplier": 1.25,
+    "red_response": [
+      0.94,
+      0.06,
+      0
+    ],
+    "green_response": [
+      0,
+      0.43,
+      0.57
+    ],
+    "blue_response": [
+      0,
+      0.48,
+      0.52
+    ],
+    "effect_start_distance": 4,
+    "full_blur_distance": 20,
+    "full_darkening_distance": 36,
+    "full_fog_distance": 56,
+    "maximum_blur_radius": 7.5,
+    "peripheral_edge_brightness": 0.74,
+    "haze_strength": 0.68,
+    "retained_saturation": 0.48,
+    "contrast": 1.03,
+    "brightness": 1,
+    "peripheral_blur_radius": 2.3,
+    "peripheral_start": 0.47,
+    "low_light_brightness": 1.25
+  },
+  "combat": {
+    "attack_mode": "always",
+    "attack_damage": -1,
+    "leap_attack": {
+      "horizontal_speed": 0.4,
+      "vertical_speed": 0.4,
+      "maximum_distance": 4
+    },
+    "predators": [],
+    "avoided_by": [],
+    "hostile_detection_multiplier": 1
+  },
+  "attributes": {
+    "mining_speed": 0.47,
+    "maximum_food": 10,
+    "block_reach_scale": 1,
+    "entity_reach_scale": 1
+  },
+  "inventory": {
+    "hotbar_slots": 4,
+    "inventory_slots": 12,
+    "chest_bonus_slots": 0
+  },
+  "sleep": {
+    "schedule": "day",
+    "without_bed": true,
+    "required_ticks": 200,
+    "maximum_awkwardness": 30,
+    "food_cost": 4
+  },
+  "traits": [
+    "can_equip_wolf_armor"
+  ]
+}

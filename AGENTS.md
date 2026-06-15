@@ -4,7 +4,7 @@
 
 - Mod ID: `mob_life`
 - Maven group: `cc.attodao`
-- Version: `0.2.0`
+- Version: `0.3.0`
 - Minecraft: `26.1.2`
 - Fabric Loader: `0.19.3`
 - Fabric API: `0.150.0+26.1.2`
@@ -67,6 +67,10 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
 ```
 
 - Morph NBT is persisted with the world and synchronized to clients.
+- Per-morph gameplay configuration is loaded from
+  `data/mob_life/mob_life/morphs/<mob>.json`. Data packs can override the same
+  paths, and successful `/reload` reapplies server attributes and synchronizes
+  movement and vision settings to clients.
 - When morph NBT does not already contain generated values, the morph entity is
   finalized at the selected initial-spawn location. This persists a random
   vanilla variant and other spawn-time properties, while explicitly supplied
@@ -122,8 +126,9 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
   - Wolf: `1.0x` walk, `1.5x` run
   - Pig: `1.0x` walk, `1.25x` run
   - Rabbit: `0.6x` walk, `2.2x` flee/run
-  - Horse, donkey, and mule retain mounted-style direct movement speed and the
-    standard player sprint transition.
+  - Horse, donkey, and mule retain mounted-style direct movement speed.
+    Sprint input does not add the player's `1.3x` speed modifier because
+    vanilla ridden equines use their movement-speed attribute directly.
 - In water, mob-form movement input is scaled by the transformed mob's actual
   movement-speed attribute and swimming sprint is disabled, matching ordinary
   land mobs' slow water movement. NBT attribute overrides are reflected.
@@ -170,8 +175,9 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
   player toward it with the form's original horizontal and vertical velocity.
 - Sheep forms are hunted by wild wolves; chicken forms are hunted by foxes
   and ocelots; rabbit forms are hunted by foxes and wild wolves.
-- Creepers use their vanilla cat avoidance distance and speeds for players
-  transformed into cats or ocelots.
+- Avoidance is configured with `combat.avoided_by`; built-in cat and ocelot
+  forms list `minecraft:creeper` and use the creeper's vanilla cat avoidance
+  distance and speeds.
 - Cat, ocelot, and wolf forms are nocturnal but are never forced to sleep or
   wake. Their manual soft-surface sleep action is allowed during daytime,
   bypassing the vanilla nighttime-only bed rule, and is rejected at night.
@@ -228,14 +234,22 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
 - Skeleton ranged attacks aim at a transformed player's morph eye height
   instead of the vanilla player-sized target position.
 - At 30 awkwardness or below, the configurable `V` key sleeps without a bed
-  on grass, wool, carpet, hay, moss, or beds. This sleep costs 40% of the
-  form's maximum food, rounded up, requires more current food than that cost,
-  still checks for nearby monsters, and requires 200 ticks instead of 100. Its
-  sleep timer cap is extended only for this soft-surface sleep.
+  on grass, wool, carpet, hay, moss, or beds. This sleep consumes the exact
+  `sleep.food_cost` configured for the form, requires more current food than
+  that cost, still checks for nearby monsters, and requires 200 ticks instead
+  of 100. Its sleep timer cap is extended only for this soft-surface sleep.
 - First-person empty hands use the mob front leg or wing.
 - When holding an item or map, the mob hand is not rendered so it does not overlap the item.
+- Mob forms emit their NBT-adjusted entity's normal ambient sounds using
+  vanilla mob timing and probability. Hurt sounds also use the transformed
+  entity's sound event, volume, and voice pitch on both server and client.
 - Normal player form removes all Mob Life attribute modifiers and restores vanilla rendering, dimensions, health, movement, mining speed, and vision.
 - Mob forms apply a form-specific low-saturation dichromatic post-processing effect.
+- Mob vision widens the camera using each form's
+  `vision.field_of_view_multiplier`, capped at 150 degrees. Movement-speed
+  changes contribute only 10% of vanilla's dynamic FOV effect while
+  transformed, so walking and sprinting do not substantially alter the field
+  of view.
 - Mining speed uses the `minecraft:block_break_speed` attribute:
   - Cow: approximately `0.78x`
   - Sheep: approximately `0.72x`
@@ -291,6 +305,10 @@ env LD_LIBRARY_PATH=/nix/store/zl6x30j3w9byijlj1x2nx1zavxvxaxv6-mob-life-native-
   former 100-awkwardness vision strength without additional awkwardness
   effects, while values above 70 further strengthen desaturation, darkening,
   fog, and blur.
+- Every supported mob has an individual post-effect profile. Color response,
+  retained saturation, contrast, low-light brightness, peripheral degradation,
+  and distance-effect parameters are loaded from its morph data-pack JSON and
+  synchronized to the client.
 
 ## Repository State
 

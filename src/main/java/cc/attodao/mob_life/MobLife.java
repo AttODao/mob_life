@@ -1,9 +1,11 @@
 package cc.attodao.mob_life;
 
+import cc.attodao.mob_life.config.MorphConfigReloadListener;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.server.MobLifeCommand;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.resource.v1.DataResourceLoader;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,6 +21,8 @@ public final class MobLife implements ModInitializer {
 
   @Override
   public void onInitialize() {
+    DataResourceLoader.get()
+        .registerReloadListener(id("morph_configs"), new MorphConfigReloadListener());
     MobLifeNetworking.registerPayloads();
     MobLifeCommand.register();
     ServerMorphManager.registerEvents();

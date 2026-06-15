@@ -24,7 +24,7 @@ public abstract class ClientLivingEntityMorphEquipmentMixin {
     if (slot.getType() == EquipmentSlot.Type.HUMANOID_ARMOR) {
       cir.setReturnValue(false);
     } else if (slot == EquipmentSlot.BODY) {
-      cir.setReturnValue(morph.canEquipBodyArmor() || morph.canEquipChest());
+      cir.setReturnValue(morph.canEquipAnimalArmor() || morph.canEquipChest());
     } else if (slot == EquipmentSlot.SADDLE) {
       cir.setReturnValue(morph.canEquipSaddle());
     }

@@ -1,7 +1,8 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.morph.MorphType;
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -49,24 +50,24 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
       return;
     }
 
-    if (ClientMorphState.morph() == MorphType.RABBIT && onGround() && !isInWater() && !isInLava()) {
+    MorphConfig.Movement movement = MorphConfigManager.get(ClientMorphState.morph()).movement();
+    if (movement.rabbitHop().enabled() && onGround() && !isInWater() && !isInLava()) {
       xxa = 0.0F;
       zza = 0.0F;
       return;
     }
 
-    float sidewaysMultiplier = ClientMorphState.morph().isEquine() ? 0.5F : 0.25F;
     if (zza <= 0.0F) {
-      xxa *= sidewaysMultiplier;
-      zza *= 0.25F;
+      xxa *= movement.sidewaysMultiplier();
+      zza *= movement.backwardMultiplier();
     } else {
-      xxa *= sidewaysMultiplier;
+      xxa *= movement.sidewaysMultiplier();
     }
 
     if (isInWater()) {
       float waterInputScale = ClientMorphState.waterMovementInputScale();
-      xxa *= waterInputScale;
-      zza *= waterInputScale;
+      xxa *= waterInputScale * movement.waterInputMultiplier();
+      zza *= waterInputScale * movement.waterInputMultiplier();
       setSprinting(false);
     }
   }

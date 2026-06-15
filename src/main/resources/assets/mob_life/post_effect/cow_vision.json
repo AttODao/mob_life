@@ -56,6 +56,31 @@
             "name": "DepthRange",
             "type": "vec4",
             "value": [0.05, 256.0, 0.0, 0.0]
+          },
+          {
+            "name": "ConfigOverrides",
+            "type": "vec4",
+            "value": [0.5, 0.98, 1.0, 5.0]
+          },
+          {
+            "name": "DynamicRedResponse",
+            "type": "vec4",
+            "value": [0.57, 0.43, 0.0, 0.0]
+          },
+          {
+            "name": "DynamicGreenResponse",
+            "type": "vec4",
+            "value": [0.56, 0.44, 0.0, 0.0]
+          },
+          {
+            "name": "DynamicBlueResponse",
+            "type": "vec4",
+            "value": [0.0, 0.24, 0.76, 0.0]
+          },
+          {
+            "name": "VisionBehavior",
+            "type": "vec4",
+            "value": [0.58, 1.0, 0.0, 1.0]
           }
         ]
       }

@@ -32,7 +32,7 @@ public final class MobLifeNetworking {
         SleepRequestPayload.TYPE, (payload, context) -> MorphSleep.requestSleep(context.player()));
   }
 
-  public record MorphSelectionPayload(String morphId, CompoundTag nbt)
+  public record MorphSelectionPayload(String morphId, CompoundTag nbt, String configJson)
       implements CustomPacketPayload {
     public static final Type<MorphSelectionPayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "morph_selection"));
@@ -41,11 +41,13 @@ public final class MobLifeNetworking {
             (buffer, payload) -> {
               buffer.writeUtf(payload.morphId());
               buffer.writeNbt(payload.nbt());
+              buffer.writeUtf(payload.configJson());
             },
             buffer -> {
               String morphId = buffer.readUtf();
               CompoundTag nbt = buffer.readNbt();
-              return new MorphSelectionPayload(morphId, nbt != null ? nbt : new CompoundTag());
+              return new MorphSelectionPayload(
+                  morphId, nbt != null ? nbt : new CompoundTag(), buffer.readUtf());
             });
 
     public MorphSelectionPayload {

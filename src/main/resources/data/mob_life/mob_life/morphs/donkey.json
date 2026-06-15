@@ -1,0 +1,86 @@
+{
+  "movement": {
+    "attribute_scale": 1,
+    "walk_multiplier": 1,
+    "sprint_multiplier": 1,
+    "sideways_multiplier": 0.5,
+    "backward_multiplier": 0.25,
+    "water_input_multiplier": 1,
+    "charged_jump": true,
+    "slow_fall_multiplier": 1
+  },
+  "diet": {
+    "foods": [
+      "#minecraft:horse_food"
+    ],
+    "hunted_foods": [],
+    "nutrition": 4,
+    "saturation_modifier": 0.3
+  },
+  "vision": {
+    "profile": "donkey",
+    "field_of_view_multiplier": 1.65,
+    "red_response": [
+      0.61,
+      0.39,
+      0
+    ],
+    "green_response": [
+      0.66,
+      0.34,
+      0
+    ],
+    "blue_response": [
+      0,
+      0.22,
+      0.78
+    ],
+    "effect_start_distance": 4,
+    "full_blur_distance": 20,
+    "full_darkening_distance": 36,
+    "full_fog_distance": 56,
+    "maximum_blur_radius": 7,
+    "peripheral_edge_brightness": 0.91,
+    "haze_strength": 0.72,
+    "retained_saturation": 0.49,
+    "contrast": 0.98,
+    "brightness": 1,
+    "peripheral_blur_radius": 0.9,
+    "peripheral_start": 0.68,
+    "low_light_brightness": 1.12
+  },
+  "combat": {
+    "attack_mode": "none",
+    "attack_damage": -1,
+    "leap_attack": {
+      "horizontal_speed": 0.4,
+      "vertical_speed": 0,
+      "maximum_distance": 4
+    },
+    "predators": [],
+    "avoided_by": [],
+    "hostile_detection_multiplier": 1
+  },
+  "attributes": {
+    "mining_speed": 0.83,
+    "maximum_food": 16,
+    "block_reach_scale": 1,
+    "entity_reach_scale": 1
+  },
+  "inventory": {
+    "hotbar_slots": 7,
+    "inventory_slots": 22,
+    "chest_bonus_slots": 15
+  },
+  "sleep": {
+    "schedule": "normal",
+    "without_bed": true,
+    "required_ticks": 200,
+    "maximum_awkwardness": 30,
+    "food_cost": 7
+  },
+  "traits": [
+    "can_equip_saddle",
+    "can_equip_chest"
+  ]
+}

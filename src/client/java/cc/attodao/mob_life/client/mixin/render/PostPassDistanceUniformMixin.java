@@ -3,6 +3,8 @@ package cc.attodao.mob_life.client.mixin.render;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.client.state.ClientVisionPass;
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
@@ -19,14 +21,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PostPass.class)
 public abstract class PostPassDistanceUniformMixin {
-  private static final int DISTANCE_BLUR_UBO_SIZE = 48;
+  private static final int DISTANCE_BLUR_UBO_SIZE = 128;
   private static final float NEAR_PLANE = 0.05F;
-  private static final float EFFECT_START_DISTANCE = 4.0F;
-  private static final float FULL_BLUR_DISTANCE = 16.0F;
-  private static final float FULL_DARKENING_DISTANCE = 32.0F;
-  private static final float FULL_FOG_DISTANCE = 48.0F;
-  private static final float MAXIMUM_BLUR_RADIUS = 4.0F;
-  private static final float PERIPHERAL_EDGE_BRIGHTNESS = 0.4F;
 
   @Inject(method = "addToFrame", at = @At("HEAD"))
   private void mobLife$updateDistanceBlur(CallbackInfo ci) {
@@ -44,7 +40,8 @@ public abstract class PostPassDistanceUniformMixin {
     if (buffer == null) {
       return;
     }
-    if ((buffer.usage() & GpuBuffer.USAGE_COPY_DST) == 0) {
+    if ((buffer.usage() & GpuBuffer.USAGE_COPY_DST) == 0
+        || buffer.size() < DISTANCE_BLUR_UBO_SIZE) {
       GpuBuffer writableBuffer =
           RenderSystem.getDevice()
               .createBuffer(
@@ -57,8 +54,9 @@ public abstract class PostPassDistanceUniformMixin {
     }
 
     Minecraft client = Minecraft.getInstance();
+    MorphConfig.Vision vision = MorphConfigManager.get(ClientMorphState.morph()).vision();
     float farPlane =
-        Math.max(FULL_FOG_DISTANCE, client.options.getEffectiveRenderDistance() * 16.0F);
+        Math.max(vision.fullFogDistance(), client.options.getEffectiveRenderDistance() * 16.0F);
     float skyBrightness =
         client.level == null
             ? 1.0F
@@ -69,20 +67,41 @@ public abstract class PostPassDistanceUniformMixin {
       Std140Builder data =
           Std140Builder.onStack(stack, DISTANCE_BLUR_UBO_SIZE)
               .putVec4(
-                  EFFECT_START_DISTANCE,
-                  FULL_BLUR_DISTANCE,
-                  FULL_DARKENING_DISTANCE,
-                  FULL_FOG_DISTANCE)
+                  vision.effectStartDistance(),
+                  vision.fullBlurDistance(),
+                  vision.fullDarkeningDistance(),
+                  vision.fullFogDistance())
               .putVec4(
-                  MAXIMUM_BLUR_RADIUS * (1.0F + interference),
+                  vision.maximumBlurRadius() * (1.0F + interference),
                   skyBrightness,
-                  PERIPHERAL_EDGE_BRIGHTNESS,
-                  1.0F)
+                  vision.peripheralEdgeBrightness(),
+                  vision.hazeStrength())
               .putVec4(
                   NEAR_PLANE,
                   farPlane,
                   ClientVisionPass.isDistancePass() ? 1.0F : 0.0F,
-                  interference);
+                  interference)
+              .putVec4(
+                  vision.retainedSaturation(),
+                  vision.contrast(),
+                  vision.brightness(),
+                  vision.peripheralBlurRadius())
+              .putVec4(
+                  vision.redResponse().red(),
+                  vision.redResponse().green(),
+                  vision.redResponse().blue(),
+                  0.0F)
+              .putVec4(
+                  vision.greenResponse().red(),
+                  vision.greenResponse().green(),
+                  vision.greenResponse().blue(),
+                  0.0F)
+              .putVec4(
+                  vision.blueResponse().red(),
+                  vision.blueResponse().green(),
+                  vision.blueResponse().blue(),
+                  0.0F)
+              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), 0.0F, 1.0F);
       RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.slice(), data.get());
     }
   }

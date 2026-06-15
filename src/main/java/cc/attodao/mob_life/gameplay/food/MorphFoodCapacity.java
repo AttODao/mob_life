@@ -1,8 +1,8 @@
 package cc.attodao.mob_life.gameplay.food;
 
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphType;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
@@ -10,10 +10,8 @@ import net.minecraft.world.food.FoodData;
 public final class MorphFoodCapacity {
 
   public static final int PLAYER_MAX_FOOD = 20;
-  public static final int MIN_MOB_MAX_FOOD = 10;
   public static final int ABSOLUTE_MIN_MOB_MAX_FOOD = 8;
   private static final float PLAYER_HEIGHT = EntityType.PLAYER.getDimensions().height();
-  private static final float SMALL_FORM_HEIGHT = EntityType.CHICKEN.getDimensions().height();
 
   private MorphFoodCapacity() {}
 
@@ -30,14 +28,11 @@ public final class MorphFoodCapacity {
       return PLAYER_MAX_FOOD;
     }
 
+    float adultHeight = morph.entityType().getDimensions().height();
     float maximum =
-        morphHeight <= SMALL_FORM_HEIGHT
-            ? MIN_MOB_MAX_FOOD * MorphBodyScale.relativeTo(morphHeight, SMALL_FORM_HEIGHT)
-            : Math.max(
-                MIN_MOB_MAX_FOOD,
-                PLAYER_MAX_FOOD * MorphBodyScale.relativeTo(morphHeight, PLAYER_HEIGHT));
-    return Mth.clamp(
-        (int) Math.floor(maximum + 1.0E-4F), ABSOLUTE_MIN_MOB_MAX_FOOD, PLAYER_MAX_FOOD);
+        MorphConfigManager.get(morph).attributes().maximumFood()
+            * MorphBodyScale.relativeTo(morphHeight, adultHeight);
+    return Math.max(ABSOLUTE_MIN_MOB_MAX_FOOD, (int) Math.floor(maximum + 1.0E-4F));
   }
 
   public static int maxFood(Player player) {

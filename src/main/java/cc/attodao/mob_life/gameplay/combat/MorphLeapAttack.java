@@ -1,5 +1,7 @@
 package cc.attodao.mob_life.gameplay.combat;
 
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphType;
 import java.util.Collections;
 import java.util.Map;
@@ -11,22 +13,25 @@ import net.minecraft.world.phys.Vec3;
 
 public final class MorphLeapAttack {
 
-  private static final double MAX_LEAP_DISTANCE_SQUARED = 16.0;
-  private static final double HORIZONTAL_LEAP_SPEED = 0.4;
   private static final Map<Player, Integer> LAST_LEAP_TICKS =
       Collections.synchronizedMap(new WeakHashMap<>());
 
   private MorphLeapAttack() {}
 
   public static void tryLeap(Player player, Entity target, MorphType morph) {
-    double verticalSpeed = verticalSpeed(morph);
+    if (morph == null) {
+      return;
+    }
+    MorphConfig.LeapAttack leap = MorphConfigManager.get(morph).combat().leapAttack();
+    double verticalSpeed = leap.verticalSpeed();
+    double maximumDistanceSquared = leap.maximumDistance() * leap.maximumDistance();
     if (verticalSpeed <= 0.0
         || !(target instanceof LivingEntity livingTarget)
         || !livingTarget.isAlive()
         || !player.onGround()
         || player.isPassenger()
         || player.getAbilities().flying
-        || player.distanceToSqr(target) > MAX_LEAP_DISTANCE_SQUARED
+        || player.distanceToSqr(target) > maximumDistanceSquared
         || LAST_LEAP_TICKS.getOrDefault(player, Integer.MIN_VALUE) == player.tickCount) {
       return;
     }
@@ -37,19 +42,8 @@ public final class MorphLeapAttack {
     }
 
     Vec3 movement = player.getDeltaMovement();
-    Vec3 horizontal = direction.normalize().scale(HORIZONTAL_LEAP_SPEED).add(movement.scale(0.2));
+    Vec3 horizontal = direction.normalize().scale(leap.horizontalSpeed()).add(movement.scale(0.2));
     player.setDeltaMovement(horizontal.x, verticalSpeed, horizontal.z);
     LAST_LEAP_TICKS.put(player, player.tickCount);
-  }
-
-  private static double verticalSpeed(MorphType morph) {
-    if (morph == null) {
-      return 0.0;
-    }
-    return switch (morph) {
-      case CAT, OCELOT -> 0.3;
-      case WOLF -> 0.4;
-      default -> 0.0;
-    };
   }
 }

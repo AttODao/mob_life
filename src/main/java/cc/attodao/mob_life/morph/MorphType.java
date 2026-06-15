@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.morph;
 
+import cc.attodao.mob_life.config.MorphConfigManager;
 import com.mojang.serialization.Codec;
 import java.util.Arrays;
 import java.util.Optional;
@@ -42,19 +43,27 @@ public enum MorphType {
   }
 
   public boolean isNocturnal() {
-    return this == CAT || this == OCELOT || this == WOLF;
+    return MorphConfigManager.get(this).sleep().schedule().equals("day");
   }
 
   public boolean canEquipSaddle() {
-    return this == PIG || isEquine();
+    return MorphConfigManager.get(this).traits().canEquipSaddle();
   }
 
-  public boolean canEquipBodyArmor() {
-    return this == HORSE || this == WOLF;
+  public boolean canEquipHorseArmor() {
+    return MorphConfigManager.get(this).traits().canEquipHorseArmor();
+  }
+
+  public boolean canEquipWolfArmor() {
+    return MorphConfigManager.get(this).traits().canEquipWolfArmor();
+  }
+
+  public boolean canEquipAnimalArmor() {
+    return canEquipHorseArmor() || canEquipWolfArmor();
   }
 
   public boolean canEquipChest() {
-    return this == DONKEY || this == MULE;
+    return MorphConfigManager.get(this).traits().canEquipChest();
   }
 
   public boolean isEquine() {
@@ -62,12 +71,7 @@ public enum MorphType {
   }
 
   public String visionProfileId() {
-    return switch (this) {
-      case PLAYER -> "cow";
-      case CHICKEN, CAT, OCELOT, WOLF, RABBIT -> "chicken";
-      case SHEEP -> "sheep";
-      case COW, PIG, HORSE, DONKEY, MULE -> "cow";
-    };
+    return MorphConfigManager.get(this).vision().profile();
   }
 
   public String translationKey() {

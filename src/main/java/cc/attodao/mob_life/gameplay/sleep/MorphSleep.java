@@ -1,7 +1,8 @@
 package cc.attodao.mob_life.gameplay.sleep;
 
+import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
-import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -20,8 +21,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public final class MorphSleep {
-  public static final int REQUIRED_SLEEP_TICKS = 200;
-  private static final float FOOD_COST_RATIO = 0.4F;
   private static final long DAY_END_TICK = 12000L;
   private static final long DAY_LENGTH_TICKS = 24000L;
 
@@ -35,22 +34,26 @@ public final class MorphSleep {
       player.stopSleepInBed(true, true);
       return;
     }
-    if (!MorphAwkwardness.canSleepWithoutBed(player)) {
+    MorphConfig.Sleep config = config();
+    if (!config.withoutBed() || MorphAwkwardness.get(player) > config.maximumAwkwardness()) {
       player.sendOverlayMessage(Component.translatable("mob_life.sleep.too_awkward"));
       return;
     }
-    int foodCost = foodCost(player);
+    int foodCost = foodCost();
     if (player.getFoodData().getFoodLevel() <= foodCost) {
       player.sendOverlayMessage(Component.translatable("mob_life.sleep.not_enough_food", foodCost));
       return;
     }
 
-    boolean nocturnal = ServerMorphManager.activeMorph().isNocturnal();
-    if (nocturnal && !isDaytime(player)) {
+    if (config.schedule().equals("day") && !isDaytime(player)) {
       player.sendOverlayMessage(Component.translatable("mob_life.sleep.nocturnal_night"));
       return;
     }
-    if (!nocturnal) {
+    if (config.schedule().equals("never")) {
+      player.sendOverlayMessage(Component.translatable("mob_life.sleep.not_possible"));
+      return;
+    }
+    if (config.schedule().equals("normal")) {
       var bedRule =
           player
               .level()
@@ -152,8 +155,16 @@ public final class MorphSleep {
         .isEmpty();
   }
 
-  private static int foodCost(Player player) {
-    return Math.max(1, (int) Math.ceil(MorphFoodCapacity.maxFood(player) * FOOD_COST_RATIO));
+  private static int foodCost() {
+    return Math.max(0, config().foodCost());
+  }
+
+  public static int requiredSleepTicks() {
+    return config().requiredTicks();
+  }
+
+  private static MorphConfig.Sleep config() {
+    return MorphConfigManager.get(ServerMorphManager.activeMorph()).sleep();
   }
 
   private static void consumeFood(ServerPlayer player, int foodCost) {

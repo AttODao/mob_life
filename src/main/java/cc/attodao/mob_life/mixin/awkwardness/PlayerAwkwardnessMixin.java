@@ -115,7 +115,7 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
   @ModifyConstant(method = "tick", constant = @Constant(intValue = Player.SLEEP_DURATION))
   private int mobLife$extendSoftSurfaceSleepTimer(int duration) {
     Player player = (Player) (Object) this;
-    return MorphSleep.isCustomSleep(player) ? MorphSleep.REQUIRED_SLEEP_TICKS : duration;
+    return MorphSleep.isCustomSleep(player) ? MorphSleep.requiredSleepTicks() : duration;
   }
 
   @Inject(method = "isSleepingLongEnough", at = @At("HEAD"), cancellable = true)
@@ -123,7 +123,7 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
     Player player = (Player) (Object) this;
     if (MorphSleep.isCustomSleep(player)) {
       cir.setReturnValue(
-          player.isSleeping() && player.getSleepTimer() >= MorphSleep.REQUIRED_SLEEP_TICKS);
+          player.isSleeping() && player.getSleepTimer() >= MorphSleep.requiredSleepTicks());
     }
   }
 }

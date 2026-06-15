@@ -21,6 +21,11 @@ layout(std140) uniform DistanceBlur {
     vec4 Parameters;
     vec4 Effects;
     vec4 DepthRange;
+    vec4 ConfigOverrides;
+    vec4 DynamicRedResponse;
+    vec4 DynamicGreenResponse;
+    vec4 DynamicBlueResponse;
+    vec4 VisionBehavior;
 };
 
 out vec4 fragColor;
@@ -33,15 +38,15 @@ float peripheralAmount() {
         pow(edgePosition.x, 4.0) + pow(edgePosition.y, 4.0),
         0.25
     );
-    return smoothstep(0.30, 1.0, roundedEdgeDistance);
+    return smoothstep(VisionBehavior.x, 1.0, roundedEdgeDistance);
 }
 
 vec3 samplePeripheralBlur(float blurAmount) {
-    if (blurAmount < 0.001 || Settings.w < 0.001) {
+    if (blurAmount < 0.001 || ConfigOverrides.w < 0.001) {
         return texture(InSampler, texCoord).rgb;
     }
 
-    vec2 offset = Settings.w * blurAmount / InSize;
+    vec2 offset = ConfigOverrides.w * blurAmount / InSize;
     vec3 color = texture(InSampler, texCoord).rgb * 0.2;
     color += texture(
         InSampler,
@@ -104,25 +109,34 @@ void main() {
         float peripheral = peripheralAmount();
         sourceColor.rgb = samplePeripheralBlur(peripheral);
         vec3 shiftedColor = vec3(
-            dot(sourceColor.rgb, RedResponse.rgb),
-            dot(sourceColor.rgb, GreenResponse.rgb),
-            dot(sourceColor.rgb, BlueResponse.rgb)
+            dot(
+                sourceColor.rgb,
+                mix(RedResponse.rgb, DynamicRedResponse.rgb, VisionBehavior.w)
+            ),
+            dot(
+                sourceColor.rgb,
+                mix(GreenResponse.rgb, DynamicGreenResponse.rgb, VisionBehavior.w)
+            ),
+            dot(
+                sourceColor.rgb,
+                mix(BlueResponse.rgb, DynamicBlueResponse.rgb, VisionBehavior.w)
+            )
         );
         float luminance = dot(
             shiftedColor,
             LUMINANCE_RESPONSE
         );
         float interference = DepthRange.w;
-        float retainedSaturation = Settings.x
+        float retainedSaturation = ConfigOverrides.x
             * mix(1.0, 0.65, interference);
         vec3 baseVisionColor = mix(
             vec3(luminance),
             shiftedColor,
             retainedSaturation
         );
-        float baseContrast = Settings.y
+        float baseContrast = ConfigOverrides.y
             * mix(1.0, 0.85, interference);
-        float baseBrightness = Settings.z
+        float baseBrightness = ConfigOverrides.z
             * mix(1.0, 0.82, interference);
         baseVisionColor = (baseVisionColor - 0.5) * baseContrast + 0.5;
         baseVisionColor = max(baseVisionColor, vec3(0.0));
@@ -131,8 +145,14 @@ void main() {
             0.001
         );
         float sourceLuminance = dot(sourceColor.rgb, LUMINANCE_RESPONSE);
+        float lowLightBrightness = mix(
+            VisionBehavior.y,
+            1.0,
+            Effects.y
+        );
         baseVisionColor *= sourceLuminance
             * baseBrightness
+            * lowLightBrightness
             / transformedLuminance;
         baseVisionColor *= mix(1.0, Effects.z, peripheral);
         fragColor = vec4(

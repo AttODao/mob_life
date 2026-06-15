@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
@@ -42,8 +43,6 @@ final class ServerPlayerMorphApplier {
   private static final Identifier ENTITY_REACH_MODIFIER_ID = MobLife.id("morph_entity_reach");
   private static final Identifier ATTACK_DAMAGE_MODIFIER_ID = MobLife.id("morph_attack_damage");
   private static final float PLAYER_HEIGHT = EntityType.PLAYER.getDimensions().height();
-  private static final float SMALL_FORM_HEIGHT = EntityType.CHICKEN.getDimensions().height();
-  private static final double SMALL_FORM_MINING_MULTIPLIER = 0.5;
 
   private ServerPlayerMorphApplier() {}
 
@@ -64,7 +63,9 @@ final class ServerPlayerMorphApplier {
     MorphMovementSpeed.refresh(player);
     syncInventory(player);
     ServerPlayNetworking.send(
-        player, new MobLifeNetworking.MorphSelectionPayload(morph.id(), definition.nbt()));
+        player,
+        new MobLifeNetworking.MorphSelectionPayload(
+            morph.id(), definition.nbt(), MorphConfigManager.encode(morph)));
   }
 
   private static void applyMobAttributes(
@@ -89,8 +90,8 @@ final class ServerPlayerMorphApplier {
         ATTACK_DAMAGE_MODIFIER_ID,
         MorphAttackDamage.fromMorph(definition.type(), livingMorph));
     applyMaxHealth(player, livingMorph, definition, preserveHealthRatio);
-    applyBlockBreakSpeed(player, dimensions.height());
-    applyInteractionRanges(player, dimensions.height());
+    applyBlockBreakSpeed(player, definition.type(), dimensions.height());
+    applyInteractionRanges(player, definition.type(), dimensions.height());
     applyMobMovementAttributes(player, livingMorph, definition.type(), dimensions.height());
   }
 
@@ -153,18 +154,17 @@ final class ServerPlayerMorphApplier {
     updateHealth(player, oldHealth, oldMaxHealth, preserveHealthRatio);
   }
 
-  private static void applyBlockBreakSpeed(ServerPlayer player, float morphHeight) {
+  private static void applyBlockBreakSpeed(
+      ServerPlayer player, MorphType morph, float morphHeight) {
     AttributeInstance attribute = player.getAttribute(Attributes.BLOCK_BREAK_SPEED);
     if (attribute == null) {
       return;
     }
 
     double multiplier =
-        morphHeight <= SMALL_FORM_HEIGHT
-            ? SMALL_FORM_MINING_MULTIPLIER
-                * MorphBodyScale.relativeTo(morphHeight, SMALL_FORM_HEIGHT)
-            : MorphBodyScale.relativeTo(morphHeight, PLAYER_HEIGHT);
-    multiplier = Math.clamp(multiplier, 0.1, 1.0);
+        MorphConfigManager.get(morph).attributes().miningSpeed()
+            * MorphBodyScale.relativeTo(morphHeight, morph.entityType().getDimensions().height());
+    multiplier = Math.max(0.05, multiplier);
     attribute.addOrUpdateTransientModifier(
         new AttributeModifier(
             BLOCK_BREAK_SPEED_MODIFIER_ID,
@@ -172,12 +172,19 @@ final class ServerPlayerMorphApplier {
             AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
   }
 
-  private static void applyInteractionRanges(ServerPlayer player, float morphHeight) {
+  private static void applyInteractionRanges(
+      ServerPlayer player, MorphType morph, float morphHeight) {
     double heightScale = morphHeight / PLAYER_HEIGHT;
     setScaledBaseAttribute(
-        player, Attributes.BLOCK_INTERACTION_RANGE, BLOCK_REACH_MODIFIER_ID, heightScale);
+        player,
+        Attributes.BLOCK_INTERACTION_RANGE,
+        BLOCK_REACH_MODIFIER_ID,
+        heightScale * MorphConfigManager.get(morph).attributes().blockReachScale());
     setScaledBaseAttribute(
-        player, Attributes.ENTITY_INTERACTION_RANGE, ENTITY_REACH_MODIFIER_ID, heightScale);
+        player,
+        Attributes.ENTITY_INTERACTION_RANGE,
+        ENTITY_REACH_MODIFIER_ID,
+        heightScale * MorphConfigManager.get(morph).attributes().entityReachScale());
   }
 
   private static void setScaledBaseAttribute(
