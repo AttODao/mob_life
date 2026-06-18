@@ -27,7 +27,7 @@
 - The morph inventory adds `mob_life:log_to_crafting_table`, a shapeless recipe
   that converts one item in `#minecraft:logs` into one crafting table. It is
   explicitly preferred over vanilla log-to-planks recipes in the one-slot
-  player crafting grid.
+  player crafting grid and is suppressed in the normal 3x3 crafting table.
 - The recipe-book button is hidden for mob-form player inventories because its
   normal 2x2 placement logic can target disabled crafting slots. Horse, donkey,
   and mule forms retain the same one-slot manual crafting area as other forms.

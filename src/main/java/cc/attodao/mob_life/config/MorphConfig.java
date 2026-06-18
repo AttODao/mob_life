@@ -4,9 +4,17 @@ import cc.attodao.mob_life.morph.MorphType;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 public record MorphConfig(
@@ -21,9 +29,10 @@ public record MorphConfig(
     Traits traits) {
 
   public record Movement(
-      double attributeScale,
-      double walkMultiplier,
-      double sprintMultiplier,
+      double referenceMobSpeed,
+      double walkSpeed,
+      double sprintSpeed,
+      double fastSprintSpeed,
       float sidewaysMultiplier,
       float backwardMultiplier,
       float waterInputMultiplier,
@@ -89,6 +98,7 @@ public record MorphConfig(
       float maximumAwkwardness) {}
 
   public enum Ability {
+    NONE("none"),
     FAST_SPRINT("fast_sprint"),
     EGG_LAYING("egg_laying");
 
@@ -112,17 +122,9 @@ public record MorphConfig(
     }
   }
 
-  public record Abilities(Set<Ability> values) {
+  public record Abilities(Ability value) {
     public Abilities {
-      values = Set.copyOf(values);
-    }
-
-    public boolean fastSprint() {
-      return values.contains(Ability.FAST_SPRINT);
-    }
-
-    public boolean eggLaying() {
-      return values.contains(Ability.EGG_LAYING);
+      value = Objects.requireNonNull(value);
     }
   }
 
@@ -184,369 +186,85 @@ public record MorphConfig(
     }
   }
 
-  public static MorphConfig defaults(MorphType morph) {
-    double movementScale = morph.isEquine() ? 1.0 : morph.isPlayer() ? 1.0 : 0.25;
-    double walk = 1.0;
-    double sprint = morph.isEquine() ? 1.0 : 1.3;
-    float sideways = morph.isEquine() ? 0.5F : 0.25F;
-    float backward = 0.25F;
-    boolean chargedJump = !morph.isPlayer() && morph != MorphType.RABBIT;
-    RabbitHop rabbitHop = new RabbitHop(false, 20, 3, 0.2F, 0.35F, 0.2, 0.3);
-    String visionProfile = "cow";
-    float fieldOfViewMultiplier = 1.65F;
-    ColorResponse redResponse = new ColorResponse(0.57F, 0.43F, 0.0F);
-    ColorResponse greenResponse = new ColorResponse(0.56F, 0.44F, 0.0F);
-    ColorResponse blueResponse = new ColorResponse(0.0F, 0.24F, 0.76F);
-    float retainedSaturation = 0.5F;
-    float contrast = 0.98F;
-    float brightness = 1.0F;
-    float effectStartDistance = 4.0F;
-    float fullBlurDistance = 20.0F;
-    float fullDarkeningDistance = 36.0F;
-    float fullFogDistance = 56.0F;
-    float maximumBlurRadius = 8.0F;
-    float peripheralEdgeBrightness = 0.82F;
-    float hazeStrength = 0.8F;
-    float peripheralBlurRadius = 1.8F;
-    float peripheralStart = 0.58F;
-    float lowLightBrightness = 1.0F;
-    String food = "";
-    List<String> huntedFoods = List.of();
-    String attackMode = "none";
-    double leapVertical = 0.0;
-    List<String> predators = List.of();
-    List<String> avoidedBy = List.of();
-    double miningSpeed = 1.0;
-    int maximumFood = 20;
-    int hotbarSlots = 9;
-    int inventorySlots = 27;
-    String sleepSchedule = "normal";
-    boolean canEquipSaddle = false;
-    boolean canEquipHorseArmor = false;
-    boolean canEquipWolfArmor = false;
-    boolean canEquipChest = false;
-    boolean fallDamageImmune = false;
-    boolean eatsGrass = false;
-    boolean fastSprint = false;
-    boolean eggLaying = false;
+  private static final MorphConfig FALLBACK_DEFAULTS = fallbackDefaults();
+  private static final Map<MorphType, MorphConfig> BUILTIN_CONFIGS = loadBuiltinConfigs();
 
-    switch (morph) {
-      case PLAYER -> {}
-      case COW -> {
-        fastSprint = true;
-        sprint = 2.0;
-        food = "#minecraft:cow_food";
-        miningSpeed = 0.78;
-        maximumFood = 15;
-        hotbarSlots = 7;
-        inventorySlots = 21;
-      }
-      case SHEEP -> {
-        eatsGrass = true;
-        fastSprint = true;
-        sprint = 1.25;
-        visionProfile = "sheep";
-        fieldOfViewMultiplier = 1.60F;
-        redResponse = new ColorResponse(0.63F, 0.37F, 0.0F);
-        greenResponse = new ColorResponse(0.68F, 0.32F, 0.0F);
-        blueResponse = new ColorResponse(0.0F, 0.30F, 0.70F);
-        retainedSaturation = 0.46F;
-        contrast = 0.97F;
-        maximumBlurRadius = 9.0F;
-        peripheralEdgeBrightness = 0.84F;
-        peripheralBlurRadius = 1.6F;
-        peripheralStart = 0.60F;
-        food = "#minecraft:sheep_food";
-        predators = List.of("minecraft:wolf");
-        miningSpeed = 0.72;
-        maximumFood = 14;
-        hotbarSlots = 6;
-        inventorySlots = 19;
-      }
-      case CHICKEN -> {
-        eggLaying = true;
-        fallDamageImmune = true;
-        sprint = 1.4;
-        visionProfile = "chicken";
-        fieldOfViewMultiplier = 1.50F;
-        redResponse = new ColorResponse(1.08F, -0.06F, -0.02F);
-        greenResponse = new ColorResponse(-0.04F, 1.08F, -0.04F);
-        blueResponse = new ColorResponse(-0.03F, 0.08F, 1.10F);
-        retainedSaturation = 1.0F;
-        contrast = 1.04F;
-        brightness = 1.0F;
-        fullBlurDistance = 32.0F;
-        fullDarkeningDistance = 48.0F;
-        fullFogDistance = 64.0F;
-        maximumBlurRadius = 4.0F;
-        peripheralEdgeBrightness = 0.90F;
-        hazeStrength = 0.55F;
-        peripheralBlurRadius = 0.7F;
-        peripheralStart = 0.65F;
-        lowLightBrightness = 0.78F;
-        food = "#minecraft:chicken_food";
-        predators = List.of("minecraft:fox", "minecraft:ocelot");
-        miningSpeed = 0.5;
-        maximumFood = 10;
-        hotbarSlots = 3;
-        inventorySlots = 9;
-      }
-      case CAT -> {
-        fastSprint = true;
-        fallDamageImmune = true;
-        walk = 0.8;
-        sprint = 1.33;
-        visionProfile = "cat";
-        fieldOfViewMultiplier = 1.0F;
-        redResponse = new ColorResponse(0.91F, 0.09F, 0.0F);
-        greenResponse = new ColorResponse(0.0F, 0.46F, 0.54F);
-        blueResponse = new ColorResponse(0.0F, 0.40F, 0.60F);
-        retainedSaturation = 0.50F;
-        contrast = 1.05F;
-        brightness = 1.02F;
-        maximumBlurRadius = 8.5F;
-        peripheralEdgeBrightness = 0.68F;
-        hazeStrength = 0.65F;
-        peripheralBlurRadius = 3.0F;
-        peripheralStart = 0.42F;
-        lowLightBrightness = 1.42F;
-        food = "#minecraft:cat_food";
-        huntedFoods = List.of("minecraft:rabbit", "minecraft:cooked_rabbit");
-        attackMode = "always";
-        leapVertical = 0.3;
-        avoidedBy = List.of("minecraft:creeper");
-        miningSpeed = 0.5;
-        maximumFood = 10;
-        hotbarSlots = 3;
-        inventorySlots = 9;
-        sleepSchedule = "day";
-      }
-      case OCELOT -> {
-        fastSprint = true;
-        fallDamageImmune = true;
-        walk = 0.8;
-        sprint = 1.33;
-        visionProfile = "ocelot";
-        fieldOfViewMultiplier = 1.0F;
-        redResponse = new ColorResponse(0.91F, 0.09F, 0.0F);
-        greenResponse = new ColorResponse(0.0F, 0.46F, 0.54F);
-        blueResponse = new ColorResponse(0.0F, 0.40F, 0.60F);
-        retainedSaturation = 0.52F;
-        contrast = 1.07F;
-        brightness = 1.02F;
-        maximumBlurRadius = 8.0F;
-        peripheralEdgeBrightness = 0.70F;
-        hazeStrength = 0.62F;
-        peripheralBlurRadius = 2.7F;
-        peripheralStart = 0.44F;
-        lowLightBrightness = 1.38F;
-        food = "#minecraft:ocelot_food";
-        huntedFoods = List.of("minecraft:chicken", "minecraft:cooked_chicken");
-        attackMode = "always";
-        leapVertical = 0.3;
-        avoidedBy = List.of("minecraft:creeper");
-        miningSpeed = 0.5;
-        maximumFood = 10;
-        hotbarSlots = 3;
-        inventorySlots = 9;
-        sleepSchedule = "day";
-      }
-      case WOLF -> {
-        fastSprint = true;
-        sprint = 1.5;
-        visionProfile = "wolf";
-        fieldOfViewMultiplier = 1.25F;
-        redResponse = new ColorResponse(0.94F, 0.06F, 0.0F);
-        greenResponse = new ColorResponse(0.0F, 0.43F, 0.57F);
-        blueResponse = new ColorResponse(0.0F, 0.48F, 0.52F);
-        retainedSaturation = 0.48F;
-        contrast = 1.03F;
-        brightness = 1.0F;
-        maximumBlurRadius = 7.5F;
-        peripheralEdgeBrightness = 0.74F;
-        hazeStrength = 0.68F;
-        peripheralBlurRadius = 2.3F;
-        peripheralStart = 0.47F;
-        lowLightBrightness = 1.25F;
-        food = "#minecraft:wolf_food";
-        huntedFoods =
-            List.of(
-                "minecraft:mutton",
-                "minecraft:cooked_mutton",
-                "minecraft:rabbit",
-                "minecraft:cooked_rabbit");
-        attackMode = "always";
-        leapVertical = 0.4;
-        miningSpeed = 0.47;
-        maximumFood = 10;
-        hotbarSlots = 4;
-        inventorySlots = 12;
-        sleepSchedule = "day";
-        canEquipWolfArmor = true;
-      }
-      case PIG -> {
-        fastSprint = true;
-        sprint = 1.25;
-        visionProfile = "pig";
-        fieldOfViewMultiplier = 1.55F;
-        redResponse = new ColorResponse(0.60F, 0.40F, 0.0F);
-        greenResponse = new ColorResponse(0.53F, 0.47F, 0.0F);
-        blueResponse = new ColorResponse(0.0F, 0.27F, 0.73F);
-        retainedSaturation = 0.52F;
-        maximumBlurRadius = 9.5F;
-        peripheralEdgeBrightness = 0.80F;
-        peripheralBlurRadius = 2.0F;
-        peripheralStart = 0.56F;
-        lowLightBrightness = 1.08F;
-        food = "#minecraft:pig_food";
-        miningSpeed = 0.5;
-        maximumFood = 10;
-        hotbarSlots = 4;
-        inventorySlots = 13;
-        canEquipSaddle = true;
-      }
-      case HORSE -> {
-        visionProfile = "horse";
-        fieldOfViewMultiplier = 1.65F;
-        redResponse = new ColorResponse(0.61F, 0.39F, 0.0F);
-        greenResponse = new ColorResponse(0.66F, 0.34F, 0.0F);
-        blueResponse = new ColorResponse(0.0F, 0.22F, 0.78F);
-        retainedSaturation = 0.50F;
-        maximumBlurRadius = 6.5F;
-        peripheralEdgeBrightness = 0.91F;
-        hazeStrength = 0.70F;
-        peripheralBlurRadius = 0.9F;
-        peripheralStart = 0.68F;
-        lowLightBrightness = 1.13F;
-        food = "#minecraft:horse_food";
-        miningSpeed = 0.89;
-        maximumFood = 17;
-        hotbarSlots = 8;
-        inventorySlots = 24;
-        canEquipSaddle = true;
-        canEquipHorseArmor = true;
-      }
-      case DONKEY -> {
-        visionProfile = "donkey";
-        fieldOfViewMultiplier = 1.65F;
-        redResponse = new ColorResponse(0.61F, 0.39F, 0.0F);
-        greenResponse = new ColorResponse(0.66F, 0.34F, 0.0F);
-        blueResponse = new ColorResponse(0.0F, 0.22F, 0.78F);
-        retainedSaturation = 0.49F;
-        maximumBlurRadius = 7.0F;
-        peripheralEdgeBrightness = 0.91F;
-        hazeStrength = 0.72F;
-        peripheralBlurRadius = 0.9F;
-        peripheralStart = 0.68F;
-        lowLightBrightness = 1.12F;
-        food = "#minecraft:horse_food";
-        miningSpeed = 0.83;
-        maximumFood = 16;
-        hotbarSlots = 7;
-        inventorySlots = 22;
-        canEquipSaddle = true;
-        canEquipChest = true;
-      }
-      case MULE -> {
-        visionProfile = "mule";
-        fieldOfViewMultiplier = 1.65F;
-        redResponse = new ColorResponse(0.61F, 0.39F, 0.0F);
-        greenResponse = new ColorResponse(0.66F, 0.34F, 0.0F);
-        blueResponse = new ColorResponse(0.0F, 0.22F, 0.78F);
-        retainedSaturation = 0.50F;
-        maximumBlurRadius = 6.8F;
-        peripheralEdgeBrightness = 0.91F;
-        hazeStrength = 0.71F;
-        peripheralBlurRadius = 0.9F;
-        peripheralStart = 0.68F;
-        lowLightBrightness = 1.13F;
-        food = "#minecraft:horse_food";
-        miningSpeed = 0.89;
-        maximumFood = 17;
-        hotbarSlots = 8;
-        inventorySlots = 24;
-        canEquipSaddle = true;
-        canEquipChest = true;
-      }
-      case RABBIT -> {
-        fastSprint = true;
-        walk = 0.6;
-        sprint = 2.2;
-        visionProfile = "rabbit";
-        fieldOfViewMultiplier = 1.80F;
-        redResponse = new ColorResponse(0.67F, 0.33F, 0.0F);
-        greenResponse = new ColorResponse(0.57F, 0.43F, 0.0F);
-        blueResponse = new ColorResponse(0.0F, 0.24F, 0.76F);
-        retainedSaturation = 0.48F;
-        contrast = 0.96F;
-        maximumBlurRadius = 11.0F;
-        peripheralEdgeBrightness = 0.93F;
-        hazeStrength = 0.82F;
-        peripheralBlurRadius = 0.7F;
-        peripheralStart = 0.70F;
-        lowLightBrightness = 1.08F;
-        food = "#minecraft:rabbit_food";
-        attackMode = "evil_rabbit";
-        predators = List.of("minecraft:fox", "minecraft:wolf");
-        rabbitHop = new RabbitHop(true, 20, 3, 0.2F, 0.35F, 0.2, 0.3);
-        miningSpeed = 0.36;
-        maximumFood = 8;
-        hotbarSlots = 2;
-        inventorySlots = 6;
-      }
+  private static Map<MorphType, MorphConfig> loadBuiltinConfigs() {
+    EnumMap<MorphType, MorphConfig> configs = new EnumMap<>(MorphType.class);
+    for (MorphType morph : MorphType.values()) {
+      configs.put(morph, loadBuiltinConfig(morph));
     }
-
-    List<String> foods = food.isEmpty() ? List.of() : List.of(food);
-    return new MorphConfig(
-        new Movement(
-            movementScale,
-            walk,
-            sprint,
-            sideways,
-            backward,
-            1.0F,
-            chargedJump,
-            morph == MorphType.CHICKEN ? 0.6F : 1.0F,
-            morph == MorphType.CHICKEN,
-            rabbitHop),
-        new Diet(foods, huntedFoods, 4, 0.3F),
-        new Vision(
-            visionProfile,
-            morph.isPlayer() ? 1.0F : fieldOfViewMultiplier,
-            redResponse,
-            greenResponse,
-            blueResponse,
-            effectStartDistance,
-            fullBlurDistance,
-            fullDarkeningDistance,
-            fullFogDistance,
-            maximumBlurRadius,
-            peripheralEdgeBrightness,
-            hazeStrength,
-            retainedSaturation,
-            contrast,
-            brightness,
-            peripheralBlurRadius,
-            peripheralStart,
-            lowLightBrightness),
-        new Combat(
-            attackMode, -1.0, new LeapAttack(0.4, leapVertical, 4.0), predators, avoidedBy, 1.0F),
-        new Attributes(miningSpeed, maximumFood, 1.0, 1.0),
-        new Inventory(hotbarSlots, inventorySlots, canEquipChest ? 15 : 0),
-        new Sleep(sleepSchedule, !morph.isPlayer(), 200, (int) Math.ceil(maximumFood * 0.4), 30.0F),
-        new Abilities(abilities(fastSprint, eggLaying)),
-        new Traits(
-            traits(
-                fallDamageImmune,
-                eatsGrass,
-                canEquipSaddle,
-                canEquipHorseArmor,
-                canEquipWolfArmor,
-                canEquipChest)));
+    return Map.copyOf(configs);
   }
 
-  public static MorphConfig fromJson(MorphType morph, JsonObject root) {
-    MorphConfig defaults = defaults(morph);
+  private static MorphConfig loadBuiltinConfig(MorphType morph) {
+    return parseConfig(builtinMorphJson(morph), FALLBACK_DEFAULTS);
+  }
+
+  private static JsonObject builtinMorphJson(MorphType morph) {
+    String path = "/data/mob_life/mob_life/morphs/" + morph.id() + ".json";
+    try (InputStream stream = MorphConfig.class.getResourceAsStream(path)) {
+      if (stream == null) {
+        throw new IllegalStateException("Missing builtin morph config: " + path);
+      }
+      try (InputStreamReader reader = new InputStreamReader(stream, StandardCharsets.UTF_8)) {
+        return JsonParser.parseReader(reader).getAsJsonObject();
+      }
+    } catch (IOException exception) {
+      throw new IllegalStateException("Could not load builtin morph config: " + path, exception);
+    }
+  }
+
+  private static MorphConfig fallbackDefaults() {
+    Movement movement =
+        new Movement(
+            0.1,
+            0.1,
+            0.13,
+            0.13,
+            0.25F,
+            0.25F,
+            1.0F,
+            false,
+            1.0F,
+            false,
+            new RabbitHop(false, 10, 3, 0.2F, 0.35F, 0.2, 0.3));
+    return new MorphConfig(
+        movement,
+        new Diet(List.of(), List.of(), 4, 0.3F),
+        new Vision(
+            "cow",
+            1.0F,
+            new ColorResponse(0.57F, 0.43F, 0.0F),
+            new ColorResponse(0.56F, 0.44F, 0.0F),
+            new ColorResponse(0.0F, 0.24F, 0.76F),
+            4.0F,
+            20.0F,
+            36.0F,
+            56.0F,
+            8.0F,
+            0.82F,
+            0.8F,
+            0.5F,
+            0.98F,
+            1.0F,
+            1.8F,
+            0.58F,
+            1.0F),
+        new Combat("none", -1.0, new LeapAttack(0.4, 0.0, 4.0), List.of(), List.of(), 1.0F),
+        new Attributes(1.0, 20, 1.0, 1.0),
+        new Inventory(9, 27, 0),
+        new Sleep("normal", false, 200, 8, 30.0F),
+        new Abilities(Ability.NONE),
+        new Traits(Set.of()));
+  }
+
+  public static MorphConfig defaults(MorphType morph) {
+    return Objects.requireNonNull(
+        BUILTIN_CONFIGS.get(morph), "Missing builtin config for " + morph.id());
+  }
+
+  private static MorphConfig parseConfig(JsonObject root, MorphConfig defaults) {
     JsonObject movement = object(root, "movement");
     JsonObject rabbit = object(movement, "rabbit_hop");
     JsonObject diet = object(root, "diet");
@@ -559,9 +277,10 @@ public record MorphConfig(
     RabbitHop defaultHop = defaults.movement.rabbitHop;
     return new MorphConfig(
         new Movement(
-            number(movement, "attribute_scale", defaults.movement.attributeScale),
-            number(movement, "walk_multiplier", defaults.movement.walkMultiplier),
-            number(movement, "sprint_multiplier", defaults.movement.sprintMultiplier),
+            number(movement, "reference_mob_speed", defaults.movement.referenceMobSpeed),
+            number(movement, "walk_speed", defaults.movement.walkSpeed),
+            number(movement, "sprint_speed", defaults.movement.sprintSpeed),
+            number(movement, "fast_sprint_speed", defaults.movement.fastSprintSpeed),
             decimal(movement, "sideways_multiplier", defaults.movement.sidewaysMultiplier),
             decimal(movement, "backward_multiplier", defaults.movement.backwardMultiplier),
             decimal(movement, "water_input_multiplier", defaults.movement.waterInputMultiplier),
@@ -628,16 +347,21 @@ public record MorphConfig(
             integer(sleep, "required_ticks", defaults.sleep.requiredTicks),
             integer(sleep, "food_cost", defaults.sleep.foodCost),
             decimal(sleep, "maximum_awkwardness", defaults.sleep.maximumAwkwardness)),
-        new Abilities(abilities(root, "abilities", defaults.abilities.values)),
+        new Abilities(ability(root, "abilities")),
         new Traits(traits(root, "traits", defaults.traits.values)));
+  }
+
+  public static MorphConfig fromJson(MorphType morph, JsonObject root) {
+    return parseConfig(root, defaults(morph));
   }
 
   public JsonObject toJson() {
     JsonObject root = new JsonObject();
     JsonObject movementJson = new JsonObject();
-    movementJson.addProperty("attribute_scale", movement.attributeScale);
-    movementJson.addProperty("walk_multiplier", movement.walkMultiplier);
-    movementJson.addProperty("sprint_multiplier", movement.sprintMultiplier);
+    movementJson.addProperty("reference_mob_speed", movement.referenceMobSpeed);
+    movementJson.addProperty("walk_speed", movement.walkSpeed);
+    movementJson.addProperty("sprint_speed", movement.sprintSpeed);
+    movementJson.addProperty("fast_sprint_speed", movement.fastSprintSpeed);
     movementJson.addProperty("sideways_multiplier", movement.sidewaysMultiplier);
     movementJson.addProperty("backward_multiplier", movement.backwardMultiplier);
     movementJson.addProperty("water_input_multiplier", movement.waterInputMultiplier);
@@ -718,7 +442,7 @@ public record MorphConfig(
     root.add("sleep", sleepJson);
 
     JsonArray abilitiesJson = new JsonArray();
-    abilities.values.stream().map(Ability::id).sorted().forEach(abilitiesJson::add);
+    abilitiesJson.add(abilities.value.id());
     root.add("abilities", abilitiesJson);
 
     JsonArray traitsJson = new JsonArray();
@@ -781,27 +505,16 @@ public record MorphConfig(
     return Set.copyOf(values);
   }
 
-  private static Set<Ability> abilities(JsonObject object, String name, Set<Ability> fallback) {
+  private static Ability ability(JsonObject object, String name) {
     JsonElement element = object.get(name);
     if (element == null || !element.isJsonArray()) {
-      return fallback;
+      throw new IllegalStateException("Missing ability list: " + name);
     }
-    EnumSet<Ability> values = EnumSet.noneOf(Ability.class);
-    for (JsonElement value : element.getAsJsonArray()) {
-      values.add(Ability.fromId(value.getAsString()));
+    JsonArray values = element.getAsJsonArray();
+    if (values.size() != 1) {
+      throw new IllegalStateException("Ability list must contain exactly one entry: " + name);
     }
-    return Set.copyOf(values);
-  }
-
-  private static Set<Ability> abilities(boolean fastSprint, boolean eggLaying) {
-    EnumSet<Ability> values = EnumSet.noneOf(Ability.class);
-    if (fastSprint) {
-      values.add(Ability.FAST_SPRINT);
-    }
-    if (eggLaying) {
-      values.add(Ability.EGG_LAYING);
-    }
-    return Set.copyOf(values);
+    return Ability.fromId(values.get(0).getAsString());
   }
 
   private static Set<Trait> traits(

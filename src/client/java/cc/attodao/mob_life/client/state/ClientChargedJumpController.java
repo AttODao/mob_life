@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.state;
 
+import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -17,7 +18,10 @@ final class ClientChargedJumpController {
   }
 
   float chargeScale() {
-    return chargeTicks >= 0 ? MobChargedJump.chargeScale(chargeTicks) : 0.0F;
+    LocalPlayer player = Minecraft.getInstance().player;
+    return chargeTicks >= 0 && player != null
+        ? MobChargedJump.chargeScale(MorphEquipment.morph(player), chargeTicks)
+        : 0.0F;
   }
 
   boolean isCoolingDown() {
@@ -66,7 +70,7 @@ final class ClientChargedJumpController {
   }
 
   private void performJump(LocalPlayer player) {
-    int chargeAmount = MobChargedJump.chargeAmount(chargeTicks);
+    int chargeAmount = MobChargedJump.chargeAmount(MorphEquipment.morph(player), chargeTicks);
     float jumpScale = MobChargedJump.jumpScale(chargeAmount);
     ((ChargedJumpingPlayer) player).mobLife$performChargedJump(jumpScale);
     ClientPlayNetworking.send(new MobLifeNetworking.ChargedJumpPayload(chargeAmount));

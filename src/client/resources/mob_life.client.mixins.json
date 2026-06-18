@@ -31,8 +31,7 @@
 		"render.SheepEatAnimationAccessor",
 		"render.WalkAnimationStateAccessor",
 		"world.CreateWorldScreenMixin",
-		"world.GridLayoutAccessor",
-		"world.GridLayoutTabAccessor"
+		"world.CreateWorldScreenInvoker"
 	],
 	"injectors": {
 		"defaultRequire": 1

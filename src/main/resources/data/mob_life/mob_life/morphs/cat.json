@@ -1,13 +1,24 @@
 {
   "movement": {
-    "attribute_scale": 0.25,
-    "walk_multiplier": 0.8,
-    "sprint_multiplier": 1.33,
+    "reference_mob_speed": 0.3,
+    "walk_speed": 0.18,
+    "sprint_speed": 0.24,
+    "fast_sprint_speed": 0.399,
     "sideways_multiplier": 0.25,
     "backward_multiplier": 0.25,
     "water_input_multiplier": 1,
     "charged_jump": true,
-    "slow_fall_multiplier": 1
+    "slow_fall_multiplier": 1,
+    "wing_animation": false,
+    "rabbit_hop": {
+      "enabled": false,
+      "walk_cooldown": 10,
+      "sprint_cooldown": 3,
+      "walk_horizontal_speed": 0.2,
+      "sprint_horizontal_speed": 0.35,
+      "walk_jump_velocity": 0.2,
+      "sprint_jump_velocity": 0.3
+    }
   },
   "diet": {
     "foods": [
@@ -38,10 +49,10 @@
       0.4,
       0.6
     ],
-    "effect_start_distance": 4,
-    "full_blur_distance": 20,
-    "full_darkening_distance": 36,
-    "full_fog_distance": 56,
+    "effect_start_distance": 2,
+    "full_blur_distance": 10,
+    "full_darkening_distance": 18,
+    "full_fog_distance": 28,
     "maximum_blur_radius": 8.5,
     "peripheral_edge_brightness": 0.68,
     "haze_strength": 0.65,
@@ -84,9 +95,7 @@
     "maximum_awkwardness": 30,
     "food_cost": 4
   },
-  "abilities": [
-    "fast_sprint"
-  ],
+  "abilities": ["fast_sprint"],
   "traits": [
     "fall_damage_immune"
   ]

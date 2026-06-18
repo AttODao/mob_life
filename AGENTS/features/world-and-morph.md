@@ -1,15 +1,20 @@
 # World and Morph Selection Features
 
 - A world-wide play form is selected during world creation and persisted in saved data.
-- New worlds using a mob form move the initial overworld spawn to a biome
-  whose natural spawn list contains that mob. A natural-sized group of the
-  selected mob is ensured within 32 blocks of the spawn point.
+- New worlds using a mob form move the initial overworld spawn to a position
+  that also satisfies the mob's vanilla spawn placement and spawn-rule checks.
+  Cat prefers a village or swamp-hut cat spawn context when one is nearby.
+  A natural-sized group is ensured only for forms that naturally spawn in
+  groups; solitary forms such as cat, ocelot, and mule do not get an extra
+  nearby copy.
 - Initial spawn relocation runs once per newly created world. Existing worlds
   created before this feature keep their current world spawn.
-- The world creation game-settings tab opens a separate three-column form
-  selection screen, avoiding repeated cycling through every form. An optional
-  SNBT field remains below the selector; empty input uses entity defaults,
-  while invalid input is shown in red and prevents world creation.
+- During world creation, pressing Create opens a separate three-column form
+  selection screen before the world is generated, avoiding repeated cycling
+  through every form. Confirming the selection immediately proceeds with world
+  generation. An optional SNBT field remains below the selector; empty input
+  uses entity defaults, while invalid input is shown in red and prevents world
+  creation.
 - Available forms are normal player, cow, sheep, chicken, cat, ocelot, wolf,
   pig, horse, donkey, mule, and rabbit.
 - The form can be changed later with:

@@ -1,14 +1,24 @@
 {
   "movement": {
-    "attribute_scale": 0.25,
-    "walk_multiplier": 1,
-    "sprint_multiplier": 1.4,
+    "reference_mob_speed": 0.25,
+    "walk_speed": 0.25,
+    "sprint_speed": 0.275,
+    "fast_sprint_speed": 0.35,
     "sideways_multiplier": 0.25,
     "backward_multiplier": 0.25,
     "water_input_multiplier": 1,
     "charged_jump": true,
     "slow_fall_multiplier": 0.6,
-    "wing_animation": true
+    "wing_animation": true,
+    "rabbit_hop": {
+      "enabled": false,
+      "walk_cooldown": 10,
+      "sprint_cooldown": 3,
+      "walk_horizontal_speed": 0.2,
+      "sprint_horizontal_speed": 0.35,
+      "walk_jump_velocity": 0.2,
+      "sprint_jump_velocity": 0.3
+    }
   },
   "diet": {
     "foods": [
@@ -36,10 +46,10 @@
       0.08,
       1.1
     ],
-    "effect_start_distance": 4,
-    "full_blur_distance": 32,
-    "full_darkening_distance": 48,
-    "full_fog_distance": 64,
+    "effect_start_distance": 2,
+    "full_blur_distance": 16,
+    "full_darkening_distance": 24,
+    "full_fog_distance": 32,
     "maximum_blur_radius": 4,
     "peripheral_edge_brightness": 0.9,
     "haze_strength": 0.55,
@@ -83,9 +93,7 @@
     "maximum_awkwardness": 30,
     "food_cost": 4
   },
-  "abilities": [
-    "egg_laying"
-  ],
+  "abilities": ["egg_laying"],
   "traits": [
     "fall_damage_immune"
   ]

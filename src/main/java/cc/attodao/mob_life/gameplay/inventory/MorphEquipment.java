@@ -20,6 +20,7 @@ public final class MorphEquipment {
       return true;
     }
     return switch (inventorySlot) {
+      case Inventory.SLOT_OFFHAND -> false;
       case 36, 37, 38, 39 -> false;
       case Inventory.SLOT_BODY_ARMOR -> morph.canEquipAnimalArmor() || morph.canEquipChest();
       case Inventory.SLOT_SADDLE -> morph.canEquipSaddle();
@@ -58,6 +59,9 @@ public final class MorphEquipment {
       return;
     }
 
+    if (!isSlotActive(player, Inventory.SLOT_OFFHAND)) {
+      moveToInventory(player, EquipmentSlot.OFFHAND);
+    }
     moveToInventory(player, EquipmentSlot.HEAD);
     moveToInventory(player, EquipmentSlot.CHEST);
     moveToInventory(player, EquipmentSlot.LEGS);

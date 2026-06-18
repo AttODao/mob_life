@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.client;
 
 import cc.attodao.mob_life.client.config.MobLifeClientConfig;
+import cc.attodao.mob_life.client.screen.MorphSelectionScreen;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphDefinition;
@@ -35,6 +36,19 @@ public final class MobLifeClient implements ClientModInitializer {
   public void onInitializeClient() {
     MobLifeClientConfig.load();
     ClientPlayNetworking.registerGlobalReceiver(
+        MobLifeNetworking.WorldMorphSelectionPromptPayload.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(
+                    () -> {
+                      for (MobLifeNetworking.MorphConfigEntry entry : payload.configs()) {
+                        MorphType morph = MorphType.fromId(entry.morphId());
+                        MorphConfigManager.installSynced(morph, entry.configJson());
+                      }
+                      context.client().setScreen(new MorphSelectionScreen());
+                    }));
+    ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.MorphSelectionPayload.TYPE,
         (payload, context) ->
             context
@@ -48,6 +62,9 @@ public final class MobLifeClient implements ClientModInitializer {
                           .client()
                           .gameRenderer
                           .checkEntityPostEffect(context.client().getCameraEntity());
+                      if (context.client().screen instanceof MorphSelectionScreen) {
+                        context.client().setScreen(null);
+                      }
                     }));
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.AwkwardnessPayload.TYPE,

@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client.state;
 
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.ability.MorphAbilityHolder;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
@@ -249,12 +250,9 @@ public final class ClientMorphState {
 
     var keys = player.input.keyPresses;
     boolean moving = keys.forward() || keys.backward() || keys.left() || keys.right();
+    boolean jumping = keys.jump();
     boolean groundedOnLand = player.onGround() && !player.isInWater() && !player.isInLava();
-    if (groundedOnLand) {
-      Vec3 velocity = player.getDeltaMovement();
-      player.setDeltaMovement(0.0, velocity.y, 0.0);
-    }
-    if (!moving
+    if ((!moving && !jumping)
         || rabbitHopCooldown > 0
         || !groundedOnLand
         || player.isPassenger()
@@ -263,6 +261,7 @@ public final class ClientMorphState {
     }
 
     RabbitHopMovement.launch(player, keys);
-    rabbitHopCooldown = RabbitHopMovement.cooldown(player);
+    boolean sprinting = moving && (player.isSprinting() || MorphAbility.isFastSprintActive(player));
+    rabbitHopCooldown = RabbitHopMovement.cooldown(player, sprinting);
   }
 }

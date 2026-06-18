@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.mixin.inventory;
 
+import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.entity.player.Inventory;
@@ -44,7 +45,8 @@ public abstract class InventoryMixin {
       cir.setReturnValue(selected);
       return;
     }
-    if (mobLife$hasRemainingSpace(getItem(Inventory.SLOT_OFFHAND), newStack)) {
+    if (MorphEquipment.isSlotActive(player, Inventory.SLOT_OFFHAND)
+        && mobLife$hasRemainingSpace(getItem(Inventory.SLOT_OFFHAND), newStack)) {
       cir.setReturnValue(Inventory.SLOT_OFFHAND);
       return;
     }

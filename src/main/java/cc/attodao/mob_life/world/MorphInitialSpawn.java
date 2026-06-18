@@ -4,13 +4,15 @@ import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
-import com.mojang.datafixers.util.Pair;
 import java.util.Optional;
+import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.Holder;
-import net.minecraft.server.level.PlayerSpawnFinder;
+import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.BiomeTags;
+import net.minecraft.tags.StructureTags;
 import net.minecraft.util.random.Weighted;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -18,18 +20,21 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.SpawnPlacements;
+import net.minecraft.world.level.CollisionGetter;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MobSpawnSettings;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public final class MorphInitialSpawn {
 
-  private static final int BIOME_SEARCH_RADIUS = 8192;
-  private static final int HORIZONTAL_SAMPLE_RESOLUTION = 32;
-  private static final int VERTICAL_SAMPLE_RESOLUTION = 64;
+  private static final int LOCAL_SEARCH_RADIUS = 128;
+  private static final int LOCAL_SEARCH_STEP = 8;
   private static final int NEARBY_MOB_RADIUS = 32;
   private static final int MAX_GROUP_SIZE = 4;
   private static final int SPAWN_ATTEMPTS_PER_MOB = 24;
@@ -49,26 +54,52 @@ public final class MorphInitialSpawn {
 
     EntityType<?> entityType = morph.entityType();
     BlockPos origin = level.getRespawnData().pos();
-    Pair<BlockPos, Holder<Biome>> located =
-        level.findClosestBiome3d(
-            biome -> biomeSupports(biome, morphData.definition(), entityType),
-            origin,
-            BIOME_SEARCH_RADIUS,
-            HORIZONTAL_SAMPLE_RESOLUTION,
-            VERTICAL_SAMPLE_RESOLUTION);
-    if (located == null) {
-      MobLife.LOGGER.warn("Could not find a spawn biome for initial {} form", morph.id());
-      morphData.markInitialSpawnConfigured();
-      return;
+    BlockPos spawnPos = null;
+
+    if (morph == MorphType.CAT) {
+      spawnPos =
+          findInitialSpawn(
+              level,
+              origin,
+              entityType,
+              pos -> isCatSpawnPosition(level, entityType, pos),
+              LOCAL_SEARCH_RADIUS);
+
+      if (spawnPos == null) {
+        BlockPos catStructure =
+            level.findNearestMapStructure(StructureTags.CATS_SPAWN_IN, origin, 16, false);
+        if (catStructure != null) {
+          spawnPos =
+              findInitialSpawn(
+                  level,
+                  catStructure,
+                  entityType,
+                  pos -> isCatSpawnPosition(level, entityType, pos),
+                  LOCAL_SEARCH_RADIUS);
+        }
+      }
+
+      if (spawnPos == null) {
+        spawnPos =
+            findInitialSpawn(
+                level,
+                origin,
+                entityType,
+                pos -> isInitialSpawnPosition(level, morphData.definition(), entityType, pos),
+                LOCAL_SEARCH_RADIUS);
+      }
+    } else {
+      spawnPos =
+          findInitialSpawn(
+              level,
+              origin,
+              entityType,
+              pos -> isInitialSpawnPosition(level, morphData.definition(), entityType, pos),
+              LOCAL_SEARCH_RADIUS);
     }
 
-    BlockPos spawnPos;
-    try {
-      var spawnFuture = PlayerSpawnFinder.findSpawn(level, located.getFirst());
-      level.getServer().managedBlock(spawnFuture::isDone);
-      spawnPos = BlockPos.containing(spawnFuture.join());
-    } catch (RuntimeException exception) {
-      MobLife.LOGGER.warn("Could not find a safe initial spawn for {} form", morph.id(), exception);
+    if (spawnPos == null) {
+      MobLife.LOGGER.warn("Could not find a valid initial spawn for {} form", morph.id());
       morphData.markInitialSpawnConfigured();
       return;
     }
@@ -77,12 +108,95 @@ public final class MorphInitialSpawn {
     MorphDefinition randomizedDefinition =
         MorphEntityFactory.randomizeAt(morphData.definition(), level, spawnPos);
     morphData.setDefinition(randomizedDefinition);
-    ensureNearbyGroup(level, spawnPos, randomizedDefinition, entityType, located.getSecond());
+    if (shouldSpawnNearbyGroup(morph)) {
+      ensureNearbyGroup(level, spawnPos, randomizedDefinition, entityType);
+    }
     morphData.markInitialSpawnConfigured();
-    MobLife.LOGGER.info("Initial {} spawn set to {} in a matching biome", morph.id(), spawnPos);
+    MobLife.LOGGER.info("Initial {} spawn set to {}", morph.id(), spawnPos);
   }
 
-  private static boolean biomeSupports(
+  private static BlockPos findInitialSpawn(
+      ServerLevel level,
+      BlockPos spawnSuggestion,
+      EntityType<?> entityType,
+      Predicate<BlockPos> spawnPredicate,
+      int radius) {
+    BlockPos spawnPos = testInitialSpawn(level, spawnSuggestion, entityType, spawnPredicate);
+    if (spawnPos != null) {
+      return spawnPos;
+    }
+
+    for (int currentRadius = LOCAL_SEARCH_STEP;
+        currentRadius <= radius;
+        currentRadius += LOCAL_SEARCH_STEP) {
+      for (int deltaX = -currentRadius; deltaX <= currentRadius; deltaX += LOCAL_SEARCH_STEP) {
+        spawnPos =
+            testInitialSpawn(
+                level,
+                spawnSuggestion.offset(deltaX, 0, -currentRadius),
+                entityType,
+                spawnPredicate);
+        if (spawnPos != null) {
+          return spawnPos;
+        }
+        spawnPos =
+            testInitialSpawn(
+                level,
+                spawnSuggestion.offset(deltaX, 0, currentRadius),
+                entityType,
+                spawnPredicate);
+        if (spawnPos != null) {
+          return spawnPos;
+        }
+      }
+
+      for (int deltaZ = -currentRadius + LOCAL_SEARCH_STEP;
+          deltaZ <= currentRadius - LOCAL_SEARCH_STEP;
+          deltaZ += LOCAL_SEARCH_STEP) {
+        spawnPos =
+            testInitialSpawn(
+                level,
+                spawnSuggestion.offset(-currentRadius, 0, deltaZ),
+                entityType,
+                spawnPredicate);
+        if (spawnPos != null) {
+          return spawnPos;
+        }
+        spawnPos =
+            testInitialSpawn(
+                level,
+                spawnSuggestion.offset(currentRadius, 0, deltaZ),
+                entityType,
+                spawnPredicate);
+        if (spawnPos != null) {
+          return spawnPos;
+        }
+      }
+    }
+
+    BlockPos fallback = fixupSpawnHeight(level, spawnSuggestion);
+    fallback = SpawnPlacements.getPlacementType(entityType).adjustSpawnPosition(level, fallback);
+    return spawnPredicate.test(fallback) ? fallback : null;
+  }
+
+  private static BlockPos testInitialSpawn(
+      ServerLevel level,
+      BlockPos suggestion,
+      EntityType<?> entityType,
+      Predicate<BlockPos> spawnPredicate) {
+    if (!level.getWorldBorder().isWithinBounds(suggestion)) {
+      return null;
+    }
+
+    BlockPos spawnPos = getOverworldRespawnPos(level, suggestion.getX(), suggestion.getZ());
+    if (spawnPos == null) {
+      return null;
+    }
+    spawnPos = SpawnPlacements.getPlacementType(entityType).adjustSpawnPosition(level, spawnPos);
+    return spawnPredicate.test(spawnPos) ? spawnPos : null;
+  }
+
+  public static boolean biomeSupportsInitialSpawn(
       Holder<Biome> biome, MorphDefinition definition, EntityType<?> entityType) {
     String variant = definition.nbt().getStringOr("variant", "");
     if (!variant.isEmpty()) {
@@ -108,6 +222,93 @@ public final class MorphInitialSpawn {
       return biome.is(Biomes.PLAINS) || biome.is(BiomeTags.IS_SAVANNA);
     }
     return matchingSpawnerData(biome, entityType).isPresent();
+  }
+
+  private static boolean biomeSupports(
+      Holder<Biome> biome, MorphDefinition definition, EntityType<?> entityType) {
+    return biomeSupportsInitialSpawn(biome, definition, entityType);
+  }
+
+  private static BlockPos getOverworldRespawnPos(
+      final ServerLevel level, final int x, final int z) {
+    boolean caveWorld = level.dimensionType().hasCeiling();
+    var chunk =
+        level.getChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z));
+    int topY =
+        caveWorld
+            ? level.getChunkSource().getGenerator().getSpawnHeight(level)
+            : chunk.getHeight(Heightmap.Types.MOTION_BLOCKING, x & 15, z & 15);
+    if (topY < level.getMinY()) {
+      return null;
+    }
+
+    int surface = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, x & 15, z & 15);
+    if (surface <= topY && surface > chunk.getHeight(Heightmap.Types.OCEAN_FLOOR, x & 15, z & 15)) {
+      return null;
+    }
+
+    BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
+    for (int y = topY + 1; y >= level.getMinY(); y--) {
+      pos.set(x, y, z);
+      BlockState blockState = level.getBlockState(pos);
+      if (!blockState.getFluidState().isEmpty()) {
+        break;
+      }
+
+      if (Block.isFaceFull(blockState.getCollisionShape(level, pos), Direction.UP)) {
+        return pos.above().immutable();
+      }
+    }
+
+    return null;
+  }
+
+  private static BlockPos fixupSpawnHeight(final CollisionGetter level, final BlockPos spawnPos) {
+    BlockPos.MutableBlockPos mutablePos = spawnPos.mutable();
+
+    while (!noCollisionNoLiquid(level, mutablePos) && mutablePos.getY() < level.getMaxY()) {
+      mutablePos.move(Direction.UP);
+    }
+
+    mutablePos.move(Direction.DOWN);
+
+    while (noCollisionNoLiquid(level, mutablePos) && mutablePos.getY() > level.getMinY()) {
+      mutablePos.move(Direction.DOWN);
+    }
+
+    mutablePos.move(Direction.UP);
+    return mutablePos.immutable();
+  }
+
+  private static boolean noCollisionNoLiquid(final CollisionGetter level, final BlockPos pos) {
+    return level.noCollision(
+        null, EntityType.PLAYER.getDimensions().makeBoundingBox(pos.getBottomCenter()), true);
+  }
+
+  private static boolean isInitialSpawnPosition(
+      ServerLevel level, MorphDefinition definition, EntityType<?> entityType, BlockPos pos) {
+    return noCollisionNoLiquid(level, pos)
+        && level.noCollision(
+            entityType.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))
+        && biomeSupports(level.getBiome(pos), definition, entityType)
+        && SpawnPlacements.isSpawnPositionOk(entityType, level, pos)
+        && SpawnPlacements.checkSpawnRules(
+            entityType, level, EntitySpawnReason.NATURAL, pos, level.getRandom());
+  }
+
+  private static boolean isCatSpawnPosition(
+      ServerLevel level, EntityType<?> entityType, BlockPos pos) {
+    return noCollisionNoLiquid(level, pos)
+        && level.noCollision(
+            entityType.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))
+        && SpawnPlacements.isSpawnPositionOk(entityType, level, pos)
+        && SpawnPlacements.checkSpawnRules(
+            entityType, level, EntitySpawnReason.NATURAL, pos, level.getRandom())
+        && (level.isCloseToVillage(pos, 2)
+            || level
+                .structureManager()
+                .getStructureWithPieceAt(pos, StructureTags.CATS_SPAWN_IN)
+                .isValid());
   }
 
   private static boolean wolfVariantMatchesBiome(String variant, Holder<Biome> biome) {
@@ -147,17 +348,21 @@ public final class MorphInitialSpawn {
   }
 
   private static void ensureNearbyGroup(
-      ServerLevel level,
-      BlockPos spawnPos,
-      MorphDefinition definition,
-      EntityType<?> entityType,
-      Holder<Biome> spawnBiome) {
+      ServerLevel level, BlockPos spawnPos, MorphDefinition definition, EntityType<?> entityType) {
     MobSpawnSettings.SpawnerData spawnerData =
-        matchingSpawnerData(spawnBiome, entityType).orElse(null);
+        matchingSpawnerData(level.getBiome(spawnPos), entityType).orElse(null);
+    if (spawnerData == null) {
+      return;
+    }
+
     AABB nearbyArea = new AABB(spawnPos).inflate(NEARBY_MOB_RADIUS);
     int existingCount = level.getEntities(entityType, nearbyArea, Entity::isAlive).size();
     int targetCount =
-        Math.min(MAX_GROUP_SIZE, spawnerData == null ? 2 : Math.max(1, spawnerData.minCount()));
+        Math.min(
+            MAX_GROUP_SIZE,
+            level
+                .getRandom()
+                .nextIntBetweenInclusive(spawnerData.minCount(), spawnerData.maxCount()));
     SpawnGroupData groupData = null;
     for (int index = existingCount; index < targetCount; index++) {
       SpawnResult result = spawnNearby(level, spawnPos, definition, entityType, groupData);
@@ -183,19 +388,19 @@ public final class MorphInitialSpawn {
       if (!biomeSupports(level.getBiome(pos), definition, entityType)
           || !SpawnPlacements.isSpawnPositionOk(entityType, level, pos)
           || !SpawnPlacements.checkSpawnRules(
-              entityType, level, EntitySpawnReason.CHUNK_GENERATION, pos, level.getRandom())
+              entityType, level, EntitySpawnReason.NATURAL, pos, level.getRandom())
           || !level.noCollision(
               entityType.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))) {
         continue;
       }
 
-      Entity entity = entityType.create(level, EntitySpawnReason.CHUNK_GENERATION);
+      Entity entity = entityType.create(level, EntitySpawnReason.NATURAL);
       if (!(entity instanceof Mob mob)) {
         continue;
       }
 
       mob.snapTo(Vec3.atBottomCenterOf(pos), level.getRandom().nextFloat() * 360.0F, 0.0F);
-      if (!mob.checkSpawnRules(level, EntitySpawnReason.CHUNK_GENERATION)
+      if (!mob.checkSpawnRules(level, EntitySpawnReason.NATURAL)
           || !mob.checkSpawnObstruction(level)) {
         mob.discard();
         continue;
@@ -203,14 +408,15 @@ public final class MorphInitialSpawn {
 
       SpawnGroupData nextGroupData =
           mob.finalizeSpawn(
-              level,
-              level.getCurrentDifficultyAt(pos),
-              EntitySpawnReason.CHUNK_GENERATION,
-              groupData);
+              level, level.getCurrentDifficultyAt(pos), EntitySpawnReason.NATURAL, groupData);
       level.addFreshEntityWithPassengers(mob);
       return new SpawnResult(nextGroupData);
     }
     return null;
+  }
+
+  private static boolean shouldSpawnNearbyGroup(MorphType morph) {
+    return morph != MorphType.CAT && morph != MorphType.OCELOT && morph != MorphType.MULE;
   }
 
   private record SpawnResult(SpawnGroupData groupData) {}

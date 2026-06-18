@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client.mixin.gameplay;
 
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
@@ -86,7 +87,9 @@ public abstract class MultiPlayerGameModeMixin {
 
   private boolean mobLife$isMovementRestricted() {
     LocalPlayer player = minecraft.player;
-    return player != null && (!player.onGround() || player.isSprinting());
+    return player != null
+        && (!player.onGround()
+            || (player.isSprinting() && MorphMovementSpeed.canSprint(ClientMorphState.morph())));
   }
 
   private boolean mobLife$isAnyInteractionRestricted() {

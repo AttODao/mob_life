@@ -1,9 +1,9 @@
 {
   "movement": {
-    "reference_mob_speed": 0.3,
-    "walk_speed": 0.18,
-    "sprint_speed": 0.66,
-    "fast_sprint_speed": 0.66,
+    "reference_mob_speed": 0.1,
+    "walk_speed": 0.1,
+    "sprint_speed": 0.13,
+    "fast_sprint_speed": 0.13,
     "sideways_multiplier": 0.25,
     "backward_multiplier": 0.25,
     "water_input_multiplier": 1,
@@ -11,7 +11,7 @@
     "slow_fall_multiplier": 1,
     "wing_animation": false,
     "rabbit_hop": {
-      "enabled": true,
+      "enabled": false,
       "walk_cooldown": 10,
       "sprint_cooldown": 3,
       "walk_horizontal_speed": 0.2,
@@ -21,24 +21,22 @@
     }
   },
   "diet": {
-    "foods": [
-      "#minecraft:rabbit_food"
-    ],
+    "foods": [],
     "hunted_foods": [],
     "nutrition": 4,
     "saturation_modifier": 0.3
   },
   "vision": {
-    "profile": "rabbit",
-    "field_of_view_multiplier": 1.8,
+    "profile": "cow",
+    "field_of_view_multiplier": 1,
     "red_response": [
-      0.67,
-      0.33,
+      0.57,
+      0.43,
       0
     ],
     "green_response": [
-      0.57,
-      0.43,
+      0.56,
+      0.44,
       0
     ],
     "blue_response": [
@@ -46,52 +44,49 @@
       0.24,
       0.76
     ],
-    "effect_start_distance": 2,
-    "full_blur_distance": 10,
-    "full_darkening_distance": 18,
-    "full_fog_distance": 28,
-    "maximum_blur_radius": 11,
-    "peripheral_edge_brightness": 0.93,
-    "haze_strength": 0.82,
-    "retained_saturation": 0.48,
-    "contrast": 0.96,
+    "effect_start_distance": 4,
+    "full_blur_distance": 20,
+    "full_darkening_distance": 36,
+    "full_fog_distance": 56,
+    "maximum_blur_radius": 8,
+    "peripheral_edge_brightness": 0.82,
+    "haze_strength": 0.8,
+    "retained_saturation": 0.5,
+    "contrast": 0.98,
     "brightness": 1,
-    "peripheral_blur_radius": 0.7,
-    "peripheral_start": 0.7,
-    "low_light_brightness": 1.08
+    "peripheral_blur_radius": 1.8,
+    "peripheral_start": 0.58,
+    "low_light_brightness": 1
   },
   "combat": {
-    "attack_mode": "evil_rabbit",
+    "attack_mode": "none",
     "attack_damage": -1,
     "leap_attack": {
       "horizontal_speed": 0.4,
       "vertical_speed": 0,
       "maximum_distance": 4
     },
-    "predators": [
-      "minecraft:fox",
-      "minecraft:wolf"
-    ],
+    "predators": [],
     "avoided_by": [],
     "hostile_detection_multiplier": 1
   },
   "attributes": {
-    "mining_speed": 0.36,
-    "maximum_food": 8,
+    "mining_speed": 1,
+    "maximum_food": 20,
     "block_reach_scale": 1,
     "entity_reach_scale": 1
   },
   "inventory": {
-    "hotbar_slots": 2,
-    "inventory_slots": 6,
+    "hotbar_slots": 9,
+    "inventory_slots": 27,
     "chest_bonus_slots": 0
   },
   "sleep": {
     "schedule": "normal",
-    "without_bed": true,
+    "without_bed": false,
     "required_ticks": 200,
     "maximum_awkwardness": 30,
-    "food_cost": 4
+    "food_cost": 8
   },
   "abilities": ["none"],
   "traits": []

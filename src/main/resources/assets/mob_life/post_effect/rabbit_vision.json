@@ -17,7 +17,7 @@
           {"name": "Settings", "type": "vec4", "value": [0.48, 0.96, 1.0, 0.7]}
         ],
         "DistanceBlur": [
-          {"name": "Parameters", "type": "vec4", "value": [4.0, 20.0, 36.0, 56.0]},
+          {"name": "Parameters", "type": "vec4", "value": [2.0, 10.0, 18.0, 28.0]},
           {"name": "Effects", "type": "vec4", "value": [4.8, 1.0, 0.93, 0.82]},
           {"name": "DepthRange", "type": "vec4", "value": [0.05, 256.0, 0.0, 0.0]},
           {"name": "ConfigOverrides", "type": "vec4", "value": [0.48, 0.96, 1.0, 0.7]},

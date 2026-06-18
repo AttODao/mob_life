@@ -17,7 +17,6 @@ public final class MorphAbility {
   private static final long DAY_TICKS = 24000L;
   public static final int FAST_SPRINT_DURATION_TICKS = 160;
   public static final int FAST_SPRINT_COOLDOWN_TICKS = 600;
-  public static final double CAT_PANIC_SPEED_MULTIPLIER = 1.5;
   public static final float FAST_SPRINT_EXHAUSTION_MULTIPLIER = 4.0F;
   public static final int EGG_FOOD_COST = 3;
   public static final int MAXIMUM_EGGS_PER_DAY = 1;
@@ -29,11 +28,10 @@ public final class MorphAbility {
       return;
     }
 
-    MorphConfig.Abilities abilities = ServerMorphManager.activeConfig().abilities();
-    if (abilities.eggLaying()) {
-      layEgg(player);
-    } else if (abilities.fastSprint()) {
-      startFastSprint(player);
+    switch (ServerMorphManager.activeConfig().abilities().value()) {
+      case EGG_LAYING -> layEgg(player);
+      case FAST_SPRINT -> startFastSprint(player);
+      default -> {}
     }
   }
 
@@ -44,7 +42,7 @@ public final class MorphAbility {
     }
 
     long gameTime = player.level().getGameTime();
-    if (!ServerMorphManager.activeConfig().abilities().fastSprint()
+    if (ServerMorphManager.activeConfig().abilities().value() != MorphConfig.Ability.FAST_SPRINT
         || gameTime >= holder.mobLife$getFastSprintEndsAt()) {
       setFastSprintActive(player, false);
     }
@@ -58,7 +56,8 @@ public final class MorphAbility {
     MorphAbilityHolder holder = holder(player);
     boolean active =
         ServerMorphManager.hasMobForm()
-            && ServerMorphManager.activeConfig().abilities().fastSprint()
+            && ServerMorphManager.activeConfig().abilities().value()
+                == MorphConfig.Ability.FAST_SPRINT
             && player.level().getGameTime() < holder.mobLife$getFastSprintEndsAt();
     setFastSprintActive(player, active);
   }

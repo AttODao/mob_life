@@ -9,6 +9,7 @@ import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
+import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
 import cc.attodao.mob_life.mixin.sound.LivingEntitySoundAccessor;
@@ -17,10 +18,15 @@ import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
+import cc.attodao.mob_life.network.MobLifeNetworking.MorphConfigEntry;
+import cc.attodao.mob_life.network.MobLifeNetworking.WorldMorphSelectionPromptPayload;
 import cc.attodao.mob_life.world.MorphInitialSpawn;
+import cc.attodao.mob_life.world.PendingWorldSelection;
 import cc.attodao.mob_life.world.WorldMorphData;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -50,7 +56,6 @@ import net.minecraft.world.phys.Vec3;
 public final class ServerMorphManager {
 
   private static final Map<UUID, Long> LAST_CHARGED_JUMP_TICK = new HashMap<>();
-  private static final Map<UUID, Integer> SPRINT_TICKS = new HashMap<>();
   private static final Map<UUID, Integer> RABBIT_HOP_COOLDOWNS = new HashMap<>();
   private static final Map<UUID, Integer> AMBIENT_SOUND_TIMES = new HashMap<>();
   private static final Map<UUID, Integer> GRASS_EATING_TICKS = new HashMap<>();
@@ -61,8 +66,6 @@ public final class ServerMorphManager {
   private static final float ITEM_DECAY_SCALE = 16.0F;
   private static final float SAME_MOB_DECAY_PER_SECOND = 1.0F;
   private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
-  private static final float LONG_SPRINT_GAIN = 0.08F;
-  private static final int LONG_SPRINT_START_TICKS = 60;
   private static final int GRASS_EATING_DURATION_TICKS = 40;
   private static final int GRASS_FOOD_RESTORE = 2;
 
@@ -79,9 +82,26 @@ public final class ServerMorphManager {
   public static void registerEvents() {
     ServerLifecycleEvents.SERVER_STARTED.register(
         server -> {
-          WorldMorphData data = server.getDataStorage().computeIfAbsent(WorldMorphData.TYPE);
-          MorphInitialSpawn.configure(server.overworld(), data);
-          data.setDirty();
+          WorldMorphData data = worldData(server);
+          if (!data.selectionChosen()) {
+            Optional<MorphDefinition> pendingSelection = PendingWorldSelection.consume();
+            if (pendingSelection.isPresent()) {
+              data.setDefinition(pendingSelection.get());
+              data.markSelectionChosen();
+            } else {
+              if (data.morph() == MorphType.PLAYER) {
+                data.clearInitialSpawnConfigured();
+                MobLife.LOGGER.info("World morph selection is pending");
+                return;
+              }
+
+              data.markSelectionChosen();
+            }
+          }
+
+          if (!data.initialSpawnConfigured()) {
+            MorphInitialSpawn.configure(server.overworld(), data);
+          }
           setActiveDefinition(server, data.definition());
           MobLife.LOGGER.info(
               "World morph locked to {} with NBT {}",
@@ -99,7 +119,6 @@ public final class ServerMorphManager {
           activeHasAttackAi = false;
           activeSoundMob = null;
           LAST_CHARGED_JUMP_TICK.clear();
-          SPRINT_TICKS.clear();
           RABBIT_HOP_COOLDOWNS.clear();
           AMBIENT_SOUND_TIMES.clear();
           GRASS_EATING_TICKS.clear();
@@ -242,22 +261,43 @@ public final class ServerMorphManager {
     MorphDefinition resolvedDefinition =
         MorphEntityFactory.randomizeAt(
             definition, server.overworld(), server.overworld().getRespawnData().pos());
-    WorldMorphData data = server.getDataStorage().computeIfAbsent(WorldMorphData.TYPE);
+    WorldMorphData data = worldData(server);
     data.setDefinition(resolvedDefinition);
-    setActiveDefinition(server, resolvedDefinition);
+    data.markSelectionChosen();
+    if (!data.initialSpawnConfigured()) {
+      MorphInitialSpawn.configure(server.overworld(), data);
+    }
+    setActiveDefinition(server, data.definition());
 
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
       MorphAbility.clearFastSprint(player);
-      ServerPlayerMorphApplier.apply(player, resolvedDefinition, true);
+      ServerPlayerMorphApplier.apply(player, data.definition(), true);
     }
 
     MobLife.LOGGER.info(
         "World morph changed to {} with NBT {}",
-        resolvedDefinition.type().id(),
-        resolvedDefinition.nbt());
+        data.definition().type().id(),
+        data.definition().nbt());
+  }
+
+  public static void completeWorldSelection(
+      MinecraftServer server, String morphId, net.minecraft.nbt.CompoundTag nbt) {
+    MorphType morph = MorphType.fromId(morphId);
+    if (!morph.id().equals(morphId)) {
+      MobLife.LOGGER.warn("Ignoring unknown world morph selection {}", morphId);
+      return;
+    }
+
+    changeMorph(server, new MorphDefinition(morph, nbt));
   }
 
   private static void initializePlayer(ServerPlayer player) {
+    WorldMorphData data = worldData(player.level().getServer());
+    if (!data.selectionChosen()) {
+      sendWorldSelectionPrompt(player);
+      return;
+    }
+
     MorphDefinition definition = activeDefinition;
     if (definition == null) {
       return;
@@ -267,6 +307,18 @@ public final class ServerMorphManager {
     ServerPlayerMorphApplier.apply(player, definition, false);
     MorphAbility.restore(player);
     syncAwkwardness(player, true);
+  }
+
+  private static void sendWorldSelectionPrompt(ServerPlayer player) {
+    ArrayList<MorphConfigEntry> configs = new ArrayList<>(MorphType.values().length);
+    for (MorphType morph : MorphType.values()) {
+      configs.add(new MorphConfigEntry(morph.id(), MorphConfigManager.encode(morph)));
+    }
+    ServerPlayNetworking.send(player, new WorldMorphSelectionPromptPayload(configs));
+  }
+
+  private static WorldMorphData worldData(MinecraftServer server) {
+    return server.getDataStorage().computeIfAbsent(WorldMorphData.TYPE);
   }
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
@@ -363,12 +415,9 @@ public final class ServerMorphManager {
 
     Input input = player.getLastClientInput();
     boolean moving = input.forward() || input.backward() || input.left() || input.right();
+    boolean jumping = input.jump();
     boolean groundedOnLand = player.onGround() && !player.isInWater() && !player.isInLava();
-    if (groundedOnLand) {
-      Vec3 velocity = player.getDeltaMovement();
-      player.setDeltaMovement(0.0, velocity.y, 0.0);
-    }
-    if (!moving
+    if ((!moving && !jumping)
         || cooldown > 0
         || !groundedOnLand
         || player.isPassenger()
@@ -377,7 +426,8 @@ public final class ServerMorphManager {
     }
 
     RabbitHopMovement.launch(player, input);
-    RABBIT_HOP_COOLDOWNS.put(uuid, RabbitHopMovement.cooldown(player));
+    boolean sprinting = moving && (player.isSprinting() || MorphAbility.isFastSprintActive(player));
+    RABBIT_HOP_COOLDOWNS.put(uuid, RabbitHopMovement.cooldown(player, sprinting));
     player
         .level()
         .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
@@ -390,7 +440,7 @@ public final class ServerMorphManager {
 
     if (MorphAbility.isFastSprintActive(player)) {
       player.causeFoodExhaustion(0.02F * MorphAbility.FAST_SPRINT_EXHAUSTION_MULTIPLIER);
-    } else if (player.isSprinting()) {
+    } else if (player.isSprinting() && MorphMovementSpeed.canSprint(player)) {
       player.causeFoodExhaustion(0.02F);
     } else if (player.isShiftKeyDown()) {
       player.causeFoodExhaustion(0.01F);
@@ -463,24 +513,13 @@ public final class ServerMorphManager {
     float delta = 0.0F;
     Input input = player.getLastClientInput();
     boolean moving = input.forward() || input.backward() || input.left() || input.right();
-    UUID uuid = player.getUUID();
-    if (!MorphAbility.isFastSprintActive(player)) {
-      if (moving && (input.backward() || input.left() || input.right())) {
-        delta += NON_FORWARD_MOVEMENT_GAIN;
-      }
-      if (moving && player.isSprinting()) {
-        int sprintTicks = SPRINT_TICKS.merge(uuid, 1, Integer::sum);
-        if (sprintTicks > LONG_SPRINT_START_TICKS) {
-          delta += LONG_SPRINT_GAIN;
-        }
-      } else {
-        SPRINT_TICKS.remove(uuid);
-      }
-    } else {
-      SPRINT_TICKS.remove(uuid);
+    boolean sprinting = player.isSprinting() && MorphMovementSpeed.canSprint(player);
+    boolean fastSprintActive = MorphAbility.isFastSprintActive(player);
+    if (moving && (input.backward() || input.left() || input.right())) {
+      delta += NON_FORWARD_MOVEMENT_GAIN;
     }
 
-    if (player.tickCount % 20 == 0) {
+    if (!sprinting && !fastSprintActive && player.tickCount % 20 == 0) {
       delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
       if (hasNearbySameMob(player)) {
         delta -= SAME_MOB_DECAY_PER_SECOND;

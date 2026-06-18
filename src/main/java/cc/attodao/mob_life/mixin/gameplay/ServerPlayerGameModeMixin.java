@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.mixin.gameplay;
 
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -118,7 +119,7 @@ public abstract class ServerPlayerGameModeMixin {
   }
 
   private boolean mobLife$isMovementRestricted() {
-    return !player.onGround() || player.isSprinting();
+    return !player.onGround() || (player.isSprinting() && MorphMovementSpeed.canSprint(player));
   }
 
   private boolean mobLife$isAnyInteractionRestricted() {

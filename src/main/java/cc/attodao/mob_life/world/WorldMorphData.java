@@ -23,29 +23,36 @@ public final class WorldMorphData extends SavedData {
                           .optionalFieldOf("nbt", new CompoundTag())
                           .forGetter(data -> data.definition.nbt()),
                       Codec.BOOL
+                          .optionalFieldOf("selection_chosen", false)
+                          .forGetter(WorldMorphData::selectionChosen),
+                      Codec.BOOL
                           .optionalFieldOf("initial_spawn_configured", true)
                           .forGetter(WorldMorphData::initialSpawnConfigured))
                   .apply(
                       instance,
-                      (type, nbt, configured) ->
-                          new WorldMorphData(new MorphDefinition(type, nbt), configured)));
+                      (type, nbt, selected, configured) ->
+                          new WorldMorphData(
+                              new MorphDefinition(type, nbt), selected, configured)));
 
   public static final SavedDataType<WorldMorphData> TYPE =
       new SavedDataType<>(
           Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "world_morph"),
-          () -> new WorldMorphData(PendingWorldSelection.consumeOrDefault()),
+          () -> new WorldMorphData(MorphDefinition.of(MorphType.PLAYER), false, false),
           CODEC,
           DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 
   private MorphDefinition definition;
+  private boolean selectionChosen;
   private boolean initialSpawnConfigured;
 
   public WorldMorphData(MorphDefinition definition) {
-    this(definition, false);
+    this(definition, false, false);
   }
 
-  private WorldMorphData(MorphDefinition definition, boolean initialSpawnConfigured) {
+  private WorldMorphData(
+      MorphDefinition definition, boolean selectionChosen, boolean initialSpawnConfigured) {
     this.definition = definition;
+    this.selectionChosen = selectionChosen;
     this.initialSpawnConfigured = initialSpawnConfigured;
   }
 
@@ -57,13 +64,31 @@ public final class WorldMorphData extends SavedData {
     return definition;
   }
 
+  public boolean selectionChosen() {
+    return selectionChosen;
+  }
+
   public boolean initialSpawnConfigured() {
     return initialSpawnConfigured;
+  }
+
+  public void markSelectionChosen() {
+    if (!selectionChosen) {
+      selectionChosen = true;
+      setDirty();
+    }
   }
 
   public void markInitialSpawnConfigured() {
     if (!initialSpawnConfigured) {
       initialSpawnConfigured = true;
+      setDirty();
+    }
+  }
+
+  public void clearInitialSpawnConfigured() {
+    if (initialSpawnConfigured) {
+      initialSpawnConfigured = false;
       setDirty();
     }
   }

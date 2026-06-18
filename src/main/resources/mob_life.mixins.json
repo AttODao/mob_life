@@ -16,6 +16,7 @@
 		"inventory.AbstractCraftingMenuAccessor",
 		"inventory.AbstractContainerMenuInvoker",
 		"inventory.AbstractContainerMenuMixin",
+		"inventory.CraftingMenuLogRecipeMixin",
 		"inventory.InventoryMixin",
 		"inventory.InventoryMenuMorphEquipmentMixin",
 		"inventory.LivingEntityMorphEquipmentMixin",

@@ -31,10 +31,12 @@ public final class RabbitHopMovement {
   }
 
   public static int cooldown(Player player) {
+    return cooldown(player, player.isSprinting() || MorphAbility.isFastSprintActive(player));
+  }
+
+  public static int cooldown(Player player, boolean sprinting) {
     MorphConfig.RabbitHop config = config(player);
-    return player.isSprinting() || MorphAbility.isFastSprintActive(player)
-        ? config.sprintCooldown()
-        : config.walkCooldown();
+    return sprinting ? config.sprintCooldown() : config.walkCooldown();
   }
 
   private static MorphConfig.RabbitHop config(Player player) {
