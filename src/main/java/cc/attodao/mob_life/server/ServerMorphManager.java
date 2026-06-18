@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
@@ -258,6 +259,10 @@ public final class ServerMorphManager {
   }
 
   public static void changeMorph(MinecraftServer server, MorphDefinition definition) {
+    if (!MobLifeConfig.isMorphEnabled(definition.type())) {
+      MobLife.LOGGER.warn("Ignoring disabled morph selection {}", definition.type().id());
+      return;
+    }
     MorphDefinition resolvedDefinition =
         MorphEntityFactory.randomizeAt(
             definition, server.overworld(), server.overworld().getRespawnData().pos());
@@ -310,8 +315,9 @@ public final class ServerMorphManager {
   }
 
   private static void sendWorldSelectionPrompt(ServerPlayer player) {
-    ArrayList<MorphConfigEntry> configs = new ArrayList<>(MorphType.values().length);
-    for (MorphType morph : MorphType.values()) {
+    var morphs = MobLifeConfig.selectableMorphs();
+    ArrayList<MorphConfigEntry> configs = new ArrayList<>(morphs.size());
+    for (MorphType morph : morphs) {
       configs.add(new MorphConfigEntry(morph.id(), MorphConfigManager.encode(morph)));
     }
     ServerPlayNetworking.send(player, new WorldMorphSelectionPromptPayload(configs));

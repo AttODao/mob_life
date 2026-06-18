@@ -63,3 +63,16 @@ Each built-in mob uses its own vision profile. Mammal profiles approximate
 species-specific dichromatic sensitivity and visual acuity. Chicken vision
 approximates tetrachromatic discrimination by increasing visible RGB color
 separation; ultraviolet wavelengths cannot be reproduced by an RGB display.
+
+## Global config
+
+The mod also reads `config/mob_life.json` for global toggles:
+
+- `gameplay`: normal-player morphs
+- `rendering`: shader post-processing
+- `inventory`: hotbar limits, inventory slot limits, and off-hand limits
+- `movement`: mining-speed and reach changes
+- `debug`: awkwardness debug text
+
+If the file is missing, the mod writes the default JSON structure on startup.
+If Mod Menu is installed, the mod config screen is available there.

@@ -36,10 +36,11 @@
 - Each player has a persisted and client-synchronized awkwardness value from
   0 to 100.
 - Awkwardness can be set for the command executor with
-  `/moblife awkwardness <0-100>`.
+  `/moblife awkwardness <0-100>`, or for a selected player with
+  `/moblife awkwardness <0-100> <target>`.
 - The awkwardness HUD is a disabled-by-default debug display. It can be
-  toggled from Mob Life's configuration button in Mod Menu and is saved in
-  `config/mob_life-client.json`.
+  toggled from the global config and is saved in `config/mob_life.json`.
+  When Mod Menu is installed, that screen is available from the mod list.
 - Breaking, placing, block interaction, non-forward movement, prolonged
   sprinting, and attacking increase awkwardness. Eating, staying near the same
   mob, and passive decay reduce it.

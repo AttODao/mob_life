@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.client;
 
-import cc.attodao.mob_life.client.config.MobLifeClientConfig;
 import cc.attodao.mob_life.client.screen.MorphSelectionScreen;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfigManager;
@@ -8,6 +7,7 @@ import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import com.mojang.blaze3d.platform.InputConstants;
+import java.util.ArrayList;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
@@ -34,7 +34,6 @@ public final class MobLifeClient implements ClientModInitializer {
 
   @Override
   public void onInitializeClient() {
-    MobLifeClientConfig.load();
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.WorldMorphSelectionPromptPayload.TYPE,
         (payload, context) ->
@@ -42,11 +41,13 @@ public final class MobLifeClient implements ClientModInitializer {
                 .client()
                 .execute(
                     () -> {
+                      ArrayList<MorphType> morphTypes = new ArrayList<>(payload.configs().size());
                       for (MobLifeNetworking.MorphConfigEntry entry : payload.configs()) {
                         MorphType morph = MorphType.fromId(entry.morphId());
+                        morphTypes.add(morph);
                         MorphConfigManager.installSynced(morph, entry.configJson());
                       }
-                      context.client().setScreen(new MorphSelectionScreen());
+                      context.client().setScreen(new MorphSelectionScreen(morphTypes));
                     }));
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.MorphSelectionPayload.TYPE,

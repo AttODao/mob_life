@@ -1,9 +1,9 @@
 package cc.attodao.mob_life.client.mixin.render;
 
-import cc.attodao.mob_life.client.config.MobLifeClientConfig;
 import cc.attodao.mob_life.client.render.MorphJumpBarRenderer;
 import cc.attodao.mob_life.client.render.SizedHotbarRenderer;
 import cc.attodao.mob_life.client.state.ClientMorphState;
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -115,7 +115,7 @@ public abstract class GuiMixin {
 
     float awkwardness = ClientMorphState.awkwardness();
     mobLife$drawAwkwardnessIndicator(graphics, awkwardness);
-    if (!MobLifeClientConfig.showAwkwardnessDebug()) {
+    if (!MobLifeConfig.showAwkwardnessDebug()) {
       return;
     }
 

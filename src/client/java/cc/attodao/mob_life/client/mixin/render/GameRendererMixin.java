@@ -3,6 +3,7 @@ package cc.attodao.mob_life.client.mixin.render;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.client.state.ClientVisionPass;
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.morph.MorphType;
 import com.mojang.blaze3d.resource.CrossFrameResourcePool;
 import net.minecraft.client.Minecraft;
@@ -30,6 +31,10 @@ public abstract class GameRendererMixin {
 
   @Inject(method = "checkEntityPostEffect", at = @At("HEAD"), cancellable = true)
   private void mobLife$selectMorphVision(@Nullable Entity cameraEntity, CallbackInfo ci) {
+    if (!MobLifeConfig.shaderEnabled()) {
+      return;
+    }
+
     MorphType morph = ClientMorphState.morph();
     if (morph == null) {
       return;

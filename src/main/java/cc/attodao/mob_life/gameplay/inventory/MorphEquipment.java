@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.gameplay.inventory;
 
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.world.entity.EntityType;
@@ -20,7 +21,7 @@ public final class MorphEquipment {
       return true;
     }
     return switch (inventorySlot) {
-      case Inventory.SLOT_OFFHAND -> false;
+      case Inventory.SLOT_OFFHAND -> MobLifeConfig.offhandLimitEnabled();
       case 36, 37, 38, 39 -> false;
       case Inventory.SLOT_BODY_ARMOR -> morph.canEquipAnimalArmor() || morph.canEquipChest();
       case Inventory.SLOT_SADDLE -> morph.canEquipSaddle();

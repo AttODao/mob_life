@@ -14,6 +14,7 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LocalPlayer.class)
 public abstract class LocalPlayerMovementMixin extends LivingEntity {
@@ -69,6 +70,13 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
       xxa *= waterInputScale;
       zza *= waterInputScale;
       setSprinting(false);
+    }
+  }
+
+  @Inject(method = "canSpawnSprintParticle", at = @At("HEAD"), cancellable = true)
+  private void mobLife$disableSprintParticlesWhileTransformed(CallbackInfoReturnable<Boolean> cir) {
+    if (ClientMorphState.morph() != null) {
+      cir.setReturnValue(false);
     }
   }
 

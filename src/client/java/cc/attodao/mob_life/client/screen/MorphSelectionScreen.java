@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client.screen;
 
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.client.mixin.world.CreateWorldScreenInvoker;
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphDefinition;
@@ -13,7 +14,6 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -94,7 +94,7 @@ public final class MorphSelectionScreen extends Screen {
   private static final int HOVER_BG = 0x222B3644;
   private static final int QUESTION_BG = 0x332B2110;
 
-  private final List<MorphType> morphTypes = Arrays.asList(MorphType.values());
+  private final List<MorphType> morphTypes;
   private final EnumMap<MorphType, LivingEntity> previewEntities = new EnumMap<>(MorphType.class);
   private final Screen returnScreen;
   private Level previewLevel;
@@ -122,22 +122,24 @@ public final class MorphSelectionScreen extends Screen {
   private EditBox nbtInput;
   private Button confirmButton;
 
-  public MorphSelectionScreen() {
-    this(null, MorphDefinition.of(MorphType.PLAYER));
+  public MorphSelectionScreen(List<MorphType> morphTypes) {
+    this(null, morphTypes, MorphDefinition.of(initialMorph(morphTypes)));
   }
 
   public MorphSelectionScreen(Screen returnScreen) {
-    this(returnScreen, PendingWorldSelection.peekOrDefault());
+    this(returnScreen, MobLifeConfig.selectableMorphs(), PendingWorldSelection.peekOrDefault());
   }
 
-  private MorphSelectionScreen(Screen returnScreen, MorphDefinition initialSelection) {
+  private MorphSelectionScreen(
+      Screen returnScreen, List<MorphType> morphTypes, MorphDefinition initialSelection) {
     super(
         Component.translatable(
             returnScreen == null
                 ? "mob_life.world_select.title"
                 : "mob_life.create_world.morph.select"));
     this.returnScreen = returnScreen;
-    selectedMorph = initialSelection.type();
+    this.morphTypes = List.copyOf(morphTypes);
+    selectedMorph = normalizeSelection(initialSelection.type(), this.morphTypes);
     focusedMorph = selectedMorph;
     CompoundTag initialNbt = initialSelection.nbt();
     if (!initialNbt.isEmpty()) {
@@ -516,6 +518,17 @@ public final class MorphSelectionScreen extends Screen {
     if (confirmButton != null) {
       confirmButton.active = selectedMorph.isPlayer() || nbtValid;
     }
+  }
+
+  private static MorphType normalizeSelection(MorphType morph, List<MorphType> morphTypes) {
+    if (morphTypes.contains(morph)) {
+      return morph;
+    }
+    return initialMorph(morphTypes);
+  }
+
+  private static MorphType initialMorph(List<MorphType> morphTypes) {
+    return morphTypes.isEmpty() ? MobLifeConfig.defaultMorph() : morphTypes.get(0);
   }
 
   private void submitSelection() {

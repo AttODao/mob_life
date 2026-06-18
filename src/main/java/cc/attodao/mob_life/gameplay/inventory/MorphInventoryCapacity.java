@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.gameplay.inventory;
 
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphBodyScale;
@@ -34,10 +35,17 @@ public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
     MorphConfig.Inventory config = MorphConfigManager.get(morph).inventory();
     float capacityRatio =
         MorphBodyScale.relativeTo(morphHeight, morph.entityType().getDimensions().height());
-    int inventorySlots = config.inventorySlots() + (hasChest ? config.chestBonusSlots() : 0);
+    int hotbarSlots =
+        MobLifeConfig.hotbarLimitEnabled()
+            ? scaledSlots(config.hotbarSlots(), capacityRatio)
+            : MAX_HOTBAR_SLOTS;
+    int inventorySlots =
+        MobLifeConfig.inventorySlotLimitEnabled()
+            ? scaledSlots(
+                config.inventorySlots() + (hasChest ? config.chestBonusSlots() : 0), capacityRatio)
+            : MAX_INVENTORY_SLOTS;
     return new MorphInventoryCapacity(
-        Math.min(MAX_HOTBAR_SLOTS, scaledSlots(config.hotbarSlots(), capacityRatio)),
-        Math.min(MAX_INVENTORY_SLOTS, scaledSlots(inventorySlots, capacityRatio)));
+        Math.min(MAX_HOTBAR_SLOTS, hotbarSlots), Math.min(MAX_INVENTORY_SLOTS, inventorySlots));
   }
 
   private static int scaledSlots(int maximum, float ratio) {

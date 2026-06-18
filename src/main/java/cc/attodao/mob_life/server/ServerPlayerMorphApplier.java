@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
@@ -156,6 +157,9 @@ final class ServerPlayerMorphApplier {
 
   private static void applyBlockBreakSpeed(
       ServerPlayer player, MorphType morph, float morphHeight) {
+    if (!MobLifeConfig.miningSpeedChangeEnabled()) {
+      return;
+    }
     AttributeInstance attribute = player.getAttribute(Attributes.BLOCK_BREAK_SPEED);
     if (attribute == null) {
       return;
@@ -174,6 +178,9 @@ final class ServerPlayerMorphApplier {
 
   private static void applyInteractionRanges(
       ServerPlayer player, MorphType morph, float morphHeight) {
+    if (!MobLifeConfig.reachChangeEnabled()) {
+      return;
+    }
     double heightScale = morphHeight / PLAYER_HEIGHT;
     setScaledBaseAttribute(
         player,

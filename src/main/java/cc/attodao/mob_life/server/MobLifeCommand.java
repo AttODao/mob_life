@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.server;
 
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
@@ -7,17 +8,18 @@ import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
-import java.util.Arrays;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.CompoundTagArgument;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.ResourceArgument;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
 
 public final class MobLifeCommand {
@@ -44,7 +46,7 @@ public final class MobLifeCommand {
                                   .suggests(
                                       (context, builder) ->
                                           SharedSuggestionProvider.suggestResource(
-                                              Arrays.stream(MorphType.values())
+                                              MobLifeConfig.selectableMorphs().stream()
                                                   .map(MorphType::entityType)
                                                   .map(BuiltInRegistries.ENTITY_TYPE::getKey),
                                               builder))
@@ -74,18 +76,34 @@ public final class MobLifeCommand {
                                       IntegerArgumentType.integer(
                                           (int) MorphAwkwardness.MINIMUM,
                                           (int) MorphAwkwardness.MAXIMUM))
-                                  .executes(MobLifeCommand::setAwkwardness))));
+                                  .executes(MobLifeCommand::setAwkwardness)
+                                  .then(
+                                      Commands.argument("target", EntityArgument.player())
+                                          .executes(MobLifeCommand::setAwkwardnessForTarget)))));
         });
   }
 
   private static int setAwkwardness(CommandContext<CommandSourceStack> context)
       throws CommandSyntaxException {
+    return setAwkwardness(context, context.getSource().getPlayerOrException(), false);
+  }
+
+  private static int setAwkwardnessForTarget(CommandContext<CommandSourceStack> context)
+      throws CommandSyntaxException {
+    return setAwkwardness(context, EntityArgument.getPlayer(context, "target"), true);
+  }
+
+  private static int setAwkwardness(
+      CommandContext<CommandSourceStack> context, ServerPlayer target, boolean explicitTarget)
+      throws CommandSyntaxException {
     int value = IntegerArgumentType.getInteger(context, "value");
-    ServerMorphManager.setAwkwardness(context.getSource().getPlayerOrException(), value);
-    context
-        .getSource()
-        .sendSuccess(
-            () -> Component.translatable("commands.mob_life.awkwardness.success", value), false);
+    ServerMorphManager.setAwkwardness(target, value);
+    Component message =
+        explicitTarget
+            ? Component.translatable(
+                "commands.mob_life.awkwardness.success.target", target.getName(), value)
+            : Component.translatable("commands.mob_life.awkwardness.success", value);
+    context.getSource().sendSuccess(() -> message, false);
     return value;
   }
 
@@ -96,6 +114,9 @@ public final class MobLifeCommand {
         MorphType.fromEntityType(entityType)
             .orElseThrow(
                 () -> UNSUPPORTED_MORPH.create(BuiltInRegistries.ENTITY_TYPE.getKey(entityType)));
+    if (!MobLifeConfig.isMorphEnabled(morph)) {
+      throw UNSUPPORTED_MORPH.create(BuiltInRegistries.ENTITY_TYPE.getKey(entityType));
+    }
     ServerMorphManager.changeMorph(
         context.getSource().getServer(), new MorphDefinition(morph, nbt));
     context

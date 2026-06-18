@@ -1,7 +1,7 @@
 package cc.attodao.mob_life.world;
 
+import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.morph.MorphDefinition;
-import cc.attodao.mob_life.morph.MorphType;
 import java.util.Optional;
 
 public final class PendingWorldSelection {
@@ -21,7 +21,7 @@ public final class PendingWorldSelection {
   }
 
   public static synchronized MorphDefinition peekOrDefault() {
-    return pending != null ? pending : MorphDefinition.of(MorphType.PLAYER);
+    return pending != null ? pending : MorphDefinition.of(MobLifeConfig.defaultMorph());
   }
 
   public static synchronized Optional<MorphDefinition> consume() {
@@ -32,7 +32,8 @@ public final class PendingWorldSelection {
   }
 
   public static synchronized MorphDefinition consumeOrDefault() {
-    MorphDefinition result = pending != null ? pending : MorphDefinition.of(MorphType.PLAYER);
+    MorphDefinition result =
+        pending != null ? pending : MorphDefinition.of(MobLifeConfig.defaultMorph());
     pending = null;
     worldCreationStarted = false;
     return result;
