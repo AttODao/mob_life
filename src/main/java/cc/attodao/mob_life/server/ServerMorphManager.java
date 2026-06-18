@@ -76,6 +76,7 @@ public final class ServerMorphManager {
   private static final int NIGHT_VISION_REFRESH_THRESHOLD_TICKS = 400;
 
   private static MorphDefinition activeDefinition;
+  private static MorphConfig activeConfig;
   private static EntityDimensions activeDimensions;
   private static float activeEyeHeight;
   private static float activeWaterMovementInputScale = 1.0F;
@@ -118,18 +119,8 @@ public final class ServerMorphManager {
 
     ServerLifecycleEvents.SERVER_STOPPED.register(
         server -> {
-          activeDefinition = null;
-          activeDimensions = null;
-          activeEyeHeight = 0.0F;
-          activeWaterMovementInputScale = 1.0F;
-          activeFallDamageImmune = false;
-          activeNightVision = false;
-          activeHasAttackAi = false;
-          activeSoundMob = null;
-          LAST_CHARGED_JUMP_TICK.clear();
-          RABBIT_HOP_COOLDOWNS.clear();
-          AMBIENT_SOUND_TIMES.clear();
-          GRASS_EATING_TICKS.clear();
+          resetActiveMorph();
+          clearServerPlayerState();
           LAST_SYNCED_AWKWARDNESS.clear();
         });
     ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
@@ -158,25 +149,7 @@ public final class ServerMorphManager {
           }
 
           for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            MorphAbility.tick(player);
-            tickGrassEating(player);
-            addMovementExhaustion(player);
-            tickAwkwardness(player);
-            tickAmbientSound(player);
-            if (player.tickCount % 20 == 0) {
-              refreshChestedInventory(player);
-            }
-            syncNightVision(player);
-            MorphConfig.Movement movement = activeConfig().movement();
-            if (movement.slowFallMultiplier() < 1.0F) {
-              slowChickenFall(player);
-            }
-            if (movement.rabbitHop().enabled()) {
-              tickRabbitHop(player);
-            }
-            if (player.tickCount % 10 == 0) {
-              MorphPredation.acquirePredators(player, activeMorph());
-            }
+            tickPlayer(player);
           }
         });
   }
@@ -336,10 +309,23 @@ public final class ServerMorphManager {
   }
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
-    RABBIT_HOP_COOLDOWNS.clear();
-    AMBIENT_SOUND_TIMES.clear();
-    GRASS_EATING_TICKS.clear();
+    clearPerMorphEffectState();
+    resetActiveMorph();
     activeDefinition = definition;
+    activeConfig = MorphConfigManager.get(definition.type());
+    if (!definition.hasMobForm()) {
+      return;
+    }
+
+    Entity entity = MorphEntityFactory.create(definition, server.overworld());
+    if (entity != null) {
+      applyActiveEntityProperties(definition, entity);
+    }
+  }
+
+  private static void resetActiveMorph() {
+    activeDefinition = null;
+    activeConfig = null;
     activeDimensions = null;
     activeEyeHeight = 0.0F;
     activeWaterMovementInputScale = 1.0F;
@@ -347,27 +333,58 @@ public final class ServerMorphManager {
     activeNightVision = false;
     activeHasAttackAi = false;
     activeSoundMob = null;
-    if (!definition.hasMobForm()) {
-      return;
-    }
+  }
 
-    Entity entity = MorphEntityFactory.create(definition, server.overworld());
-    if (entity != null) {
-      activeDimensions = entity.getDimensions(Pose.STANDING);
-      activeEyeHeight = entity.getEyeHeight();
-      activeFallDamageImmune = activeConfig().traits().fallDamageImmune();
-      if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
-        activeHasAttackAi = MorphAttackDamage.hasAttackAi(definition.type(), living);
-        activeWaterMovementInputScale =
-            (float)
-                    living.getAttributeValue(
-                        net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
-                * activeConfig().movement().waterInputMultiplier();
-      }
-      activeNightVision = activeConfig().traits().nightVision();
-      if (entity instanceof Mob mob) {
-        activeSoundMob = mob;
-      }
+  private static void clearPerMorphEffectState() {
+    RABBIT_HOP_COOLDOWNS.clear();
+    AMBIENT_SOUND_TIMES.clear();
+    GRASS_EATING_TICKS.clear();
+  }
+
+  private static void clearServerPlayerState() {
+    LAST_CHARGED_JUMP_TICK.clear();
+    clearPerMorphEffectState();
+  }
+
+  private static void applyActiveEntityProperties(MorphDefinition definition, Entity entity) {
+    MorphConfig config = activeConfig();
+    activeDimensions = entity.getDimensions(Pose.STANDING);
+    activeEyeHeight = entity.getEyeHeight();
+    activeFallDamageImmune = config.traits().fallDamageImmune();
+    activeNightVision = config.traits().nightVision();
+    if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
+      activeHasAttackAi = MorphAttackDamage.hasAttackAi(definition.type(), living);
+      activeWaterMovementInputScale =
+          (float)
+                  living.getAttributeValue(
+                      net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
+              * config.movement().waterInputMultiplier();
+    }
+    if (entity instanceof Mob mob) {
+      activeSoundMob = mob;
+    }
+  }
+
+  private static void tickPlayer(ServerPlayer player) {
+    MorphAbility.tick(player);
+    tickGrassEating(player);
+    addMovementExhaustion(player);
+    tickAwkwardness(player);
+    tickAmbientSound(player);
+    if (player.tickCount % 20 == 0) {
+      refreshChestedInventory(player);
+    }
+    syncNightVision(player);
+
+    MorphConfig.Movement movement = activeConfig().movement();
+    if (movement.slowFallMultiplier() < 1.0F) {
+      slowChickenFall(player);
+    }
+    if (movement.rabbitHop().enabled()) {
+      tickRabbitHop(player);
+    }
+    if (player.tickCount % 10 == 0) {
+      MorphPredation.acquirePredators(player, activeMorph());
     }
   }
 
@@ -462,7 +479,7 @@ public final class ServerMorphManager {
     }
 
     Input input = player.getLastClientInput();
-    boolean moving = input.forward() || input.backward() || input.left() || input.right();
+    boolean moving = hasMovementInput(input);
     boolean jumping = input.jump();
     boolean groundedOnLand = player.onGround() && !player.isInWater() && !player.isInLava();
     if ((!moving && !jumping)
@@ -498,12 +515,11 @@ public final class ServerMorphManager {
   private static void tickGrassEating(ServerPlayer player) {
     UUID uuid = player.getUUID();
     Input input = player.getLastClientInput();
-    boolean movingInput = input.forward() || input.backward() || input.left() || input.right();
     BlockPos grassPos = player.blockPosition().below();
     boolean canEat =
         activeConfig().traits().eatsGrass()
             && input.shift()
-            && !movingInput
+            && !hasMovementInput(input)
             && player.getDeltaMovement().horizontalDistanceSqr() < 1.0E-4
             && player.onGround()
             && !player.isPassenger()
@@ -560,7 +576,7 @@ public final class ServerMorphManager {
   private static void tickAwkwardness(ServerPlayer player) {
     float delta = 0.0F;
     Input input = player.getLastClientInput();
-    boolean moving = input.forward() || input.backward() || input.left() || input.right();
+    boolean moving = hasMovementInput(input);
     boolean sprinting = player.isSprinting() && MorphMovementSpeed.canSprint(player);
     boolean fastSprintActive = MorphAbility.isFastSprintActive(player);
     if (moving && (input.backward() || input.left() || input.right())) {
@@ -631,6 +647,10 @@ public final class ServerMorphManager {
   }
 
   public static MorphConfig activeConfig() {
-    return MorphConfigManager.get(activeMorph());
+    return activeConfig != null ? activeConfig : MorphConfigManager.get(activeMorph());
+  }
+
+  private static boolean hasMovementInput(Input input) {
+    return input.forward() || input.backward() || input.left() || input.right();
   }
 }

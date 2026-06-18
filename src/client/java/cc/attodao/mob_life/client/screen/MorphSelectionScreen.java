@@ -1,65 +1,29 @@
 package cc.attodao.mob_life.client.screen;
 
-import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.client.mixin.world.CreateWorldScreenInvoker;
 import cc.attodao.mob_life.config.MobLifeConfig;
-import cc.attodao.mob_life.config.MorphConfig;
-import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphDefinition;
-import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.world.PendingWorldSelection;
-import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import java.time.Duration;
-import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.ChatComponent;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
-import net.minecraft.client.gui.screens.worldselection.WorldCreationContext;
 import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.multiplayer.ClientLevel.ClientLevelData;
-import net.minecraft.client.multiplayer.ClientPacketListener;
-import net.minecraft.client.multiplayer.CommonListenerCookie;
-import net.minecraft.client.multiplayer.LevelLoadTracker;
-import net.minecraft.client.multiplayer.PlayerInfo;
-import net.minecraft.client.player.RemotePlayer;
-import net.minecraft.client.telemetry.TelemetryEventSender;
-import net.minecraft.client.telemetry.WorldSessionTelemetryManager;
-import net.minecraft.core.Holder;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.network.Connection;
 import net.minecraft.network.chat.Component;
-import net.minecraft.resources.Identifier;
-import net.minecraft.server.ServerLinks;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
-import net.minecraft.world.level.dimension.DimensionType;
 
 public final class MorphSelectionScreen extends Screen {
 
@@ -97,7 +61,7 @@ public final class MorphSelectionScreen extends Screen {
   private final List<MorphType> morphTypes;
   private final EnumMap<MorphType, LivingEntity> previewEntities = new EnumMap<>(MorphType.class);
   private final Screen returnScreen;
-  private Level previewLevel;
+  private final MorphPreviewFactory previewFactory;
 
   private MorphType selectedMorph = MorphType.PLAYER;
   private MorphType focusedMorph = MorphType.PLAYER;
@@ -138,6 +102,7 @@ public final class MorphSelectionScreen extends Screen {
                 ? "mob_life.world_select.title"
                 : "mob_life.create_world.morph.select"));
     this.returnScreen = returnScreen;
+    this.previewFactory = new MorphPreviewFactory(returnScreen);
     this.morphTypes = List.copyOf(morphTypes);
     selectedMorph = normalizeSelection(initialSelection.type(), this.morphTypes);
     focusedMorph = selectedMorph;
@@ -323,123 +288,7 @@ public final class MorphSelectionScreen extends Screen {
 
   private void buildPreviews() {
     previewEntities.clear();
-    Level level = previewEntityLevel();
-    if (level == null) {
-      return;
-    }
-
-    for (MorphType morph : morphTypes) {
-      LivingEntity preview;
-      if (morph.isPlayer()) {
-        preview = createPlayerPreview(level);
-      } else {
-        preview = null;
-        Entity candidate = MorphEntityFactory.create(MorphDefinition.of(morph), level);
-        if (candidate instanceof LivingEntity livingPreview) {
-          preview = livingPreview;
-        }
-      }
-      previewEntities.put(morph, preview);
-    }
-  }
-
-  private LivingEntity createPlayerPreview(Level level) {
-    if (minecraft.player instanceof LivingEntity livingPreview) {
-      return livingPreview;
-    }
-    if (level instanceof ClientLevel clientLevel) {
-      GameProfile profile;
-      if (minecraft.getUser() != null) {
-        profile =
-            new GameProfile(minecraft.getUser().getProfileId(), minecraft.getUser().getName());
-      } else {
-        profile = new GameProfile(UUID.randomUUID(), "preview");
-      }
-      PreviewPlayer preview = new PreviewPlayer(clientLevel, profile);
-      preview.setPos(0.0, 0.0, 0.0);
-      return preview;
-    }
-    return null;
-  }
-
-  private Level previewEntityLevel() {
-    if (minecraft == null) {
-      return null;
-    }
-
-    if (minecraft.level != null) {
-      return minecraft.level;
-    }
-
-    if (previewLevel == null) {
-      previewLevel = createPreviewLevel();
-    }
-    return previewLevel;
-  }
-
-  private Level createPreviewLevel() {
-    try {
-      if (!(returnScreen instanceof CreateWorldScreen createWorldScreen)) {
-        return null;
-      }
-
-      WorldCreationContext worldCreationContext = createWorldScreen.getUiState().getSettings();
-      RegistryAccess.Frozen registryAccess = worldCreationContext.worldgenLoadContext();
-      var dimensionLookup = registryAccess.lookupOrThrow(Registries.DIMENSION_TYPE);
-      Holder<DimensionType> dimensionType =
-          dimensionLookup
-              .get(BuiltinDimensionTypes.OVERWORLD)
-              .orElseGet(() -> dimensionLookup.getOrThrow(BuiltinDimensionTypes.OVERWORLD_CAVES));
-
-      GameProfile profile;
-      if (minecraft.getUser() != null) {
-        profile =
-            new GameProfile(minecraft.getUser().getProfileId(), minecraft.getUser().getName());
-      } else {
-        profile = new GameProfile(UUID.randomUUID(), "preview");
-      }
-
-      WorldSessionTelemetryManager telemetryManager =
-          new WorldSessionTelemetryManager(
-              TelemetryEventSender.DISABLED, false, Duration.ZERO, "mob_life_preview");
-      CommonListenerCookie cookie =
-          new CommonListenerCookie(
-              new LevelLoadTracker(),
-              profile,
-              telemetryManager,
-              registryAccess,
-              worldCreationContext.dataConfiguration().enabledFeatures(),
-              "",
-              null,
-              null,
-              Map.of(),
-              new ChatComponent.State(List.of(), List.of(), List.of()),
-              Map.of(),
-              ServerLinks.EMPTY,
-              Map.of(),
-              false);
-      ClientPacketListener listener =
-          new ClientPacketListener(
-              minecraft,
-              new Connection(net.minecraft.network.protocol.PacketFlow.CLIENTBOUND),
-              cookie);
-      ClientLevelData data =
-          new ClientLevelData(net.minecraft.world.Difficulty.NORMAL, false, false);
-      return new ClientLevel(
-          listener,
-          data,
-          Level.OVERWORLD,
-          dimensionType,
-          3,
-          3,
-          minecraft.levelRenderer,
-          false,
-          0L,
-          63);
-    } catch (RuntimeException exception) {
-      MobLife.LOGGER.warn("Failed to create morph selection preview level", exception);
-      return null;
-    }
+    previewEntities.putAll(previewFactory.build(minecraft, morphTypes));
   }
 
   private EditBox createNbtInput() {
@@ -791,8 +640,9 @@ public final class MorphSelectionScreen extends Screen {
     int viewportHeight = Math.max(0, textBottom - textTop);
     int textWidth = detailTextWidth();
 
-    List<RenderedDetailLine> lines = buildWrappedDetailLines(focusedMorph, textWidth);
-    int contentHeight = measureDetailContentHeight(lines);
+    List<MorphSelectionDetails.RenderedLine> lines =
+        MorphSelectionDetails.buildWrappedLines(focusedMorph, font, textWidth, ACCENT, BODY_TEXT);
+    int contentHeight = MorphSelectionDetails.measureHeight(lines, DETAIL_LINE_HEIGHT);
     int maxScroll = Math.max(0, contentHeight - viewportHeight);
     detailScroll = Math.clamp(detailScroll, 0, maxScroll);
 
@@ -800,7 +650,7 @@ public final class MorphSelectionScreen extends Screen {
     graphics.enableScissor(textX, textTop, textX + visibleWidth, textTop + viewportHeight);
 
     int y = textTop - detailScroll;
-    for (RenderedDetailLine line : lines) {
+    for (MorphSelectionDetails.RenderedLine line : lines) {
       y += line.topPadding();
       graphics.text(font, line.text(), textX + line.indent(), y, line.color(), false);
       y += DETAIL_LINE_HEIGHT;
@@ -813,85 +663,6 @@ public final class MorphSelectionScreen extends Screen {
       renderScrollbar(
           graphics, barX, textTop, DETAIL_SCROLLBAR_WIDTH, viewportHeight, detailScroll, maxScroll);
     }
-  }
-
-  private List<RenderedDetailLine> buildWrappedDetailLines(MorphType morph, int textWidth) {
-    ArrayList<RenderedDetailLine> lines = new ArrayList<>();
-    for (DetailLine line : buildDetailLines(morph)) {
-      int availableWidth = Math.max(1, textWidth - line.indent());
-      List<net.minecraft.util.FormattedCharSequence> wrapped =
-          font.split(line.text(), availableWidth);
-      if (wrapped.isEmpty()) {
-        continue;
-      }
-      boolean first = true;
-      for (net.minecraft.util.FormattedCharSequence sequence : wrapped) {
-        lines.add(
-            new RenderedDetailLine(
-                sequence, line.color(), line.indent(), first ? line.topPadding() : 0));
-        first = false;
-      }
-    }
-    return lines;
-  }
-
-  private List<DetailLine> buildDetailLines(MorphType morph) {
-    MorphConfig config = MorphConfigManager.get(morph);
-    ArrayList<DetailLine> lines = new ArrayList<>();
-
-    addSectionHeader(lines, "mob_life.world_select.section.movement");
-    addBody(
-        lines,
-        Component.translatable(
-            "mob_life.world_select.movement.charged_jump", yesNo(config.movement().chargedJump())));
-    addBody(
-        lines,
-        Component.translatable(
-            "mob_life.world_select.movement.slow_fall",
-            formatNumber(config.movement().slowFallMultiplier())));
-    if (config.movement().rabbitHop().enabled()) {
-      addBody(lines, Component.translatable("mob_life.world_select.movement.rabbit_hop"));
-    }
-
-    addSectionHeader(lines, "mob_life.world_select.section.attack");
-    addBody(
-        lines,
-        Component.translatable(
-            "mob_life.world_select.attack.damage", formatNumber(config.combat().attackDamage())));
-    if (config.combat().leapAttack().verticalSpeed() > 0.0) {
-      addBody(lines, Component.translatable("mob_life.world_select.attack.leap"));
-    }
-
-    addSectionHeader(lines, "mob_life.world_select.section.predators");
-    addBody(lines, entityDisplayText(config.combat().predators()));
-
-    addSectionHeader(lines, "mob_life.world_select.section.foods");
-    ArrayList<String> foodEntries = new ArrayList<>(config.diet().foods());
-    foodEntries.addAll(config.diet().huntedFoods());
-    addBody(lines, foodDisplayText(foodEntries));
-
-    addSectionHeader(lines, "mob_life.world_select.section.sleep");
-    addBody(
-        lines,
-        Component.translatable(
-            "mob_life.world_select.sleep.schedule", sleepScheduleLabel(config.sleep().schedule())));
-    addBody(
-        lines,
-        Component.translatable(
-            "mob_life.world_select.sleep.without_bed", yesNo(config.sleep().withoutBed())));
-
-    addSectionHeader(lines, "mob_life.world_select.section.ability");
-    addBody(lines, Component.translatable(abilityKey(config.abilities().value())));
-
-    return lines;
-  }
-
-  private int measureDetailContentHeight(List<RenderedDetailLine> lines) {
-    int height = 0;
-    for (RenderedDetailLine line : lines) {
-      height += line.topPadding() + DETAIL_LINE_HEIGHT;
-    }
-    return height;
   }
 
   private int detailTextX() {
@@ -924,7 +695,10 @@ public final class MorphSelectionScreen extends Screen {
   private int detailScrollRange() {
     return Math.max(
         0,
-        measureDetailContentHeight(buildWrappedDetailLines(focusedMorph, detailTextWidth()))
+        MorphSelectionDetails.measureHeight(
+                MorphSelectionDetails.buildWrappedLines(
+                    focusedMorph, font, detailTextWidth(), ACCENT, BODY_TEXT),
+                DETAIL_LINE_HEIGHT)
             - detailViewportHeight());
   }
 
@@ -1010,121 +784,8 @@ public final class MorphSelectionScreen extends Screen {
     return width - 16 - confirmWidth;
   }
 
-  private void addSectionHeader(List<DetailLine> lines, String key) {
-    int padding = lines.isEmpty() ? 0 : 6;
-    lines.add(new DetailLine(Component.translatable(key), ACCENT, 0, padding));
-  }
-
-  private void addBody(List<DetailLine> lines, Component text) {
-    lines.add(new DetailLine(text, BODY_TEXT, 10, 0));
-  }
-
-  private Component foodDisplayText(List<String> entries) {
-    ArrayList<String> display = new ArrayList<>();
-    LinkedHashSet<Identifier> seen = new LinkedHashSet<>();
-
-    for (String entry : entries) {
-      if (entry.startsWith("#")) {
-        Identifier tagId = Identifier.tryParse(entry.substring(1));
-        if (tagId == null) {
-          continue;
-        }
-
-        TagKey<Item> tag = TagKey.create(net.minecraft.core.registries.Registries.ITEM, tagId);
-        for (Holder<Item> holder : BuiltInRegistries.ITEM.getTagOrEmpty(tag)) {
-          Item item = holder.value();
-          Identifier itemId = BuiltInRegistries.ITEM.getKey(item);
-          if (itemId != null && seen.add(itemId)) {
-            display.add(new ItemStack(item).getHoverName().getString());
-          }
-        }
-        continue;
-      }
-
-      Identifier itemId = Identifier.tryParse(entry);
-      if (itemId == null) {
-        continue;
-      }
-
-      BuiltInRegistries.ITEM
-          .getOptional(itemId)
-          .ifPresent(
-              item -> {
-                if (seen.add(itemId)) {
-                  display.add(new ItemStack(item).getHoverName().getString());
-                }
-              });
-    }
-
-    return display.isEmpty() ? noneValue() : Component.literal(String.join("、", display));
-  }
-
-  private Component entityDisplayText(List<String> entries) {
-    ArrayList<String> display = new ArrayList<>();
-    LinkedHashSet<Identifier> seen = new LinkedHashSet<>();
-
-    for (String entry : entries) {
-      if (entry.startsWith("#")) {
-        Identifier tagId = Identifier.tryParse(entry.substring(1));
-        if (tagId == null) {
-          continue;
-        }
-
-        TagKey<net.minecraft.world.entity.EntityType<?>> tag =
-            TagKey.create(net.minecraft.core.registries.Registries.ENTITY_TYPE, tagId);
-        for (Holder<net.minecraft.world.entity.EntityType<?>> holder :
-            BuiltInRegistries.ENTITY_TYPE.getTagOrEmpty(tag)) {
-          net.minecraft.world.entity.EntityType<?> entityType = holder.value();
-          Identifier entityId = BuiltInRegistries.ENTITY_TYPE.getKey(entityType);
-          if (entityId != null && seen.add(entityId)) {
-            display.add(entityType.getDescription().getString());
-          }
-        }
-        continue;
-      }
-
-      Identifier entityId = Identifier.tryParse(entry);
-      if (entityId == null) {
-        continue;
-      }
-
-      BuiltInRegistries.ENTITY_TYPE
-          .getOptional(entityId)
-          .ifPresent(
-              entityType -> {
-                if (seen.add(entityId)) {
-                  display.add(entityType.getDescription().getString());
-                }
-              });
-    }
-
-    return display.isEmpty() ? noneValue() : Component.literal(String.join("、", display));
-  }
-
-  private Component noneValue() {
-    return Component.translatable("mob_life.world_select.value.none");
-  }
-
-  private Component yesNo(boolean value) {
-    return Component.translatable(
-        value ? "mob_life.world_select.value.yes" : "mob_life.world_select.value.no");
-  }
-
-  private Component sleepScheduleLabel(String value) {
-    String key = "mob_life.world_select.sleep.schedule." + value;
-    return Component.translatable(key);
-  }
-
-  private String abilityKey(MorphConfig.Ability ability) {
-    return "mob_life.world_select.ability." + ability.id();
-  }
-
-  private String traitKey(MorphConfig.Trait trait) {
-    return "mob_life.world_select.trait." + trait.id();
-  }
-
   private Component morphName(MorphType morph) {
-    return Component.translatable(morph.translationKey());
+    return MorphSelectionDetails.morphName(morph);
   }
 
   private MorphType rowAt(double mouseX, double mouseY) {
@@ -1228,29 +889,5 @@ public final class MorphSelectionScreen extends Screen {
             18, (int) ((viewportHeight / (float) (viewportHeight + maxScroll)) * viewportHeight));
     int thumbY = y + (int) ((scroll / (float) maxScroll) * (viewportHeight - thumbHeight));
     graphics.fill(x, thumbY, x + width, thumbY + thumbHeight, ACCENT);
-  }
-
-  private String formatNumber(double value) {
-    String text = String.format(Locale.ROOT, "%.2f", value);
-    while (text.contains(".") && (text.endsWith("0") || text.endsWith("."))) {
-      text = text.substring(0, text.length() - 1);
-    }
-    return text;
-  }
-
-  private record DetailLine(Component text, int color, int indent, int topPadding) {}
-
-  private record RenderedDetailLine(
-      net.minecraft.util.FormattedCharSequence text, int color, int indent, int topPadding) {}
-
-  private static final class PreviewPlayer extends RemotePlayer {
-    private PreviewPlayer(ClientLevel level, GameProfile gameProfile) {
-      super(level, gameProfile);
-    }
-
-    @Override
-    protected PlayerInfo getPlayerInfo() {
-      return null;
-    }
   }
 }
