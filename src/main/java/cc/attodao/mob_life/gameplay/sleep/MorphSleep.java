@@ -8,9 +8,12 @@ import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.attribute.EnvironmentAttributes;
+import net.minecraft.world.clock.ClockTimeMarker;
+import net.minecraft.world.clock.ClockTimeMarkers;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
@@ -109,7 +112,7 @@ public final class MorphSleep {
         .orElse(false);
   }
 
-  private static boolean isDaytime(Player player) {
+  public static boolean isDaytime(Player player) {
     long timeOfDay = Math.floorMod(player.level().getDefaultClockTime(), DAY_LENGTH_TICKS);
     return timeOfDay < DAY_END_TICK;
   }
@@ -161,6 +164,20 @@ public final class MorphSleep {
 
   public static int requiredSleepTicks() {
     return config().requiredTicks();
+  }
+
+  public static Player.BedSleepingProblem nocturnalBedProblem() {
+    return new Player.BedSleepingProblem(Component.translatable("mob_life.sleep.nocturnal_night"));
+  }
+
+  // Nocturnal forms sleep through the day and should wake at night instead of dawn.
+  public static ResourceKey<ClockTimeMarker> wakeUpMarker(ResourceKey<ClockTimeMarker> original) {
+    if (original.equals(ClockTimeMarkers.WAKE_UP_FROM_SLEEP)
+        && ServerMorphManager.hasMobForm()
+        && ServerMorphManager.activeMorph().isNocturnal()) {
+      return ClockTimeMarkers.NIGHT;
+    }
+    return original;
   }
 
   private static MorphConfig.Sleep config() {

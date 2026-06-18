@@ -62,6 +62,7 @@ final class ServerPlayerMorphApplier {
     refreshDimensions(player);
     MorphEquipment.removeUnsupportedEquipment(player);
     MorphMovementSpeed.refresh(player);
+    ServerMorphManager.syncNightVision(player);
     syncInventory(player);
     ServerPlayNetworking.send(
         player,

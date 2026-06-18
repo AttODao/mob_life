@@ -41,6 +41,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -69,12 +71,16 @@ public final class ServerMorphManager {
   private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
   private static final int GRASS_EATING_DURATION_TICKS = 40;
   private static final int GRASS_FOOD_RESTORE = 2;
+  // Vanilla night vision starts flickering when the remaining duration drops under 200 ticks.
+  private static final int NIGHT_VISION_DURATION_TICKS = 2400;
+  private static final int NIGHT_VISION_REFRESH_THRESHOLD_TICKS = 400;
 
   private static MorphDefinition activeDefinition;
   private static EntityDimensions activeDimensions;
   private static float activeEyeHeight;
   private static float activeWaterMovementInputScale = 1.0F;
   private static boolean activeFallDamageImmune;
+  private static boolean activeNightVision;
   private static boolean activeHasAttackAi;
   private static Mob activeSoundMob;
 
@@ -117,6 +123,7 @@ public final class ServerMorphManager {
           activeEyeHeight = 0.0F;
           activeWaterMovementInputScale = 1.0F;
           activeFallDamageImmune = false;
+          activeNightVision = false;
           activeHasAttackAi = false;
           activeSoundMob = null;
           LAST_CHARGED_JUMP_TICK.clear();
@@ -159,6 +166,7 @@ public final class ServerMorphManager {
             if (player.tickCount % 20 == 0) {
               refreshChestedInventory(player);
             }
+            syncNightVision(player);
             MorphConfig.Movement movement = activeConfig().movement();
             if (movement.slowFallMultiplier() < 1.0F) {
               slowChickenFall(player);
@@ -336,6 +344,7 @@ public final class ServerMorphManager {
     activeEyeHeight = 0.0F;
     activeWaterMovementInputScale = 1.0F;
     activeFallDamageImmune = false;
+    activeNightVision = false;
     activeHasAttackAi = false;
     activeSoundMob = null;
     if (!definition.hasMobForm()) {
@@ -355,9 +364,30 @@ public final class ServerMorphManager {
                         net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
                 * activeConfig().movement().waterInputMultiplier();
       }
+      activeNightVision = activeConfig().traits().nightVision();
       if (entity instanceof Mob mob) {
         activeSoundMob = mob;
       }
+    }
+  }
+
+  static void syncNightVision(ServerPlayer player) {
+    MobEffectInstance effect = player.getEffect(MobEffects.NIGHT_VISION);
+    if (activeNightVision) {
+      if (effect == null) {
+        player.addEffect(nightVisionEffect());
+        return;
+      }
+
+      if (isMorphNightVision(effect)
+          && effect.getDuration() <= NIGHT_VISION_REFRESH_THRESHOLD_TICKS) {
+        player.addEffect(nightVisionEffect());
+      }
+      return;
+    }
+
+    if (effect != null && isMorphNightVision(effect)) {
+      player.removeEffect(MobEffects.NIGHT_VISION);
     }
   }
 
@@ -396,6 +426,18 @@ public final class ServerMorphManager {
             soundMob.getSoundSource(),
             volume,
             soundMob.getVoicePitch());
+  }
+
+  private static boolean isMorphNightVision(MobEffectInstance effect) {
+    return effect.getAmplifier() == 0
+        && effect.isAmbient()
+        && !effect.isVisible()
+        && !effect.showIcon();
+  }
+
+  private static MobEffectInstance nightVisionEffect() {
+    return new MobEffectInstance(
+        MobEffects.NIGHT_VISION, NIGHT_VISION_DURATION_TICKS, 0, true, false, false);
   }
 
   private static void slowChickenFall(ServerPlayer player) {

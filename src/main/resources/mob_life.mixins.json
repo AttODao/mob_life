@@ -11,6 +11,8 @@
 		"gameplay.LivingEntityMorphFluidMovementMixin",
 		"gameplay.LivingEntityMorphSprintMixin",
 		"gameplay.LivingEntitySleepMixin",
+		"gameplay.ServerLevelSleepMixin",
+		"gameplay.ServerPlayerSleepMixin",
 		"gameplay.ServerPlayerGameModeMixin",
 		"gameplay.ServerVehicleInputMixin",
 		"inventory.AbstractCraftingMenuAccessor",

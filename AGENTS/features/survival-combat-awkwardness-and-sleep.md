@@ -30,8 +30,8 @@
   forms list `minecraft:creeper` and use the creeper's vanilla cat avoidance
   distance and speeds.
 - Cat, ocelot, and wolf forms are nocturnal but are never forced to sleep or
-  wake. Their manual soft-surface sleep action is allowed during daytime,
-  bypassing the vanilla nighttime-only bed rule, and is rejected at night.
+  wake. Their sleep on soft surfaces or in beds is allowed during daytime and
+  is rejected at night.
 
 - Each player has a persisted and client-synchronized awkwardness value from
   0 to 100.

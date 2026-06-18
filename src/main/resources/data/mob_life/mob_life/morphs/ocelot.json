@@ -97,6 +97,7 @@
   },
   "abilities": ["fast_sprint"],
   "traits": [
-    "fall_damage_immune"
+    "fall_damage_immune",
+    "night_vision"
   ]
 }

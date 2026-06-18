@@ -130,6 +130,7 @@ public record MorphConfig(
 
   public enum Trait {
     FALL_DAMAGE_IMMUNE("fall_damage_immune"),
+    NIGHT_VISION("night_vision"),
     EATS_GRASS("eats_grass"),
     CAN_EQUIP_SADDLE("can_equip_saddle"),
     CAN_EQUIP_HORSE_ARMOR("can_equip_horse_armor"),
@@ -163,6 +164,10 @@ public record MorphConfig(
 
     public boolean fallDamageImmune() {
       return values.contains(Trait.FALL_DAMAGE_IMMUNE);
+    }
+
+    public boolean nightVision() {
+      return values.contains(Trait.NIGHT_VISION);
     }
 
     public boolean eatsGrass() {
@@ -519,6 +524,7 @@ public record MorphConfig(
 
   private static Set<Trait> traits(
       boolean fallDamageImmune,
+      boolean nightVision,
       boolean eatsGrass,
       boolean canEquipSaddle,
       boolean canEquipHorseArmor,
@@ -527,6 +533,9 @@ public record MorphConfig(
     EnumSet<Trait> values = EnumSet.noneOf(Trait.class);
     if (fallDamageImmune) {
       values.add(Trait.FALL_DAMAGE_IMMUNE);
+    }
+    if (nightVision) {
+      values.add(Trait.NIGHT_VISION);
     }
     if (eatsGrass) {
       values.add(Trait.EATS_GRASS);

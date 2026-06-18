@@ -8,10 +8,12 @@ import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.Vec3;
@@ -23,6 +25,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -116,6 +119,27 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
   private int mobLife$extendSoftSurfaceSleepTimer(int duration) {
     Player player = (Player) (Object) this;
     return MorphSleep.isCustomSleep(player) ? MorphSleep.requiredSleepTicks() : duration;
+  }
+
+  @Redirect(
+      method = "tick",
+      at =
+          @At(
+              value = "INVOKE",
+              target =
+                  "Lnet/minecraft/world/attribute/BedRule;canSleep(Lnet/minecraft/world/level/Level;)Z"))
+  private boolean mobLife$preserveNocturnalAndSoftSleep(BedRule bedRule, Level level) {
+    Player player = (Player) (Object) this;
+    if (!ServerMorphManager.hasMobForm()) {
+      return bedRule.canSleep(level);
+    }
+    if (MorphSleep.isCustomSleep(player)) {
+      return true;
+    }
+    if (ServerMorphManager.activeMorph().isNocturnal()) {
+      return MorphSleep.isDaytime(player);
+    }
+    return bedRule.canSleep(level);
   }
 
   @Inject(method = "isSleepingLongEnough", at = @At("HEAD"), cancellable = true)
