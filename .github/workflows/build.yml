@@ -19,12 +19,16 @@ jobs:
         with:
           java-version: '25'
           distribution: 'microsoft'
+      - name: read mod version
+        id: version
+        run: echo "value=$(awk -F= '/^mod_version=/{print $2}' gradle.properties)" >> "$GITHUB_OUTPUT"
       - name: make gradle wrapper executable
         run: chmod +x ./gradlew
       - name: build
         run: ./gradlew build
-      - name: capture build artifacts
+      - name: capture latest jar artifact
         uses: actions/upload-artifact@v7
         with:
-          name: Artifacts
-          path: build/libs/
+          name: mob_life-${{ steps.version.outputs.value }}
+          path: build/libs/*-${{ steps.version.outputs.value }}.jar
+          if-no-files-found: error

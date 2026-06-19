@@ -2,7 +2,7 @@
 
 - Mod ID: `mob_life`
 - Maven group: `cc.attodao`
-- Version: `0.4.0`
+- Version: `1.0.0`
 - Minecraft: `26.1.2`
 - Fabric Loader: `0.19.3`
 - Fabric API: `0.150.0+26.1.2`

@@ -1,0 +1,69 @@
+name: release
+on:
+  push:
+    branches:
+      - 26.1.2
+    paths:
+      - gradle.properties
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v6
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+      - name: setup jdk
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: read mod version
+        id: version
+        run: echo "value=$(awk -F= '/^mod_version=/{print $2}' gradle.properties)" >> "$GITHUB_OUTPUT"
+      - name: check whether this version is already released
+        id: release_exists
+        uses: actions/github-script@v7
+        env:
+          MOD_VERSION: ${{ steps.version.outputs.value }}
+        with:
+          script: |
+            const tag = `v${process.env.MOD_VERSION}`;
+            try {
+              await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+              });
+              core.setOutput('exists', 'true');
+            } catch (error) {
+              if (error.status === 404) {
+                core.setOutput('exists', 'false');
+                return;
+              }
+              throw error;
+            }
+      - name: make gradle wrapper executable
+        if: steps.release_exists.outputs.exists == 'false'
+        run: chmod +x ./gradlew
+      - name: build release jar
+        if: steps.release_exists.outputs.exists == 'false'
+        run: ./gradlew build
+      - name: create release
+        if: steps.release_exists.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.value }}
+          name: Mob Life v${{ steps.version.outputs.value }}
+          body: |
+            Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md).
+          files: build/libs/*-${{ steps.version.outputs.value }}.jar
+          fail_on_unmatched_files: true
+          generate_release_notes: false
+          overwrite_files: true
+          make_latest: true
