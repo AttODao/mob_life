@@ -103,6 +103,24 @@ vec3 sampleDistanceBlur(float blurAmount) {
     return color;
 }
 
+float linearDepth(float depth) {
+    float nearPlane = DepthRange.x;
+    float farPlane = DepthRange.y;
+    return nearPlane * farPlane / max(
+        farPlane - depth * (farPlane - nearPlane),
+        0.00001
+    );
+}
+
+float playerDistance(float depth) {
+    float forwardDistance = linearDepth(depth);
+    vec2 centeredTexCoord = texCoord * 2.0 - 1.0;
+    float aspect = InSize.x / max(InSize.y, 1.0);
+    float tanHalfFov = max(VisionBehavior.z, 0.001);
+    vec2 rayOffset = centeredTexCoord * vec2(aspect * tanHalfFov, tanHalfFov);
+    return forwardDistance * length(vec3(rayOffset, 1.0));
+}
+
 void main() {
     vec4 sourceColor = texture(InSampler, texCoord);
     if (DepthRange.z < 0.5) {
@@ -163,21 +181,16 @@ void main() {
     }
 
     float depth = texture(DepthSampler, texCoord).r;
-    float nearPlane = DepthRange.x;
-    float farPlane = DepthRange.y;
-    float linearDistance = nearPlane * farPlane / max(
-        farPlane - depth * (farPlane - nearPlane),
-        0.00001
-    );
-    float blurAmount = linearDistance <= Parameters.x
+    float fragmentDistance = playerDistance(depth);
+    float blurAmount = fragmentDistance <= Parameters.x
         ? 0.0
-        : smoothstep(Parameters.x, Parameters.y, linearDistance);
-    float darkAmount = linearDistance <= Parameters.x
+        : smoothstep(Parameters.x, Parameters.y, fragmentDistance);
+    float darkAmount = fragmentDistance <= Parameters.x
         ? 0.0
-        : smoothstep(Parameters.x, Parameters.z, linearDistance);
-    float fogAmount = linearDistance <= Parameters.x
+        : smoothstep(Parameters.x, Parameters.z, fragmentDistance);
+    float fogAmount = fragmentDistance <= Parameters.x
         ? 0.0
-        : smoothstep(Parameters.x, Parameters.w, linearDistance);
+        : smoothstep(Parameters.x, Parameters.w, fragmentDistance);
     vec3 sourceRgb = sampleDistanceBlur(blurAmount);
     float extraInterference = clamp(DepthRange.w - 1.0, 0.0, 1.0);
     float skyBrightness = Effects.y;

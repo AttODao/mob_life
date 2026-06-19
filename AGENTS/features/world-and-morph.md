@@ -3,7 +3,12 @@
 - A world-wide play form is selected during world creation and persisted in saved data.
 - New worlds using a mob form move the initial overworld spawn to a position
   that also satisfies the mob's vanilla spawn placement and spawn-rule checks.
-  Cat prefers a village or swamp-hut cat spawn context when one is nearby.
+  During world creation, spawn-time NBT for all selectable mob forms is fixed
+  before seed search so the chosen world can match that selection. Cat, cow,
+  chicken, pig, and wolf variants and sound variants, rabbit types, sheep
+  colors, and horse/donkey/mule equine variants and attributes are prepared
+  up front. Cat only prefers a village or swamp-hut cat spawn context when the
+  selected variant is `all_black`.
   A natural-sized group is ensured only for forms that naturally spawn in
   groups; solitary forms such as cat, ocelot, and mule do not get an extra
   nearby copy.

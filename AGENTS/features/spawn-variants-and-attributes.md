@@ -1,14 +1,20 @@
 # Spawn, Variants, and Attributes Features
 
+- During initial world creation, spawn-time NBT for all selectable mob forms is
+  fixed before the seed search so the chosen world and initial spawn can match
+  that selection. Cat, cow, chicken, pig, and wolf variants and sound
+  variants, rabbit types, sheep colors, and horse/donkey/mule equine variants
+  and attributes are prepared up front.
 - When morph NBT does not already contain generated values, the morph entity is
   finalized at the selected initial-spawn location after that location has
   passed the morph's vanilla spawn placement and spawn-rule checks. This
-  persists a random vanilla variant and other spawn-time properties, while
+  persists the selected vanilla variant and other spawn-time properties, while
   explicitly supplied NBT always overrides generated values.
 - Initial spawn biome selection honors explicit warm/cold cow, chicken, and pig
-  variants plus vanilla wolf variant biome rules. Otherwise the form is
-  finalized in a biome where it can naturally spawn, so its generated variant
-  is appropriate for that biome.
+  variants, rabbit white/gold variants, vanilla wolf variant biome rules, and
+  cat's all_black swamp-hut preference. Otherwise the form is finalized in a
+  biome where it can naturally spawn, so its generated variant is appropriate
+  for that biome.
 - Horse, donkey, and mule maximum health, movement speed, and jump strength are
   randomized once and persisted with the world morph. Horse uses its vanilla
   spawn distributions; donkey and mule use the same speed and jump

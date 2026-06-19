@@ -76,7 +76,7 @@ final class MorphConfigCodec {
             new MorphConfig.RabbitHop(false, 10, 3, 0.2F, 0.35F, 0.2, 0.3));
     return new MorphConfig(
         movement,
-        new MorphConfig.Diet(List.of(), List.of(), 4, 0.3F),
+        new MorphConfig.Diet(List.of(), 4, 0.3F),
         new MorphConfig.Vision(
             "cow",
             1.0F,
@@ -145,7 +145,6 @@ final class MorphConfigCodec {
                 number(rabbit, "sprint_jump_velocity", defaultHop.sprintJumpVelocity()))),
         new MorphConfig.Diet(
             strings(diet, "foods", defaultDiet.foods()),
-            strings(diet, "hunted_foods", defaultDiet.huntedFoods()),
             integer(diet, "nutrition", defaultDiet.nutrition()),
             decimal(diet, "saturation_modifier", defaultDiet.saturationModifier())),
         new MorphConfig.Vision(
@@ -232,7 +231,6 @@ final class MorphConfigCodec {
   private static JsonObject dietJson(MorphConfig.Diet diet) {
     JsonObject dietJson = new JsonObject();
     dietJson.add("foods", array(diet.foods()));
-    dietJson.add("hunted_foods", array(diet.huntedFoods()));
     dietJson.addProperty("nutrition", diet.nutrition());
     dietJson.addProperty("saturation_modifier", diet.saturationModifier());
     return dietJson;

@@ -22,9 +22,7 @@
   },
   "diet": {
     "foods": [
-      "#minecraft:ocelot_food"
-    ],
-    "hunted_foods": [
+      "#minecraft:ocelot_food",
       "minecraft:chicken",
       "minecraft:cooked_chicken"
     ],

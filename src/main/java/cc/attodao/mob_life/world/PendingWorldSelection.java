@@ -6,26 +6,43 @@ import java.util.Optional;
 
 public final class PendingWorldSelection {
 
-  private static MorphDefinition pending;
+  public record PendingSelection(MorphDefinition definition, boolean preRandomized) {}
+
+  private static PendingSelection pending;
   private static boolean worldCreationStarted;
 
   private PendingWorldSelection() {}
 
   public static synchronized void setForNextWorld(MorphDefinition definition) {
-    pending = definition;
+    setForNextWorld(definition, false);
+  }
+
+  public static synchronized void setForNextWorld(
+      MorphDefinition definition, boolean preRandomized) {
+    pending = new PendingSelection(definition, preRandomized);
     worldCreationStarted = false;
   }
 
   public static synchronized Optional<MorphDefinition> peek() {
+    return Optional.ofNullable(pending).map(PendingSelection::definition);
+  }
+
+  public static synchronized Optional<PendingSelection> peekSelection() {
     return Optional.ofNullable(pending);
   }
 
   public static synchronized MorphDefinition peekOrDefault() {
-    return pending != null ? pending : MorphDefinition.of(MobLifeConfig.defaultMorph());
+    return pending != null
+        ? pending.definition()
+        : MorphDefinition.of(MobLifeConfig.defaultMorph());
   }
 
   public static synchronized Optional<MorphDefinition> consume() {
-    MorphDefinition result = pending;
+    return consumeSelection().map(PendingSelection::definition);
+  }
+
+  public static synchronized Optional<PendingSelection> consumeSelection() {
+    PendingSelection result = pending;
     pending = null;
     worldCreationStarted = false;
     return Optional.ofNullable(result);
@@ -33,7 +50,7 @@ public final class PendingWorldSelection {
 
   public static synchronized MorphDefinition consumeOrDefault() {
     MorphDefinition result =
-        pending != null ? pending : MorphDefinition.of(MobLifeConfig.defaultMorph());
+        pending != null ? pending.definition() : MorphDefinition.of(MobLifeConfig.defaultMorph());
     pending = null;
     worldCreationStarted = false;
     return result;

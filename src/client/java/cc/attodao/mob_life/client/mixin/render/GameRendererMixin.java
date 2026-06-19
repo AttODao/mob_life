@@ -8,7 +8,6 @@ import cc.attodao.mob_life.morph.MorphType;
 import com.mojang.blaze3d.resource.CrossFrameResourcePool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.LevelTargetBundle;
 import net.minecraft.client.renderer.PostChain;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
@@ -52,20 +51,32 @@ public abstract class GameRendererMixin {
           @At(
               value = "INVOKE",
               target =
-                  "Lcom/mojang/blaze3d/systems/CommandEncoder;clearDepthTexture(Lcom/mojang/blaze3d/textures/GpuTexture;D)V"))
-  private void mobLife$applyDistanceVisionBeforeDepthClear(
+                  "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/renderer/state/level/CameraRenderState;Lorg/joml/Matrix4fc;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;ZLnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;)V",
+              shift = At.Shift.AFTER))
+  private void mobLife$applyDistanceVisionAfterLevelRender(
       net.minecraft.client.DeltaTracker deltaTracker, CallbackInfo ci) {
-    if (ClientMorphState.morph() == null || postEffectId == null || !effectActive) {
+    if (postEffectId == null || !effectActive || ClientMorphState.morph() == null) {
       return;
     }
 
     PostChain chain =
-        minecraft.getShaderManager().getPostChain(postEffectId, LevelTargetBundle.MAIN_TARGETS);
+        minecraft
+            .getShaderManager()
+            .getPostChain(
+                postEffectId, net.minecraft.client.renderer.LevelTargetBundle.MAIN_TARGETS);
     if (chain == null) {
       return;
     }
 
-    ClientVisionPass.setDistancePass(true);
+    mobLife$applyVisionPass(chain, true);
+  }
+
+  private void mobLife$applyVisionPass(PostChain chain, boolean distancePass) {
+    if (ClientMorphState.morph() == null) {
+      return;
+    }
+
+    ClientVisionPass.setDistancePass(distancePass);
     try {
       chain.process(minecraft.getMainRenderTarget(), resourcePool);
     } finally {

@@ -28,12 +28,7 @@ public final class MorphDiet {
   public static boolean isBlockedNormalFood(Player player, ItemStack stack) {
     return (!morph(player).isPlayer()
         && stack.has(DataComponents.FOOD)
-        && !isBreedingFood(player, stack)
-        && !isHuntedMeat(player, stack));
-  }
-
-  public static boolean isHuntedMeat(Player player, ItemStack stack) {
-    return matchesAny(stack, config(player).huntedFoods());
+        && !isBreedingFood(player, stack));
   }
 
   public static boolean canEatBreedingFood(Player player, ItemStack stack) {

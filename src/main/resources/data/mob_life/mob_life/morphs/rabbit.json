@@ -24,7 +24,6 @@
     "foods": [
       "#minecraft:rabbit_food"
     ],
-    "hunted_foods": [],
     "nutrition": 4,
     "saturation_modifier": 0.3
   },

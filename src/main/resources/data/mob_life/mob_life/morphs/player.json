@@ -22,7 +22,6 @@
   },
   "diet": {
     "foods": [],
-    "hunted_foods": [],
     "nutrition": 4,
     "saturation_modifier": 0.3
   },

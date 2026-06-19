@@ -38,6 +38,7 @@ public final class ClientMorphState {
   private static float waterMovementInputScale = 1.0F;
   private static float awkwardness;
   private static int rabbitHopCooldown;
+  private static boolean nightVision;
 
   private ClientMorphState() {}
 
@@ -45,6 +46,7 @@ public final class ClientMorphState {
     MorphType newMorph = newDefinition.type();
     definition = newMorph.isPlayer() ? null : newDefinition;
     morph = newMorph.isPlayer() ? null : newMorph;
+    nightVision = !newMorph.isPlayer() && MorphConfigManager.get(newMorph).traits().nightVision();
     dimensions = null;
     eyeHeight = 0.0F;
     waterMovementInputScale = 1.0F;
@@ -87,6 +89,10 @@ public final class ClientMorphState {
 
   public static float awkwardness() {
     return awkwardness;
+  }
+
+  public static boolean nightVision() {
+    return nightVision;
   }
 
   public static void setAwkwardness(float value) {
@@ -197,6 +203,7 @@ public final class ClientMorphState {
     eyeHeight = 0.0F;
     waterMovementInputScale = 1.0F;
     awkwardness = 0.0F;
+    nightVision = false;
     GRASS_EATING_TICKS.clear();
     LocalPlayer player = Minecraft.getInstance().player;
     if (player != null) {

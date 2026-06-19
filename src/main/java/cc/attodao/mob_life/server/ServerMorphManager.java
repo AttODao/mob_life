@@ -71,9 +71,6 @@ public final class ServerMorphManager {
   private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
   private static final int GRASS_EATING_DURATION_TICKS = 40;
   private static final int GRASS_FOOD_RESTORE = 2;
-  // Vanilla night vision starts flickering when the remaining duration drops under 200 ticks.
-  private static final int NIGHT_VISION_DURATION_TICKS = 2400;
-  private static final int NIGHT_VISION_REFRESH_THRESHOLD_TICKS = 400;
 
   private static MorphDefinition activeDefinition;
   private static MorphConfig activeConfig;
@@ -81,7 +78,6 @@ public final class ServerMorphManager {
   private static float activeEyeHeight;
   private static float activeWaterMovementInputScale = 1.0F;
   private static boolean activeFallDamageImmune;
-  private static boolean activeNightVision;
   private static boolean activeHasAttackAi;
   private static Mob activeSoundMob;
 
@@ -92,10 +88,15 @@ public final class ServerMorphManager {
         server -> {
           WorldMorphData data = worldData(server);
           if (!data.selectionChosen()) {
-            Optional<MorphDefinition> pendingSelection = PendingWorldSelection.consume();
+            Optional<PendingWorldSelection.PendingSelection> pendingSelection =
+                PendingWorldSelection.consumeSelection();
             if (pendingSelection.isPresent()) {
-              data.setDefinition(pendingSelection.get());
+              PendingWorldSelection.PendingSelection selection = pendingSelection.get();
+              data.setDefinition(selection.definition());
               data.markSelectionChosen();
+              if (!data.initialSpawnConfigured()) {
+                MorphInitialSpawn.configure(server.overworld(), data, selection.preRandomized());
+              }
             } else {
               if (data.morph() == MorphType.PLAYER) {
                 data.clearInitialSpawnConfigured();
@@ -330,7 +331,6 @@ public final class ServerMorphManager {
     activeEyeHeight = 0.0F;
     activeWaterMovementInputScale = 1.0F;
     activeFallDamageImmune = false;
-    activeNightVision = false;
     activeHasAttackAi = false;
     activeSoundMob = null;
   }
@@ -351,7 +351,6 @@ public final class ServerMorphManager {
     activeDimensions = entity.getDimensions(Pose.STANDING);
     activeEyeHeight = entity.getEyeHeight();
     activeFallDamageImmune = config.traits().fallDamageImmune();
-    activeNightVision = config.traits().nightVision();
     if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
       activeHasAttackAi = MorphAttackDamage.hasAttackAi(definition.type(), living);
       activeWaterMovementInputScale =
@@ -374,7 +373,7 @@ public final class ServerMorphManager {
     if (player.tickCount % 20 == 0) {
       refreshChestedInventory(player);
     }
-    syncNightVision(player);
+    clearMorphNightVisionEffect(player);
 
     MorphConfig.Movement movement = activeConfig().movement();
     if (movement.slowFallMultiplier() < 1.0F) {
@@ -385,26 +384,6 @@ public final class ServerMorphManager {
     }
     if (player.tickCount % 10 == 0) {
       MorphPredation.acquirePredators(player, activeMorph());
-    }
-  }
-
-  static void syncNightVision(ServerPlayer player) {
-    MobEffectInstance effect = player.getEffect(MobEffects.NIGHT_VISION);
-    if (activeNightVision) {
-      if (effect == null) {
-        player.addEffect(nightVisionEffect());
-        return;
-      }
-
-      if (isMorphNightVision(effect)
-          && effect.getDuration() <= NIGHT_VISION_REFRESH_THRESHOLD_TICKS) {
-        player.addEffect(nightVisionEffect());
-      }
-      return;
-    }
-
-    if (effect != null && isMorphNightVision(effect)) {
-      player.removeEffect(MobEffects.NIGHT_VISION);
     }
   }
 
@@ -452,9 +431,11 @@ public final class ServerMorphManager {
         && !effect.showIcon();
   }
 
-  private static MobEffectInstance nightVisionEffect() {
-    return new MobEffectInstance(
-        MobEffects.NIGHT_VISION, NIGHT_VISION_DURATION_TICKS, 0, true, false, false);
+  static void clearMorphNightVisionEffect(ServerPlayer player) {
+    MobEffectInstance effect = player.getEffect(MobEffects.NIGHT_VISION);
+    if (effect != null && isMorphNightVision(effect)) {
+      player.removeEffect(MobEffects.NIGHT_VISION);
+    }
   }
 
   private static void slowChickenFall(ServerPlayer player) {

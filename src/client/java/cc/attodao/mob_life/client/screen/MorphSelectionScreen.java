@@ -5,6 +5,7 @@ import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
+import cc.attodao.mob_life.world.InitialWorldVariantSelector;
 import cc.attodao.mob_life.world.PendingWorldSelection;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.EnumMap;
@@ -392,12 +393,18 @@ public final class MorphSelectionScreen extends Screen {
         new MorphDefinition(
             selectedMorph, selectedMorph.isPlayer() ? new CompoundTag() : parsedNbt);
     if (returnScreen != null) {
-      PendingWorldSelection.setForNextWorld(selection);
+      MorphDefinition worldSelection = selection;
+      if (returnScreen instanceof CreateWorldScreen createWorldScreen) {
+        worldSelection =
+            InitialWorldVariantSelector.randomize(
+                createWorldScreen.getUiState().getSettings().worldgenLoadContext(), selection);
+      }
+      PendingWorldSelection.setForNextWorld(worldSelection, true);
       if (returnScreen instanceof CreateWorldScreen createWorldScreen
           && returnScreen instanceof CreateWorldScreenInvoker invoker) {
         createWorldRequested = true;
-        if (shouldPrepareWorldSeed(createWorldScreen, selection) && minecraft != null) {
-          minecraft.setScreen(new MorphWorldPreparationScreen(createWorldScreen, selection));
+        if (shouldPrepareWorldSeed(createWorldScreen, worldSelection) && minecraft != null) {
+          minecraft.setScreen(new MorphWorldPreparationScreen(createWorldScreen, worldSelection));
         } else {
           invoker.mobLife$onCreate();
         }

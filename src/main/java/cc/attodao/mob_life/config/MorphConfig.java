@@ -40,8 +40,7 @@ public record MorphConfig(
       double walkJumpVelocity,
       double sprintJumpVelocity) {}
 
-  public record Diet(
-      List<String> foods, List<String> huntedFoods, int nutrition, float saturationModifier) {}
+  public record Diet(List<String> foods, int nutrition, float saturationModifier) {}
 
   public record Vision(
       String profile,

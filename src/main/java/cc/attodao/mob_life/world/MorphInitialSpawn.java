@@ -20,6 +20,7 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.SpawnPlacements;
+import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.level.CollisionGetter;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.biome.Biomes;
@@ -42,6 +43,11 @@ public final class MorphInitialSpawn {
   private MorphInitialSpawn() {}
 
   public static void configure(ServerLevel level, WorldMorphData morphData) {
+    configure(level, morphData, false);
+  }
+
+  public static void configure(
+      ServerLevel level, WorldMorphData morphData, boolean definitionPreRandomized) {
     if (morphData.initialSpawnConfigured()) {
       return;
     }
@@ -64,7 +70,9 @@ public final class MorphInitialSpawn {
 
     level.setRespawnData(LevelData.RespawnData.of(level.dimension(), spawnPos, 0.0F, 0.0F));
     MorphDefinition randomizedDefinition =
-        MorphEntityFactory.randomizeAt(morphData.definition(), level, spawnPos);
+        definitionPreRandomized
+            ? morphData.definition()
+            : MorphEntityFactory.randomizeAt(morphData.definition(), level, spawnPos);
     morphData.setDefinition(randomizedDefinition);
     if (shouldSpawnNearbyGroup(morph)) {
       ensureNearbyGroup(level, spawnPos, randomizedDefinition, entityType);
@@ -75,8 +83,10 @@ public final class MorphInitialSpawn {
 
   private static BlockPos findSpawnPosition(
       ServerLevel level, WorldMorphData morphData, EntityType<?> entityType, BlockPos origin) {
-    if (morphData.morph() == MorphType.CAT) {
-      BlockPos catSpawn = findCatSpawnPosition(level, entityType, origin);
+    boolean allBlackCat =
+        morphData.morph() == MorphType.CAT && isAllBlackCat(morphData.definition());
+    if (allBlackCat) {
+      BlockPos catSpawn = findCatSpawnPosition(level, entityType, origin, true);
       if (catSpawn != null) {
         return catSpawn;
       }
@@ -86,20 +96,24 @@ public final class MorphInitialSpawn {
   }
 
   private static BlockPos findCatSpawnPosition(
-      ServerLevel level, EntityType<?> entityType, BlockPos origin) {
+      ServerLevel level, EntityType<?> entityType, BlockPos origin, boolean allBlackCat) {
     BlockPos spawnPos =
         findInitialSpawn(
             level,
             origin,
             entityType,
-            pos -> isCatSpawnPosition(level, entityType, pos),
+            pos -> isCatSpawnPosition(level, entityType, pos, allBlackCat),
             LOCAL_SEARCH_RADIUS);
     if (spawnPos != null) {
       return spawnPos;
     }
 
     BlockPos catStructure =
-        level.findNearestMapStructure(StructureTags.CATS_SPAWN_IN, origin, 16, false);
+        level.findNearestMapStructure(
+            allBlackCat ? StructureTags.CATS_SPAWN_AS_BLACK : StructureTags.CATS_SPAWN_IN,
+            origin,
+            16,
+            false);
     if (catStructure == null) {
       return null;
     }
@@ -108,7 +122,7 @@ public final class MorphInitialSpawn {
         level,
         catStructure,
         entityType,
-        pos -> isCatSpawnPosition(level, entityType, pos),
+        pos -> isCatSpawnPosition(level, entityType, pos, allBlackCat),
         LOCAL_SEARCH_RADIUS);
   }
 
@@ -205,6 +219,10 @@ public final class MorphInitialSpawn {
 
   public static boolean biomeSupportsInitialSpawn(
       Holder<Biome> biome, MorphDefinition definition, EntityType<?> entityType) {
+    if (definition.type() == MorphType.RABBIT) {
+      return rabbitVariantSupportsBiome(rabbitVariant(definition), biome, entityType);
+    }
+
     String variant = definition.nbt().getStringOr("variant", "");
     if (!variant.isEmpty()) {
       if (definition.type() == MorphType.COW
@@ -223,6 +241,9 @@ public final class MorphInitialSpawn {
     }
 
     if (definition.type() == MorphType.CAT) {
+      if (isAllBlackCat(definition)) {
+        return biome.is(BiomeTags.HAS_SWAMP_HUT);
+      }
       return biome.is(Biomes.PLAINS) || biome.is(BiomeTags.IS_FOREST);
     }
     if (definition.type() == MorphType.MULE) {
@@ -299,18 +320,25 @@ public final class MorphInitialSpawn {
   }
 
   private static boolean isCatSpawnPosition(
-      ServerLevel level, EntityType<?> entityType, BlockPos pos) {
+      ServerLevel level, EntityType<?> entityType, BlockPos pos, boolean allBlackCat) {
+    boolean structureMatch =
+        allBlackCat
+            ? level
+                .structureManager()
+                .getStructureWithPieceAt(pos, StructureTags.CATS_SPAWN_AS_BLACK)
+                .isValid()
+            : level.isCloseToVillage(pos, 2)
+                || level
+                    .structureManager()
+                    .getStructureWithPieceAt(pos, StructureTags.CATS_SPAWN_IN)
+                    .isValid();
     return noCollisionNoLiquid(level, pos)
         && level.noCollision(
             entityType.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))
         && SpawnPlacements.isSpawnPositionOk(entityType, level, pos)
         && SpawnPlacements.checkSpawnRules(
             entityType, level, EntitySpawnReason.NATURAL, pos, level.getRandom())
-        && (level.isCloseToVillage(pos, 2)
-            || level
-                .structureManager()
-                .getStructureWithPieceAt(pos, StructureTags.CATS_SPAWN_IN)
-                .isValid());
+        && structureMatch;
   }
 
   private static boolean wolfVariantMatchesBiome(String variant, Holder<Biome> biome) {
@@ -339,6 +367,28 @@ public final class MorphInitialSpawn {
       return biome.is(BiomeTags.IS_BADLANDS);
     }
     return matchingSpawnerData(biome, EntityType.WOLF).isPresent();
+  }
+
+  private static boolean rabbitVariantSupportsBiome(
+      Rabbit.Variant variant, Holder<Biome> biome, EntityType<?> entityType) {
+    return switch (variant) {
+      case WHITE, WHITE_SPLOTCHED -> biome.is(BiomeTags.SPAWNS_WHITE_RABBITS);
+      case GOLD -> biome.is(BiomeTags.SPAWNS_GOLD_RABBITS);
+      default -> matchingSpawnerData(biome, entityType).isPresent();
+    };
+  }
+
+  private static Rabbit.Variant rabbitVariant(MorphDefinition definition) {
+    if (definition.nbt().contains("RabbitType")) {
+      return Rabbit.Variant.byId(
+          definition.nbt().getIntOr("RabbitType", Rabbit.Variant.DEFAULT.id()));
+    }
+    return Rabbit.Variant.DEFAULT;
+  }
+
+  private static boolean isAllBlackCat(MorphDefinition definition) {
+    String variant = definition.nbt().getStringOr("variant", "");
+    return variant.endsWith(":all_black") || variant.equals("all_black");
   }
 
   private static Optional<MobSpawnSettings.SpawnerData> matchingSpawnerData(

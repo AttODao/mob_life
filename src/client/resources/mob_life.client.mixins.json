@@ -25,6 +25,7 @@
 		"render.GameRendererMixin",
 		"render.GuiMixin",
 		"render.ItemInHandRendererMixin",
+		"render.LightmapRenderStateExtractorMixin",
 		"render.PlayerRendererMixin",
 		"render.PostPassAccessor",
 		"render.PostPassDistanceUniformMixin",

@@ -8,7 +8,7 @@
 - Normal player form removes all Mob Life attribute modifiers and restores vanilla rendering, dimensions, health, movement, mining speed, and vision.
 - Mob forms apply a form-specific low-saturation dichromatic post-processing effect.
 - Cat and ocelot forms, plus any morph tagged with `night_vision`, receive a
-  persistent night-vision status effect while transformed. Use that trait for
+  persistent night-vision light boost while transformed. Use that trait for
   forms that spawn in dark places.
 - Mob vision widens the camera using each form's
   `vision.field_of_view_multiplier`, capped at 150 degrees. Movement-speed

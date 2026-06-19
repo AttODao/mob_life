@@ -88,9 +88,7 @@ final class MorphSelectionDetails {
     addBody(lines, bodyColor, entityDisplayText(config.combat().predators()));
 
     addSectionHeader(lines, headerColor, "mob_life.world_select.section.foods");
-    ArrayList<String> foodEntries = new ArrayList<>(config.diet().foods());
-    foodEntries.addAll(config.diet().huntedFoods());
-    addBody(lines, bodyColor, foodDisplayText(foodEntries));
+    addBody(lines, bodyColor, foodDisplayText(config.diet().foods()));
 
     addSectionHeader(lines, headerColor, "mob_life.world_select.section.sleep");
     addBody(

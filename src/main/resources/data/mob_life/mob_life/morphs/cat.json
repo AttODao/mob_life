@@ -22,9 +22,7 @@
   },
   "diet": {
     "foods": [
-      "#minecraft:cat_food"
-    ],
-    "hunted_foods": [
+      "#minecraft:cat_food",
       "minecraft:rabbit",
       "minecraft:cooked_rabbit"
     ],

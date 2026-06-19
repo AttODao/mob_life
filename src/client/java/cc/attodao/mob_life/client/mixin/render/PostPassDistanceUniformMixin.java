@@ -23,6 +23,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class PostPassDistanceUniformMixin {
   private static final int DISTANCE_BLUR_UBO_SIZE = 128;
   private static final float NEAR_PLANE = 0.05F;
+  private static final float MIN_DISTANCE_EFFECT_START = 8.0F;
+  private static final float FALLBACK_CAMERA_FOV = 70.0F;
+  private static final float PERIPHERAL_BLUR_MULTIPLIER = 16.0F;
 
   @Inject(method = "addToFrame", at = @At("HEAD"))
   private void mobLife$updateDistanceBlur(CallbackInfo ci) {
@@ -55,6 +58,7 @@ public abstract class PostPassDistanceUniformMixin {
 
     Minecraft client = Minecraft.getInstance();
     MorphConfig.Vision vision = MorphConfigManager.get(ClientMorphState.morph()).vision();
+    float peripheralStrength = Mth.clamp(2.0F - vision.fieldOfViewMultiplier(), 0.0F, 1.0F);
     float farPlane =
         Math.max(vision.fullFogDistance(), client.options.getEffectiveRenderDistance() * 16.0F);
     float skyBrightness =
@@ -62,19 +66,31 @@ public abstract class PostPassDistanceUniformMixin {
             ? 1.0F
             : 1.0F - Mth.clamp(client.level.getSkyDarken() / 15.0F, 0.0F, 1.0F);
     float interference = MorphAwkwardness.visionInterference(ClientMorphState.awkwardness());
+    float distanceStart = Math.max(vision.effectStartDistance(), MIN_DISTANCE_EFFECT_START);
+    float distanceOffset = distanceStart - vision.effectStartDistance();
+    float fullBlurDistance =
+        Math.max(distanceStart + 1.0F, vision.fullBlurDistance() + distanceOffset);
+    float fullDarkeningDistance =
+        Math.max(fullBlurDistance + 1.0F, vision.fullDarkeningDistance() + distanceOffset);
+    float fullFogDistance =
+        Math.max(fullDarkeningDistance + 1.0F, vision.fullFogDistance() + distanceOffset);
+    float peripheralBlurRadius =
+        vision.peripheralBlurRadius() * peripheralStrength * PERIPHERAL_BLUR_MULTIPLIER;
+    float peripheralEdgeBrightness = 1.0F;
+    float cameraFov = client.gameRenderer.getMainCamera().getFov();
+    if (cameraFov <= 0.0F) {
+      cameraFov = FALLBACK_CAMERA_FOV * vision.fieldOfViewMultiplier();
+    }
+    float tanHalfFov = (float) Math.tan(Math.toRadians(Mth.clamp(cameraFov, 30.0F, 150.0F) * 0.5F));
 
     try (MemoryStack stack = MemoryStack.stackPush()) {
       Std140Builder data =
           Std140Builder.onStack(stack, DISTANCE_BLUR_UBO_SIZE)
-              .putVec4(
-                  vision.effectStartDistance(),
-                  vision.fullBlurDistance(),
-                  vision.fullDarkeningDistance(),
-                  vision.fullFogDistance())
+              .putVec4(distanceStart, fullBlurDistance, fullDarkeningDistance, fullFogDistance)
               .putVec4(
                   vision.maximumBlurRadius() * (1.0F + interference),
                   skyBrightness,
-                  vision.peripheralEdgeBrightness(),
+                  peripheralEdgeBrightness,
                   vision.hazeStrength())
               .putVec4(
                   NEAR_PLANE,
@@ -85,7 +101,7 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.retainedSaturation(),
                   vision.contrast(),
                   vision.brightness(),
-                  vision.peripheralBlurRadius())
+                  peripheralBlurRadius)
               .putVec4(
                   vision.redResponse().red(),
                   vision.redResponse().green(),
@@ -101,7 +117,7 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.blueResponse().green(),
                   vision.blueResponse().blue(),
                   0.0F)
-              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), 0.0F, 1.0F);
+              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), tanHalfFov, 1.0F);
       RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.slice(), data.get());
     }
   }
