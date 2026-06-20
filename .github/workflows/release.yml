@@ -2,7 +2,7 @@ name: release
 on:
   push:
     branches:
-      - 26.1.2
+      - master
     paths:
       - gradle.properties
 
