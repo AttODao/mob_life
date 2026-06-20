@@ -54,16 +54,12 @@ jobs:
         run: ./gradlew build
       - name: create release
         if: steps.release_exists.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: v${{ steps.version.outputs.value }}
-          name: Mob Life v${{ steps.version.outputs.value }}
-          body: |
-            Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md).
-          files: build/libs/*-${{ steps.version.outputs.value }}.jar
-          fail_on_unmatched_files: true
-          generate_release_notes: false
-          overwrite_files: true
-          make_latest: true
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          gh release create "v${version}" build/libs/*-"${version}".jar \
+            --title "Mob Life v${version}" \
+            --notes "Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md)." \
+            --target "${{ github.sha }}" \
+            --latest
