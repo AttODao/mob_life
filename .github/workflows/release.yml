@@ -24,6 +24,9 @@ jobs:
       - name: read mod version
         id: version
         run: echo "value=$(awk -F= '/^mod_version=/{print $2}' gradle.properties)" >> "$GITHUB_OUTPUT"
+      - name: read minecraft version
+        id: minecraft_version
+        run: echo "value=$(awk -F= '/^minecraft_version=/{print $2}' gradle.properties)" >> "$GITHUB_OUTPUT"
       - name: check whether this version is already released
         id: release_exists
         uses: actions/github-script@v7
@@ -47,19 +50,36 @@ jobs:
               throw error;
             }
       - name: make gradle wrapper executable
-        if: steps.release_exists.outputs.exists == 'false'
         run: chmod +x ./gradlew
       - name: build release jar
-        if: steps.release_exists.outputs.exists == 'false'
         run: ./gradlew build
+      - name: prepare ferium asset
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          minecraft_version="${{ steps.minecraft_version.outputs.value }}"
+          cp "build/libs/mob_life-${version}.jar" "build/libs/mob_life-${version}-fabric-mc${minecraft_version}.jar"
       - name: create release
         if: steps.release_exists.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="${{ steps.version.outputs.value }}"
-          gh release create "v${version}" build/libs/*-"${version}".jar \
+          minecraft_version="${{ steps.minecraft_version.outputs.value }}"
+          gh release create "v${version}" \
+            "build/libs/mob_life-${version}-fabric-mc${minecraft_version}.jar" \
+            "build/libs/mob_life-${version}-sources.jar" \
             --title "Mob Life v${version}" \
             --notes "Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md)." \
             --target "${{ github.sha }}" \
             --latest
+      - name: update release assets
+        if: steps.release_exists.outputs.exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          minecraft_version="${{ steps.minecraft_version.outputs.value }}"
+          gh release upload "v${version}" \
+            "build/libs/mob_life-${version}-fabric-mc${minecraft_version}.jar" \
+            "build/libs/mob_life-${version}-sources.jar" \
+            --clobber
