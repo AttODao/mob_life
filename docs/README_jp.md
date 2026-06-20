@@ -3,7 +3,7 @@
 Mob Life は、ワールド作成時に選んだ Mob の姿でその世界を遊ぶ Fabric Mod です。
 見た目だけを変えるのではなく、移動、当たり判定、視点の高さ、視界、食事、装備、クラフト、睡眠、戦闘まで、その体に合わせて変わります。
 
-English version: [README](../README.md)
+English version: [README](/AttODao/mob_life/blob/master/README.md)
 
 ## スクリーンショット
 

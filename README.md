@@ -3,7 +3,7 @@
 Mob Life is a Fabric mod that makes you play as the mob form you choose when you create a world.
 It changes more than the model: movement, hitbox, eye height, vision, food, equipment, crafting, sleep, and combat all adapt to the selected body.
 
-Japanese version: [日本語版はこちら](docs/README_jp.md)
+Japanese version: [日本語版はこちら](/AttODao/mob_life/blob/master/docs/README_jp.md)
 
 ## Screenshots
 
