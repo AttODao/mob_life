@@ -58,7 +58,8 @@ import net.minecraft.world.phys.Vec3;
 
 public final class ServerMorphManager {
 
-  private static final Map<UUID, Long> LAST_CHARGED_JUMP_TICK = new HashMap<>();
+  private static final Map<UUID, Long> JUMP_COOLDOWN_UNTIL_TICKS = new HashMap<>();
+  private static final Map<UUID, Boolean> LAST_JUMP_GROUNDED_STATES = new HashMap<>();
   private static final Map<UUID, Integer> RABBIT_HOP_COOLDOWNS = new HashMap<>();
   private static final Map<UUID, Integer> AMBIENT_SOUND_TIMES = new HashMap<>();
   private static final Map<UUID, Integer> GRASS_EATING_TICKS = new HashMap<>();
@@ -203,22 +204,17 @@ public final class ServerMorphManager {
   }
 
   public static void performChargedJump(ServerPlayer player, int chargeAmount) {
-    if (!hasMobForm()
-        || !activeConfig().movement().chargedJump()
-        || !player.onGround()
-        || player.getAbilities().flying) {
+    if (!hasMobForm() || activeConfig().movement().rabbitHop().enabled()) {
       return;
     }
 
-    long gameTime = player.level().getGameTime();
-    long lastJumpTick = LAST_CHARGED_JUMP_TICK.getOrDefault(player.getUUID(), Long.MIN_VALUE);
-    if (gameTime - lastJumpTick < MobChargedJump.COOLDOWN_TICKS) {
+    syncJumpCooldown(player);
+    if (!isJumpGrounded(player) || isJumpCoolingDown(player)) {
       return;
     }
 
     float jumpScale = MobChargedJump.jumpScale(chargeAmount);
     ((ChargedJumpingPlayer) player).mobLife$performChargedJump(jumpScale);
-    LAST_CHARGED_JUMP_TICK.put(player.getUUID(), gameTime);
     player.awardStat(Stats.JUMP);
     player.causeFoodExhaustion(0.4F);
   }
@@ -294,6 +290,9 @@ public final class ServerMorphManager {
     ServerPlayerMorphApplier.apply(player, definition, false);
     MorphAbility.restore(player);
     syncAwkwardness(player, true);
+    if (!activeConfig().movement().rabbitHop().enabled()) {
+      syncJumpCooldown(player);
+    }
   }
 
   private static void sendWorldSelectionPrompt(ServerPlayer player) {
@@ -336,13 +335,14 @@ public final class ServerMorphManager {
   }
 
   private static void clearPerMorphEffectState() {
+    JUMP_COOLDOWN_UNTIL_TICKS.clear();
+    LAST_JUMP_GROUNDED_STATES.clear();
     RABBIT_HOP_COOLDOWNS.clear();
     AMBIENT_SOUND_TIMES.clear();
     GRASS_EATING_TICKS.clear();
   }
 
   private static void clearServerPlayerState() {
-    LAST_CHARGED_JUMP_TICK.clear();
     clearPerMorphEffectState();
   }
 
@@ -381,6 +381,8 @@ public final class ServerMorphManager {
     }
     if (movement.rabbitHop().enabled()) {
       tickRabbitHop(player);
+    } else {
+      syncJumpCooldown(player);
     }
     if (player.tickCount % 10 == 0) {
       MorphPredation.acquirePredators(player, activeMorph());
@@ -477,6 +479,29 @@ public final class ServerMorphManager {
     player
         .level()
         .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
+  }
+
+  private static void syncJumpCooldown(ServerPlayer player) {
+    UUID uuid = player.getUUID();
+    boolean grounded = isJumpGrounded(player);
+    boolean wasGrounded = LAST_JUMP_GROUNDED_STATES.getOrDefault(uuid, grounded);
+    if (grounded && !wasGrounded) {
+      JUMP_COOLDOWN_UNTIL_TICKS.put(
+          uuid, player.level().getGameTime() + MobChargedJump.COOLDOWN_TICKS);
+    }
+    LAST_JUMP_GROUNDED_STATES.put(uuid, grounded);
+  }
+
+  private static boolean isJumpCoolingDown(ServerPlayer player) {
+    return player.level().getGameTime()
+        < JUMP_COOLDOWN_UNTIL_TICKS.getOrDefault(player.getUUID(), 0L);
+  }
+
+  private static boolean isJumpGrounded(ServerPlayer player) {
+    return player.onGround()
+        && !player.isInWater()
+        && !player.isInLava()
+        && !player.getAbilities().flying;
   }
 
   private static void addMovementExhaustion(ServerPlayer player) {

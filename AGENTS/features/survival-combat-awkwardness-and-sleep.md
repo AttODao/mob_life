@@ -3,8 +3,10 @@
 - Maximum food scales with form height: player 20, cow 15, sheep 14, and chicken 10.
 - NBT-based size scaling cannot reduce a mob form's maximum food below 8.
 - Mob forms cannot eat normal food. They eat their breeding items for 4 food points instead.
-- Breeding-item diets cover each supported form, including fish for cats and
-  ocelots, meat for wolves, pig food, and horse food.
+- Breeding-item diets are defined through `mob_life` item tags and keep a
+  realistic split between meat, fish, grain, pasture feed, root vegetables,
+  and fruit. Forms that already used wheat or seeds keep those foods in their
+  diets.
 - Breaking and placing blocks, charged jumping, sprinting, and sneaking add extra exhaustion in mob form.
 - Mob forms cannot break or place blocks while airborne or sprinting. Other block interactions remain available.
 - Mob forms cannot interact with `Mob` entities, preventing riding animals,
@@ -54,9 +56,9 @@
   restored linearly, and at 100 it matches vanilla. Vision interference still
   strengthens above 70. At 90 and above, breaking, placing, and block
   interaction are disabled.
-- A small circular awkwardness indicator is always shown above the centered
-  experience-level number while transformed. Its color changes continuously
-  from green at 0 through yellow to red at 100.
+- An experience-orb-like awkwardness indicator is always shown above the
+  centered experience-level number while transformed. Its tint changes
+  continuously from green at 0 through yellow to red at 100.
 - Skeleton ranged attacks aim at a transformed player's morph eye height
   instead of the vanilla player-sized target position.
 - At 30 awkwardness or below, the configurable `V` key sleeps without a bed

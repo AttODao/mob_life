@@ -2,6 +2,26 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-06-20 - v1.0.2
+
+- Reworked initial spawn selection so structure-dependent forms choose biomes
+  where their required structure can generate, and the world generator now
+  places that structure at the spawn point.
+- Disabled `charged_jump` for cat, ocelot, and wolf forms, and standardized
+  jump cooldowns across forms to 0.5 seconds starting on landing. Rabbits keep
+  their own jump cooldown.
+- Made transformed players and inventory-screen players face the pointer
+  direction like they do in the normal player view.
+- Moved morph diets to item tags under `resources`, expanded the available
+  foods with a more realistic meat-and-herbivore split, and kept wheat and seed
+  foods for the forms that already used them.
+- Expanded rabbit food options further.
+- Changed the log-to-crafting-table recipe so it only works in inventory
+  crafting and no longer appears in the crafting table or crafting book.
+- Fixed the resource layout for item tags and restored the missing `cat.json`
+  morph definition.
+- Updated the awkwardness indicator to look like an experience orb.
+
 ## 2026-06-20 - v1.0.1
 
 - Moved night vision out of potion effects and into morph-specific rendering state.

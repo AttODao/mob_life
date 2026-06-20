@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.state;
 
+import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
@@ -10,11 +11,13 @@ import net.minecraft.client.player.LocalPlayer;
 
 final class ClientChargedJumpController {
   private int chargeTicks = -1;
-  private int cooldown;
+  private long cooldownUntilTick;
   private boolean jumpKeyWasDown;
+  private boolean wasGrounded;
+  private int trackedPlayerId = Integer.MIN_VALUE;
 
   boolean shouldShowBar() {
-    return chargeTicks >= 0 || cooldown > 0;
+    return chargeTicks >= 0 || isCoolingDown();
   }
 
   float chargeScale() {
@@ -25,38 +28,52 @@ final class ClientChargedJumpController {
   }
 
   boolean isCoolingDown() {
-    return cooldown > 0;
+    Minecraft client = Minecraft.getInstance();
+    return client.level != null && client.level.getGameTime() < cooldownUntilTick;
   }
 
-  void tick(Minecraft client, boolean enabled) {
+  void tick(Minecraft client, MorphConfig.Movement movement) {
     LocalPlayer player = client.player;
-    if (!enabled || player == null) {
+    if (player == null || movement == null || movement.rabbitHop().enabled()) {
       reset();
       return;
     }
-    if (cooldown > 0) {
-      cooldown--;
-    }
 
     boolean jumpKeyDown = client.options.keyJump.isDown();
-    boolean canCharge =
-        player.onGround()
-            && !player.getAbilities().flying
-            && !player.isInWater()
-            && !player.isInLava();
+    boolean grounded = isJumpGrounded(player);
+    if (trackedPlayerId != player.getId()) {
+      trackedPlayerId = player.getId();
+      chargeTicks = -1;
+      cooldownUntilTick = 0L;
+      wasGrounded = grounded;
+      jumpKeyWasDown = jumpKeyDown;
+    } else if (grounded && !wasGrounded) {
+      cooldownUntilTick = client.level.getGameTime() + MobChargedJump.COOLDOWN_TICKS;
+      chargeTicks = -1;
+    }
+    wasGrounded = grounded;
+
+    boolean coolingDown = client.level.getGameTime() < cooldownUntilTick;
+    boolean canJump = grounded && !coolingDown;
 
     if (chargeTicks >= 0) {
-      continueOrRelease(player, jumpKeyDown, canCharge);
-    } else if (jumpKeyDown && !jumpKeyWasDown && cooldown == 0 && canCharge) {
-      chargeTicks = 0;
+      continueOrRelease(player, jumpKeyDown, canJump);
+    } else if (movement.chargedJump()) {
+      if (jumpKeyDown && !jumpKeyWasDown && canJump) {
+        chargeTicks = 0;
+      }
+    } else if (jumpKeyDown && canJump) {
+      performJump(player, 100);
     }
     jumpKeyWasDown = jumpKeyDown;
   }
 
   void reset() {
     chargeTicks = -1;
-    cooldown = 0;
+    cooldownUntilTick = 0L;
     jumpKeyWasDown = false;
+    wasGrounded = false;
+    trackedPlayerId = Integer.MIN_VALUE;
   }
 
   private void continueOrRelease(LocalPlayer player, boolean jumpKeyDown, boolean canCharge) {
@@ -70,11 +87,20 @@ final class ClientChargedJumpController {
   }
 
   private void performJump(LocalPlayer player) {
-    int chargeAmount = MobChargedJump.chargeAmount(MorphEquipment.morph(player), chargeTicks);
+    performJump(player, MobChargedJump.chargeAmount(MorphEquipment.morph(player), chargeTicks));
+  }
+
+  private void performJump(LocalPlayer player, int chargeAmount) {
     float jumpScale = MobChargedJump.jumpScale(chargeAmount);
     ((ChargedJumpingPlayer) player).mobLife$performChargedJump(jumpScale);
     ClientPlayNetworking.send(new MobLifeNetworking.ChargedJumpPayload(chargeAmount));
     chargeTicks = -1;
-    cooldown = MobChargedJump.COOLDOWN_TICKS;
+  }
+
+  private static boolean isJumpGrounded(LocalPlayer player) {
+    return player.onGround()
+        && !player.getAbilities().flying
+        && !player.isInWater()
+        && !player.isInLava();
   }
 }

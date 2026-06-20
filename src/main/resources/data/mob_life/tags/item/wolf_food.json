@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:wolf_food",
+    "#mob_life:meat_food",
+    "minecraft:rotten_flesh"
+  ]
+}

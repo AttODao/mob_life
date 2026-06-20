@@ -169,7 +169,7 @@ public final class ClientMorphState {
     }
 
     MorphConfig.Movement movement = morph != null ? MorphConfigManager.get(morph).movement() : null;
-    CHARGED_JUMP.tick(client, movement != null && movement.chargedJump());
+    CHARGED_JUMP.tick(client, movement);
     refreshChestedInventory(client.player);
     if (movement != null && movement.slowFallMultiplier() < 1.0F) {
       slowChickenFall(client.player);

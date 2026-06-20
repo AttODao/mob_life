@@ -7,8 +7,10 @@
   before seed search so the chosen world can match that selection. Cat, cow,
   chicken, pig, and wolf variants and sound variants, rabbit types, sheep
   colors, and horse/donkey/mule equine variants and attributes are prepared
-  up front. Cat only prefers a village or swamp-hut cat spawn context when the
-  selected variant is `all_black`.
+  up front. Cat initial spawn uses a village cat-spawn context, while an
+  `all_black` cat uses a swamp-hut cat-spawn context. During new-world
+  generation, the matching structure set is forced into the selected initial
+  spawn biome near the predicted overworld spawn.
   A natural-sized group is ensured only for forms that naturally spawn in
   groups; solitary forms such as cat, ocelot, and mule do not get an extra
   nearby copy.

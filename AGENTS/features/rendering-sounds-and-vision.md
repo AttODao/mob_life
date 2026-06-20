@@ -5,6 +5,8 @@
 - Mob forms emit their NBT-adjusted entity's normal ambient sounds using
   vanilla mob timing and probability. Hurt sounds also use the transformed
   entity's sound event, volume, and voice pitch on both server and client.
+- In the inventory screen, transformed player previews keep the vanilla
+  mouse-following rotation instead of facing fixed forward.
 - Normal player form removes all Mob Life attribute modifiers and restores vanilla rendering, dimensions, health, movement, mining speed, and vision.
 - Mob forms apply a form-specific low-saturation dichromatic post-processing effect.
 - Cat and ocelot forms, plus any morph tagged with `night_vision`, receive a

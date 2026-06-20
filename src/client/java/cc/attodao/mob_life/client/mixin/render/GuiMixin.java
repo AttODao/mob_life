@@ -11,7 +11,10 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.contextualbar.ContextualBarRenderer;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -27,7 +30,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Gui.class)
 public abstract class GuiMixin {
+  private static final Identifier EXPERIENCE_ORB =
+      Identifier.withDefaultNamespace("textures/entity/experience/experience_orb.png");
+  private static final int EXPERIENCE_ORB_TEXTURE_SIZE = 64;
+  private static final int EXPERIENCE_ORB_FRAME_SIZE = 16;
+  private static final int AWKWARDNESS_ORB_SIZE = 13;
+
   @Shadow @Final private Minecraft minecraft;
+
+  @Shadow private int tickCount;
 
   @Shadow
   @Nullable
@@ -114,7 +125,8 @@ public abstract class GuiMixin {
     }
 
     float awkwardness = ClientMorphState.awkwardness();
-    mobLife$drawAwkwardnessIndicator(graphics, awkwardness);
+    mobLife$drawAwkwardnessIndicator(
+        graphics, awkwardness, tickCount + deltaTracker.getGameTimeDeltaPartialTick(false));
     if (!MobLifeConfig.showAwkwardnessDebug()) {
       return;
     }
@@ -129,22 +141,44 @@ public abstract class GuiMixin {
   }
 
   private static void mobLife$drawAwkwardnessIndicator(
-      GuiGraphicsExtractor graphics, float awkwardness) {
-    float ratio = Math.clamp(awkwardness / 100.0F, 0.0F, 1.0F);
+      GuiGraphicsExtractor graphics, float awkwardness, float age) {
+    float ratio = Mth.clamp(awkwardness / 100.0F, 0.0F, 1.0F);
     int red = ratio <= 0.5F ? Math.round(ratio * 2.0F * 255.0F) : 255;
     int green = ratio <= 0.5F ? 255 : Math.round((1.0F - ratio) * 2.0F * 255.0F);
-    int color = 0xFF000000 | red << 16 | green << 8;
+    int blue = Math.round((1.0F - ratio) * 40.0F);
+    float pulse = (Mth.sin(age / 2.0F) + 1.0F) * 0.5F;
+    int alpha = 0xD0 + Math.round(pulse * 0x2F);
+    int color = mobLife$argb(alpha, red, green, blue);
     int centerX = graphics.guiWidth() / 2;
-    int top = graphics.guiHeight() - 52;
+    int left = centerX - AWKWARDNESS_ORB_SIZE / 2;
+    int top = graphics.guiHeight() - 57;
+    int glow = mobLife$argb(0x26 + Math.round(pulse * 0x1A), red, green, blue);
 
-    graphics.fill(centerX - 2, top, centerX + 3, top + 1, 0xFF000000);
-    graphics.fill(centerX - 3, top + 1, centerX + 4, top + 2, 0xFF000000);
-    graphics.fill(centerX - 4, top + 2, centerX + 5, top + 7, 0xFF000000);
-    graphics.fill(centerX - 3, top + 7, centerX + 4, top + 8, 0xFF000000);
-    graphics.fill(centerX - 2, top + 8, centerX + 3, top + 9, 0xFF000000);
+    graphics.fill(
+        left + 3, top - 1, left + AWKWARDNESS_ORB_SIZE - 3, top + AWKWARDNESS_ORB_SIZE + 1, glow);
+    graphics.fill(
+        left + 1, top + 1, left + AWKWARDNESS_ORB_SIZE - 1, top + AWKWARDNESS_ORB_SIZE - 1, glow);
 
-    graphics.fill(centerX - 2, top + 1, centerX + 3, top + 2, color);
-    graphics.fill(centerX - 3, top + 2, centerX + 4, top + 7, color);
-    graphics.fill(centerX - 2, top + 7, centerX + 3, top + 8, color);
+    int frame = Mth.clamp(Math.round(ratio * 10.0F), 0, 10);
+    float u = (frame % 4) * EXPERIENCE_ORB_FRAME_SIZE;
+    float v = (frame / 4) * EXPERIENCE_ORB_FRAME_SIZE;
+    graphics.blit(
+        RenderPipelines.GUI_TEXTURED,
+        EXPERIENCE_ORB,
+        left,
+        top,
+        u,
+        v,
+        AWKWARDNESS_ORB_SIZE,
+        AWKWARDNESS_ORB_SIZE,
+        EXPERIENCE_ORB_FRAME_SIZE,
+        EXPERIENCE_ORB_FRAME_SIZE,
+        EXPERIENCE_ORB_TEXTURE_SIZE,
+        EXPERIENCE_ORB_TEXTURE_SIZE,
+        color);
+  }
+
+  private static int mobLife$argb(int alpha, int red, int green, int blue) {
+    return alpha << 24 | red << 16 | green << 8 | blue;
   }
 }

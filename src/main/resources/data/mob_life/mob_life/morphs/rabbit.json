@@ -22,7 +22,7 @@
   },
   "diet": {
     "foods": [
-      "#minecraft:rabbit_food"
+      "#mob_life:rabbit_food"
     ],
     "nutrition": 4,
     "saturation_modifier": 0.3

@@ -96,7 +96,7 @@ public abstract class InventoryScreenMixin {
           graphics, x0 - 26, y0 - 8, mobLife$imageHeight(player, morph, chested), chested);
     }
     InventoryScreen.extractEntityInInventoryFollowsMouse(
-        graphics, x0, y0, x1, y1, size, offsetY, (x0 + x1) / 2.0F, (y0 + y1) / 2.0F, entity);
+        graphics, x0, y0, x1, y1, size, offsetY, mouseX, mouseY, entity);
   }
 
   private void mobLife$updateSlotPositions() {

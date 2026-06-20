@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:pig_food",
+    "#mob_life:root_food",
+    "#mob_life:fruit_food"
+  ]
+}

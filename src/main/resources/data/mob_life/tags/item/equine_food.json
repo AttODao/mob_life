@@ -1,0 +1,12 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:horse_food",
+    "#mob_life:pasture_food",
+    "minecraft:apple",
+    "minecraft:carrot",
+    "minecraft:golden_carrot",
+    "minecraft:sugar",
+    "minecraft:golden_apple"
+  ]
+}

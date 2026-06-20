@@ -1,13 +1,10 @@
 package cc.attodao.mob_life.mixin.inventory;
 
-import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.gameplay.inventory.MorphChestInventory;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.server.ServerMorphManager;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.resources.Identifier;
-import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.ItemTags;
@@ -22,8 +19,6 @@ import net.minecraft.world.inventory.ResultContainer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -41,8 +36,6 @@ public abstract class InventoryMenuMorphEquipmentMixin {
       Identifier.withDefaultNamespace("container/slot/horse_armor");
   private static final Identifier SADDLE_SLOT_SPRITE =
       Identifier.withDefaultNamespace("container/slot/saddle");
-  private static final ResourceKey<Recipe<?>> LOG_TO_CRAFTING_TABLE =
-      ResourceKey.create(Registries.RECIPE, MobLife.id("log_to_crafting_table"));
 
   @Shadow @Final private Player owner;
 
@@ -204,10 +197,10 @@ public abstract class InventoryMenuMorphEquipmentMixin {
   }
 
   @Inject(method = "slotsChanged", at = @At("TAIL"))
-  private void mobLife$preferLogCraftingTableRecipe(Container container, CallbackInfo ci) {
+  private void mobLife$showInventoryLogCraftingTable(Container container, CallbackInfo ci) {
     if (!ServerMorphManager.hasMobForm()
         || !(owner instanceof ServerPlayer serverPlayer)
-        || !(owner.level() instanceof ServerLevel level)) {
+        || !(owner.level() instanceof ServerLevel)) {
       return;
     }
 
@@ -220,17 +213,7 @@ public abstract class InventoryMenuMorphEquipmentMixin {
       return;
     }
 
-    RecipeHolder<?> recipe =
-        level.getServer().getRecipeManager().byKey(LOG_TO_CRAFTING_TABLE).orElse(null);
-    if (recipe == null) {
-      return;
-    }
-
     ResultContainer result = craftingMenu.mobLife$getResultSlots();
-    if (!result.setRecipeUsed(serverPlayer, recipe)) {
-      return;
-    }
-
     ItemStack output = new ItemStack(Items.CRAFTING_TABLE);
     result.setItem(0, output);
     mobLife$container().setRemoteSlot(0, output);

@@ -1,10 +1,15 @@
 # Movement, Reach, and Mining Features
 
-- Most mob forms use a horse-style charged jump: hold jump to charge and
-  release to jump. Maximum charge has the same height as a normal player jump.
-- Non-equine forms reach maximum jump charge after 4 ticks; horse, donkey, and
-  mule keep the 8-tick charge time. Charge remains full while jump is held.
+- All non-rabbit mob forms share a 10-tick landing cooldown before the next
+  jump. Most mob forms still use a horse-style charged jump: hold jump to
+  charge and release to jump. Maximum charge has the same height as a normal
+  player jump.
+- Non-equine charged-jump forms reach maximum jump charge after 4 ticks;
+  horse, donkey, and mule keep the 8-tick charge time. Charge remains full
+  while jump is held.
 - While charging, the vanilla horse jump gauge replaces the experience bar; its cooldown texture is shown briefly after jumping.
+- Cat, ocelot, and wolf use a plain jump instead of charged jump, but still
+  obey the same 10-tick landing cooldown.
 - Rabbit form instead hops automatically while movement input is held. It uses
   vanilla rabbit-style `0.2` walking and `0.3` sprinting jump velocity, with
   10-tick and 3-tick cooldowns respectively. Hop launch also supplies explicit

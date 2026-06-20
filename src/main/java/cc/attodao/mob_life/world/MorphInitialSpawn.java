@@ -60,7 +60,9 @@ public final class MorphInitialSpawn {
 
     EntityType<?> entityType = morph.entityType();
     BlockPos origin = level.getRespawnData().pos();
-    BlockPos spawnPos = findSpawnPosition(level, morphData, entityType, origin);
+    BlockPos spawnPos =
+        MorphInitialStructures.withForcedDefinition(
+            morphData.definition(), () -> findSpawnPosition(level, morphData, entityType, origin));
 
     if (spawnPos == null) {
       MobLife.LOGGER.warn("Could not find a valid initial spawn for {} form", morph.id());
@@ -83,29 +85,45 @@ public final class MorphInitialSpawn {
 
   private static BlockPos findSpawnPosition(
       ServerLevel level, WorldMorphData morphData, EntityType<?> entityType, BlockPos origin) {
-    boolean allBlackCat =
-        morphData.morph() == MorphType.CAT && isAllBlackCat(morphData.definition());
-    if (allBlackCat) {
-      BlockPos catSpawn = findCatSpawnPosition(level, entityType, origin, true);
-      if (catSpawn != null) {
-        return catSpawn;
-      }
+    boolean isCat = morphData.morph() == MorphType.CAT;
+    boolean allBlackCat = isCat && MorphInitialStructures.isAllBlackCat(morphData.definition());
+    if (isCat) {
+      return findCatSpawnPosition(level, morphData.definition(), entityType, origin, allBlackCat);
     }
 
     return findNaturalSpawnPosition(level, morphData.definition(), entityType, origin);
   }
 
   private static BlockPos findCatSpawnPosition(
-      ServerLevel level, EntityType<?> entityType, BlockPos origin, boolean allBlackCat) {
+      ServerLevel level,
+      MorphDefinition definition,
+      EntityType<?> entityType,
+      BlockPos origin,
+      boolean allBlackCat) {
     BlockPos spawnPos =
         findInitialSpawn(
             level,
             origin,
             entityType,
-            pos -> isCatSpawnPosition(level, entityType, pos, allBlackCat),
+            pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
             LOCAL_SEARCH_RADIUS);
     if (spawnPos != null) {
       return spawnPos;
+    }
+
+    BlockPos forcedStructureCenter =
+        MorphInitialStructures.forcedStructureCenter(level, definition).orElse(null);
+    if (forcedStructureCenter != null) {
+      spawnPos =
+          findInitialSpawn(
+              level,
+              forcedStructureCenter,
+              entityType,
+              pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
+              LOCAL_SEARCH_RADIUS);
+      if (spawnPos != null) {
+        return spawnPos;
+      }
     }
 
     BlockPos catStructure =
@@ -122,7 +140,7 @@ public final class MorphInitialSpawn {
         level,
         catStructure,
         entityType,
-        pos -> isCatSpawnPosition(level, entityType, pos, allBlackCat),
+        pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
         LOCAL_SEARCH_RADIUS);
   }
 
@@ -241,10 +259,7 @@ public final class MorphInitialSpawn {
     }
 
     if (definition.type() == MorphType.CAT) {
-      if (isAllBlackCat(definition)) {
-        return biome.is(BiomeTags.HAS_SWAMP_HUT);
-      }
-      return biome.is(Biomes.PLAINS) || biome.is(BiomeTags.IS_FOREST);
+      return MorphInitialStructures.biomeSupportsRequiredStructure(biome, definition);
     }
     if (definition.type() == MorphType.MULE) {
       return biome.is(Biomes.PLAINS) || biome.is(BiomeTags.IS_SAVANNA);
@@ -320,7 +335,11 @@ public final class MorphInitialSpawn {
   }
 
   private static boolean isCatSpawnPosition(
-      ServerLevel level, EntityType<?> entityType, BlockPos pos, boolean allBlackCat) {
+      ServerLevel level,
+      MorphDefinition definition,
+      EntityType<?> entityType,
+      BlockPos pos,
+      boolean allBlackCat) {
     boolean structureMatch =
         allBlackCat
             ? level
@@ -335,9 +354,8 @@ public final class MorphInitialSpawn {
     return noCollisionNoLiquid(level, pos)
         && level.noCollision(
             entityType.getSpawnAABB(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5))
+        && MorphInitialStructures.biomeSupportsRequiredStructure(level.getBiome(pos), definition)
         && SpawnPlacements.isSpawnPositionOk(entityType, level, pos)
-        && SpawnPlacements.checkSpawnRules(
-            entityType, level, EntitySpawnReason.NATURAL, pos, level.getRandom())
         && structureMatch;
   }
 
@@ -384,11 +402,6 @@ public final class MorphInitialSpawn {
           definition.nbt().getIntOr("RabbitType", Rabbit.Variant.DEFAULT.id()));
     }
     return Rabbit.Variant.DEFAULT;
-  }
-
-  private static boolean isAllBlackCat(MorphDefinition definition) {
-    String variant = definition.nbt().getStringOr("variant", "");
-    return variant.endsWith(":all_black") || variant.equals("all_black");
   }
 
   private static Optional<MobSpawnSettings.SpawnerData> matchingSpawnerData(

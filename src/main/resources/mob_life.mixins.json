@@ -18,7 +18,6 @@
 		"inventory.AbstractCraftingMenuAccessor",
 		"inventory.AbstractContainerMenuInvoker",
 		"inventory.AbstractContainerMenuMixin",
-		"inventory.CraftingMenuLogRecipeMixin",
 		"inventory.InventoryMixin",
 		"inventory.InventoryMenuMorphEquipmentMixin",
 		"inventory.LivingEntityMorphEquipmentMixin",
@@ -35,7 +34,9 @@
 		"targeting.AbstractSkeletonAimMixin",
 		"targeting.AvoidEntityGoalMixin",
 		"targeting.CreeperAvoidMorphMixin",
-		"targeting.MobTargetingMixin"
+		"targeting.MobTargetingMixin",
+		"world.ChunkGeneratorStructureStateMixin",
+		"world.RandomSpreadStructurePlacementMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

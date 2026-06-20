@@ -7,7 +7,7 @@
     "sideways_multiplier": 0.25,
     "backward_multiplier": 0.25,
     "water_input_multiplier": 1,
-    "charged_jump": true,
+    "charged_jump": false,
     "slow_fall_multiplier": 1,
     "wing_animation": false,
     "rabbit_hop": {
@@ -22,9 +22,7 @@
   },
   "diet": {
     "foods": [
-      "#minecraft:cat_food",
-      "minecraft:rabbit",
-      "minecraft:cooked_rabbit"
+      "#mob_life:cat_food"
     ],
     "nutrition": 4,
     "saturation_modifier": 0.3

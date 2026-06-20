@@ -22,7 +22,7 @@
   },
   "diet": {
     "foods": [
-      "#minecraft:chicken_food"
+      "#mob_life:chicken_food"
     ],
     "nutrition": 4,
     "saturation_modifier": 0.3

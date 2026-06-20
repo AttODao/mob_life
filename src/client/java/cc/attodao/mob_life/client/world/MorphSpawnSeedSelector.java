@@ -3,6 +3,7 @@ package cc.attodao.mob_life.client.world;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.world.MorphInitialSpawn;
+import cc.attodao.mob_life.world.MorphInitialStructures;
 import java.util.OptionalLong;
 import java.util.SplittableRandom;
 import java.util.function.IntConsumer;
@@ -24,7 +25,6 @@ public final class MorphSpawnSeedSelector {
   private static final int MAX_ATTEMPTS = 64;
   private static final int BIOME_SEARCH_RADIUS = 128;
   private static final int BIOME_SEARCH_STEP = 32;
-  private static final int SPAWN_BIOME_Y = 64;
 
   private MorphSpawnSeedSelector() {}
 
@@ -62,8 +62,10 @@ public final class MorphSpawnSeedSelector {
     return generator.getBiomeSource().possibleBiomes().stream()
         .anyMatch(
             biome ->
-                MorphInitialSpawn.biomeSupportsInitialSpawn(
-                    biome, definition, definition.type().entityType()));
+                MorphInitialStructures.requiresStructure(definition)
+                    ? MorphInitialStructures.biomeSupportsRequiredStructure(biome, definition)
+                    : MorphInitialSpawn.biomeSupportsInitialSpawn(
+                        biome, definition, definition.type().entityType()));
   }
 
   private static boolean supportsSpawnNearPredictedSpawn(
@@ -74,6 +76,16 @@ public final class MorphSpawnSeedSelector {
     try {
       Climate.Sampler sampler = samplerFor(context, generator, seed);
       BlockPos predictedSpawn = predictedSpawn(sampler);
+      if (MorphInitialStructures.requiresStructure(definition)) {
+        return MorphInitialStructures.findForcedStructureChunk(
+                generator.getBiomeSource(),
+                sampler,
+                definition,
+                predictedSpawn,
+                BIOME_SEARCH_RADIUS,
+                BIOME_SEARCH_STEP)
+            .isPresent();
+      }
       return hasSupportedBiomeNear(generator.getBiomeSource(), sampler, definition, predictedSpawn);
     } catch (RuntimeException exception) {
       MobLife.LOGGER.debug("Could not evaluate morph spawn seed {}", seed, exception);
@@ -94,7 +106,7 @@ public final class MorphSpawnSeedSelector {
 
   private static BlockPos predictedSpawn(Climate.Sampler sampler) {
     ChunkPos spawnChunk = ChunkPos.containing(sampler.findSpawnPosition());
-    return spawnChunk.getWorldPosition().offset(8, SPAWN_BIOME_Y, 8);
+    return spawnChunk.getWorldPosition().offset(8, MorphInitialStructures.SPAWN_BIOME_Y, 8);
   }
 
   private static boolean hasSupportedBiomeNear(
@@ -142,7 +154,7 @@ public final class MorphSpawnSeedSelector {
     Holder<Biome> biome =
         biomeSource.getNoiseBiome(
             QuartPos.fromBlock(blockX),
-            QuartPos.fromBlock(SPAWN_BIOME_Y),
+            QuartPos.fromBlock(MorphInitialStructures.SPAWN_BIOME_Y),
             QuartPos.fromBlock(blockZ),
             sampler);
     return MorphInitialSpawn.biomeSupportsInitialSpawn(

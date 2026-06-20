@@ -21,7 +21,7 @@
     }
   },
   "diet": {
-    "foods": ["#minecraft:horse_food"],
+    "foods": ["#mob_life:horse_food"],
     "nutrition": 4,
     "saturation_modifier": 0.3
   },

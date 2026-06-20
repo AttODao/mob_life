@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    "#minecraft:rabbit_food",
+    "#mob_life:pasture_food",
+    "#minecraft:fox_food",
+    "#minecraft:small_flowers",
+    "minecraft:carrot",
+    "minecraft:golden_carrot",
+    "minecraft:beetroot",
+    "minecraft:dandelion"
+  ]
+}
