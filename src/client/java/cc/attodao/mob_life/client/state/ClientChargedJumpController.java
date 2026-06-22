@@ -39,7 +39,7 @@ final class ClientChargedJumpController {
       return;
     }
 
-    boolean jumpKeyDown = client.options.keyJump.isDown();
+    boolean jumpKeyDown = isJumpDown(player);
     boolean grounded = isJumpGrounded(player);
     if (trackedPlayerId != player.getId()) {
       trackedPlayerId = player.getId();
@@ -102,5 +102,9 @@ final class ClientChargedJumpController {
         && !player.getAbilities().flying
         && !player.isInWater()
         && !player.isInLava();
+  }
+
+  private static boolean isJumpDown(LocalPlayer player) {
+    return player.input != null && player.input.keyPresses.jump();
   }
 }

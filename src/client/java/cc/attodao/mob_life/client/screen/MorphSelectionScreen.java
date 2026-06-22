@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.gui.ComponentPath;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
@@ -20,6 +21,7 @@ import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
+import net.minecraft.client.gui.navigation.FocusNavigationEvent;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
@@ -89,6 +91,8 @@ public final class MorphSelectionScreen extends Screen {
   private int confirmWidth;
   private int listScroll;
   private int detailScroll;
+  private boolean listScrollbarDragging;
+  private int listScrollbarDragOffset;
   private final EnumMap<MorphType, MorphSelectionWidget> rowWidgets =
       new EnumMap<>(MorphType.class);
   private final EnumMap<MorphType, MorphSelectionWidget> questionWidgets =
@@ -132,6 +136,7 @@ public final class MorphSelectionScreen extends Screen {
     buildInteractiveWidgets();
 
     nbtInput = createNbtInput();
+    nbtInput.setTabOrderGroup(morphTypes.size() * 2);
     addRenderableWidget(nbtInput);
 
     confirmWidth = 128;
@@ -144,6 +149,7 @@ public final class MorphSelectionScreen extends Screen {
                     button -> submitSelection())
                 .bounds(confirmX, confirmY, confirmWidth, 20)
                 .build());
+    confirmButton.setTabOrderGroup(morphTypes.size() * 2 + 1);
 
     selectMorph(selectedMorph, false);
     focusedMorph = selectedMorph;
@@ -180,6 +186,9 @@ public final class MorphSelectionScreen extends Screen {
       return;
     }
 
+    listScrollbarDragging = false;
+    listScrollbarDragOffset = 0;
+
     if (returnScreen != null && minecraft != null && !createWorldRequested) {
       minecraft.setScreen(returnScreen);
     }
@@ -191,6 +200,10 @@ public final class MorphSelectionScreen extends Screen {
       if (mouseInHelpClose(event.x(), event.y())) {
         closeHelp();
       }
+      return true;
+    }
+
+    if (event.button() == 0 && beginListScrollbarDrag(event.x(), event.y())) {
       return true;
     }
 
@@ -227,6 +240,31 @@ public final class MorphSelectionScreen extends Screen {
   }
 
   @Override
+  public boolean mouseDragged(MouseButtonEvent event, double deltaX, double deltaY) {
+    if (helpOpen) {
+      return true;
+    }
+
+    if (listScrollbarDragging && event.button() == 0) {
+      updateListScrollbarDrag(event.y());
+      return true;
+    }
+
+    return super.mouseDragged(event, deltaX, deltaY);
+  }
+
+  @Override
+  public boolean mouseReleased(MouseButtonEvent event) {
+    if (listScrollbarDragging && event.button() == 0) {
+      listScrollbarDragging = false;
+      listScrollbarDragOffset = 0;
+      return true;
+    }
+
+    return super.mouseReleased(event);
+  }
+
+  @Override
   public boolean mouseScrolled(
       double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
     if (helpOpen) {
@@ -253,8 +291,9 @@ public final class MorphSelectionScreen extends Screen {
     if (helpOpen) {
       if (event.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
         closeHelp();
+        return true;
       }
-      return true;
+      return super.keyPressed(event);
     }
 
     return super.keyPressed(event);
@@ -309,7 +348,8 @@ public final class MorphSelectionScreen extends Screen {
     rowWidgets.clear();
     questionWidgets.clear();
 
-    for (MorphType morph : morphTypes) {
+    for (int index = 0; index < morphTypes.size(); index++) {
+      MorphType morph = morphTypes.get(index);
       MorphSelectionWidget rowWidget =
           addRenderableWidget(
               new MorphSelectionWidget(
@@ -317,6 +357,7 @@ public final class MorphSelectionScreen extends Screen {
                   morph,
                   morphName(morph),
                   this::selectCurrentMorph));
+      rowWidget.setTabOrderGroup(index * 2);
       rowWidgets.put(morph, rowWidget);
 
       MorphSelectionWidget questionWidget =
@@ -326,6 +367,7 @@ public final class MorphSelectionScreen extends Screen {
                   morph,
                   Component.translatable("mob_life.world_select.details"),
                   this::openHelpForMorph));
+      questionWidget.setTabOrderGroup(index * 2 + 1);
       questionWidgets.put(morph, questionWidget);
     }
 
@@ -336,6 +378,7 @@ public final class MorphSelectionScreen extends Screen {
                 null,
                 Component.translatable("gui.close"),
                 () -> closeHelp()));
+    helpCloseWidget.setTabOrderGroup(0);
     syncInteractiveWidgetBounds();
   }
 
@@ -343,8 +386,7 @@ public final class MorphSelectionScreen extends Screen {
     int inputWidth = footerInputWidth();
     int inputY = footerInputY();
     EditBox input =
-        new EditBox(
-            font,
+        new MorphSelectionEditBox(
             footerInputX(),
             inputY,
             inputWidth,
@@ -386,6 +428,8 @@ public final class MorphSelectionScreen extends Screen {
 
   private void openHelpForMorph(MorphType morph) {
     focusMorphDetails(morph);
+    listScrollbarDragging = false;
+    listScrollbarDragOffset = 0;
     helpOpen = true;
     updateWidgetVisibility();
     refreshSubmitState();
@@ -395,6 +439,8 @@ public final class MorphSelectionScreen extends Screen {
   private void closeHelp() {
     helpOpen = false;
     detailScroll = 0;
+    listScrollbarDragging = false;
+    listScrollbarDragOffset = 0;
     updateWidgetVisibility();
     refreshSubmitState();
     focusSelectedMorphWidget();
@@ -701,9 +747,9 @@ public final class MorphSelectionScreen extends Screen {
     boolean focused = morph == focusedMorph;
     boolean hovered =
         mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + LIST_ROW_HEIGHT;
+    boolean questionHovered = isQuestionHovered(morph, mouseX, mouseY);
     MorphSelectionWidget questionWidget = questionWidgets.get(morph);
     boolean questionFocused = questionWidget != null && questionWidget.isFocused();
-    boolean questionHovered = questionFocused || isQuestionHovered(morph, mouseX, mouseY);
 
     int background = selected ? SELECTED_BG : hovered ? HOVER_BG : 0x141A2230;
     int border = selected ? ACCENT : focused ? INFO : hovered ? 0xFF4B5A6B : PANEL_EDGE_SOFT;
@@ -1073,20 +1119,116 @@ public final class MorphSelectionScreen extends Screen {
         && mouseY < listY + listHeight;
   }
 
+  private boolean beginListScrollbarDrag(double mouseX, double mouseY) {
+    if (listScrollRange() <= 0) {
+      return false;
+    }
+
+    int scrollbarX = listScrollbarX();
+    int scrollbarY = listScrollbarY();
+    int scrollbarHeight = listViewportHeight();
+    if (mouseX < scrollbarX
+        || mouseX >= scrollbarX + LIST_SCROLLBAR_WIDTH
+        || mouseY < scrollbarY
+        || mouseY >= scrollbarY + scrollbarHeight) {
+      return false;
+    }
+
+    listScrollbarDragging = true;
+    int thumbY = listScrollbarThumbY();
+    int thumbHeight = listScrollbarThumbHeight();
+    if (mouseY >= thumbY && mouseY < thumbY + thumbHeight) {
+      listScrollbarDragOffset = (int) mouseY - thumbY;
+    } else {
+      listScrollbarDragOffset = thumbHeight / 2;
+      updateListScrollbarDrag(mouseY);
+    }
+    return true;
+  }
+
+  private void updateListScrollbarDrag(double mouseY) {
+    int maxScroll = listScrollRange();
+    int scrollbarY = listScrollbarY();
+    int scrollbarHeight = listViewportHeight();
+    int thumbHeight = listScrollbarThumbHeight();
+    int thumbTravel = Math.max(0, scrollbarHeight - thumbHeight);
+    if (maxScroll <= 0 || thumbTravel <= 0) {
+      setListScroll(0);
+      return;
+    }
+
+    int desiredThumbY =
+        Math.clamp((int) mouseY - listScrollbarDragOffset, scrollbarY, scrollbarY + thumbTravel);
+    int newScroll = Math.round(((desiredThumbY - scrollbarY) / (float) thumbTravel) * maxScroll);
+    setListScroll(newScroll);
+  }
+
   private int listScrollRange() {
     int viewportHeight = Math.max(0, listHeight - 32);
     int contentHeight = morphTypes.size() * (LIST_ROW_HEIGHT + LIST_ROW_GAP) - LIST_ROW_GAP;
     return Math.max(0, contentHeight - viewportHeight);
   }
 
+  private int listInnerX() {
+    return listX + PANEL_PADDING;
+  }
+
+  private int listInnerY() {
+    return listY + 24;
+  }
+
+  private int listInnerWidth() {
+    return listWidth - PANEL_PADDING * 2;
+  }
+
+  private int listViewportHeight() {
+    return Math.max(0, listHeight - 32);
+  }
+
+  private int listScrollbarY() {
+    return listInnerY();
+  }
+
+  private int listScrollbarX() {
+    return listInnerX() + listVisibleWidth() + 4;
+  }
+
+  private int listVisibleWidth() {
+    return listInnerWidth() - (listScrollRange() > 0 ? LIST_SCROLLBAR_WIDTH + 4 : 0);
+  }
+
+  private int listScrollbarThumbHeight() {
+    int viewportHeight = listViewportHeight();
+    int maxScroll = listScrollRange();
+    if (maxScroll <= 0 || viewportHeight <= 0) {
+      return 0;
+    }
+
+    return Math.max(
+        18, (int) ((viewportHeight / (float) (viewportHeight + maxScroll)) * viewportHeight));
+  }
+
+  private int listScrollbarThumbY() {
+    int scrollbarY = listScrollbarY();
+    int viewportHeight = listViewportHeight();
+    int maxScroll = listScrollRange();
+    int thumbHeight = listScrollbarThumbHeight();
+    if (maxScroll <= 0 || thumbHeight <= 0) {
+      return scrollbarY;
+    }
+
+    int thumbTravel = Math.max(0, viewportHeight - thumbHeight);
+    if (thumbTravel <= 0) {
+      return scrollbarY;
+    }
+
+    return scrollbarY + (int) ((listScroll / (float) maxScroll) * thumbTravel);
+  }
+
   private boolean isQuestionHovered(MorphType morph, int mouseX, int mouseY) {
-    int innerX = listX + PANEL_PADDING;
-    int innerY = listY + 24;
-    int innerWidth = listWidth - PANEL_PADDING * 2;
-    int viewportHeight = listHeight - 32;
-    int contentHeight = morphTypes.size() * (LIST_ROW_HEIGHT + LIST_ROW_GAP) - LIST_ROW_GAP;
-    int maxScroll = Math.max(0, contentHeight - viewportHeight);
-    int visibleWidth = innerWidth - (maxScroll > 0 ? LIST_SCROLLBAR_WIDTH + 4 : 0);
+    int innerX = listInnerX();
+    int innerY = listInnerY();
+    int visibleWidth = listVisibleWidth();
     int y = innerY - listScroll;
     for (MorphType rowMorph : morphTypes) {
       int questionX = innerX + visibleWidth - LIST_QUESTION_SIZE - 6;
@@ -1111,11 +1253,16 @@ public final class MorphSelectionScreen extends Screen {
       int viewportHeight,
       int scroll,
       int maxScroll) {
+    if (maxScroll <= 0 || viewportHeight <= 0) {
+      return;
+    }
+
     graphics.fill(x, y, x + width, y + viewportHeight, 0x66212A36);
     int thumbHeight =
         Math.max(
             18, (int) ((viewportHeight / (float) (viewportHeight + maxScroll)) * viewportHeight));
-    int thumbY = y + (int) ((scroll / (float) maxScroll) * (viewportHeight - thumbHeight));
+    int thumbTravel = Math.max(0, viewportHeight - thumbHeight);
+    int thumbY = y + (thumbTravel <= 0 ? 0 : (int) ((scroll / (float) maxScroll) * thumbTravel));
     graphics.fill(x, thumbY, x + width, thumbY + thumbHeight, ACCENT);
   }
 
@@ -1144,7 +1291,33 @@ public final class MorphSelectionScreen extends Screen {
 
     @Override
     public boolean shouldTakeFocusAfterInteraction() {
-      return kind == Kind.ROW;
+      return kind == Kind.ROW || kind == Kind.CLOSE;
+    }
+
+    @Override
+    public ComponentPath nextFocusPath(FocusNavigationEvent event) {
+      if (event instanceof FocusNavigationEvent.ArrowNavigation arrow) {
+        return switch (kind) {
+          case ROW ->
+              switch (arrow.direction()) {
+                case UP -> focusPath(rowWidgets.get(neighborMorph(morph, -1)));
+                case DOWN -> focusPath(rowWidgets.get(neighborMorph(morph, 1)));
+                case RIGHT -> focusPath(questionWidgets.get(morph));
+                default -> null;
+              };
+          case QUESTION ->
+              switch (arrow.direction()) {
+                case UP -> focusPath(questionWidgets.get(neighborMorph(morph, -1)));
+                case DOWN -> focusPath(questionWidgets.get(neighborMorph(morph, 1)));
+                case LEFT -> focusPath(rowWidgets.get(morph));
+                case RIGHT -> focusPath(nbtInput);
+                default -> null;
+              };
+          case CLOSE -> null;
+        };
+      }
+
+      return super.nextFocusPath(event);
     }
 
     @Override
@@ -1200,5 +1373,46 @@ public final class MorphSelectionScreen extends Screen {
       QUESTION,
       CLOSE
     }
+  }
+
+  private final class MorphSelectionEditBox extends EditBox {
+    private MorphSelectionEditBox(int x, int y, int width, int height, Component message) {
+      super(MorphSelectionScreen.this.font, x, y, width, height, message);
+    }
+
+    @Override
+    public ComponentPath nextFocusPath(FocusNavigationEvent event) {
+      if (event instanceof FocusNavigationEvent.ArrowNavigation arrow) {
+        return switch (arrow.direction()) {
+          case LEFT -> focusPath(questionWidgets.get(selectedMorph));
+          case RIGHT -> focusPath(confirmButton);
+          default -> null;
+        };
+      }
+
+      return super.nextFocusPath(event);
+    }
+  }
+
+  private ComponentPath focusPath(GuiEventListener listener) {
+    if (listener instanceof AbstractWidget widget && !widget.isActive()) {
+      return null;
+    }
+
+    return listener == null ? null : ComponentPath.leaf(listener);
+  }
+
+  private MorphType neighborMorph(MorphType morph, int offset) {
+    int index = morphTypes.indexOf(morph);
+    if (index < 0) {
+      return morph;
+    }
+
+    int neighborIndex = index + offset;
+    if (neighborIndex < 0 || neighborIndex >= morphTypes.size()) {
+      return morph;
+    }
+
+    return morphTypes.get(neighborIndex);
   }
 }

@@ -4,9 +4,11 @@ Future changes should be recorded here with the date and version.
 
 ## 2026-06-22 - v1.0.3
 
-- Made the mob selection screen controller-friendly by exposing the mob rows,
-  detail popup, and close action as standard focusable widgets, so Controlify
-  can navigate it without adding a direct dependency.
+- Fixed controller focus traversal in the mob selection screen so the mob
+  rows, description buttons, and footer controls can all be reached normally.
+- Made the mob selection scrollbar draggable with touch or mouse input.
+- Fixed charged jump input so controller jump state is read from the live
+  player input instead of only the keyboard binding.
 
 ## 2026-06-20 - v1.0.2
 
