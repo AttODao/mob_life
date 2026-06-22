@@ -2,6 +2,12 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-06-22 - v1.0.3
+
+- Made the mob selection screen controller-friendly by exposing the mob rows,
+  detail popup, and close action as standard focusable widgets, so Controlify
+  can navigate it without adding a direct dependency.
+
 ## 2026-06-20 - v1.0.2
 
 - Reworked initial spawn selection so structure-dependent forms choose biomes

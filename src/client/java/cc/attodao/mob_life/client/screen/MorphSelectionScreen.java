@@ -11,20 +11,25 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.LivingEntity;
+import org.lwjgl.glfw.GLFW;
 
 public final class MorphSelectionScreen extends Screen {
 
@@ -84,8 +89,13 @@ public final class MorphSelectionScreen extends Screen {
   private int confirmWidth;
   private int listScroll;
   private int detailScroll;
+  private final EnumMap<MorphType, MorphSelectionWidget> rowWidgets =
+      new EnumMap<>(MorphType.class);
+  private final EnumMap<MorphType, MorphSelectionWidget> questionWidgets =
+      new EnumMap<>(MorphType.class);
   private EditBox nbtInput;
   private Button confirmButton;
+  private MorphSelectionWidget helpCloseWidget;
 
   public MorphSelectionScreen(List<MorphType> morphTypes) {
     this(null, morphTypes, MorphDefinition.of(initialMorph(morphTypes)));
@@ -119,6 +129,7 @@ public final class MorphSelectionScreen extends Screen {
     super.init();
     rebuildLayout();
     buildPreviews();
+    buildInteractiveWidgets();
 
     nbtInput = createNbtInput();
     addRenderableWidget(nbtInput);
@@ -137,7 +148,9 @@ public final class MorphSelectionScreen extends Screen {
     selectMorph(selectedMorph, false);
     focusedMorph = selectedMorph;
     helpOpen = false;
+    updateWidgetVisibility();
     refreshSubmitState();
+    setInitialFocus();
   }
 
   @Override
@@ -152,15 +165,21 @@ public final class MorphSelectionScreen extends Screen {
       confirmButton.setX(confirmX);
       confirmButton.setY(confirmY);
     }
+    syncInteractiveWidgetBounds();
   }
 
   @Override
   public boolean shouldCloseOnEsc() {
-    return returnScreen != null;
+    return returnScreen != null || helpOpen;
   }
 
   @Override
   public void onClose() {
+    if (helpOpen) {
+      closeHelp();
+      return;
+    }
+
     if (returnScreen != null && minecraft != null && !createWorldRequested) {
       minecraft.setScreen(returnScreen);
     }
@@ -196,7 +215,7 @@ public final class MorphSelectionScreen extends Screen {
       MorphType clicked = rowAt(event.x(), event.y());
       if (clicked != null) {
         if (questionAt(event.x(), event.y()) == clicked) {
-          focusMorph(clicked);
+          openHelpForMorph(clicked);
         } else {
           selectMorph(clicked, true);
         }
@@ -249,13 +268,7 @@ public final class MorphSelectionScreen extends Screen {
     graphics.centeredText(font, title, width / 2, 18, 0xFFFFFFFF);
     graphics.fill(width / 2 - 92, 27, width / 2 + 92, 28, ACCENT);
 
-    if (nbtInput != null) {
-      nbtInput.visible = !helpOpen;
-      nbtInput.active = !helpOpen;
-    }
-    if (confirmButton != null) {
-      confirmButton.visible = !helpOpen;
-    }
+    updateWidgetVisibility();
 
     renderListPanel(graphics, mouseX, mouseY);
     if (!helpOpen) {
@@ -292,6 +305,40 @@ public final class MorphSelectionScreen extends Screen {
     previewEntities.putAll(previewFactory.build(minecraft, morphTypes));
   }
 
+  private void buildInteractiveWidgets() {
+    rowWidgets.clear();
+    questionWidgets.clear();
+
+    for (MorphType morph : morphTypes) {
+      MorphSelectionWidget rowWidget =
+          addRenderableWidget(
+              new MorphSelectionWidget(
+                  MorphSelectionWidget.Kind.ROW,
+                  morph,
+                  morphName(morph),
+                  this::selectCurrentMorph));
+      rowWidgets.put(morph, rowWidget);
+
+      MorphSelectionWidget questionWidget =
+          addRenderableWidget(
+              new MorphSelectionWidget(
+                  MorphSelectionWidget.Kind.QUESTION,
+                  morph,
+                  Component.translatable("mob_life.world_select.details"),
+                  this::openHelpForMorph));
+      questionWidgets.put(morph, questionWidget);
+    }
+
+    helpCloseWidget =
+        addRenderableWidget(
+            new MorphSelectionWidget(
+                MorphSelectionWidget.Kind.CLOSE,
+                null,
+                Component.translatable("gui.close"),
+                () -> closeHelp()));
+    syncInteractiveWidgetBounds();
+  }
+
   private EditBox createNbtInput() {
     int inputWidth = footerInputWidth();
     int inputY = footerInputY();
@@ -314,8 +361,8 @@ public final class MorphSelectionScreen extends Screen {
   private void selectMorph(MorphType morph, boolean focusDetails) {
     selectedMorph = morph;
     if (focusDetails) {
-      focusedMorph = morph;
-      detailScroll = 0;
+      focusMorphDetails(morph);
+      focusMorphWidget(morph);
     }
 
     if (nbtInput != null) {
@@ -333,10 +380,152 @@ public final class MorphSelectionScreen extends Screen {
     refreshSubmitState();
   }
 
-  private void focusMorph(MorphType morph) {
+  private void selectCurrentMorph(MorphType morph) {
+    selectMorph(morph, true);
+  }
+
+  private void openHelpForMorph(MorphType morph) {
+    focusMorphDetails(morph);
+    helpOpen = true;
+    updateWidgetVisibility();
+    refreshSubmitState();
+    focusHelpCloseButton();
+  }
+
+  private void closeHelp() {
+    helpOpen = false;
+    detailScroll = 0;
+    updateWidgetVisibility();
+    refreshSubmitState();
+    focusSelectedMorphWidget();
+  }
+
+  private void focusMorphDetails(MorphType morph) {
     focusedMorph = morph;
     detailScroll = 0;
-    helpOpen = true;
+    ensureMorphVisible(morph);
+  }
+
+  private void focusMorphWidget(MorphType morph) {
+    if (helpOpen) {
+      return;
+    }
+
+    MorphSelectionWidget widget = rowWidgets.get(morph);
+    if (widget != null) {
+      setFocused(widget);
+    }
+  }
+
+  private void focusSelectedMorphWidget() {
+    focusMorphWidget(selectedMorph);
+  }
+
+  private void focusHelpCloseButton() {
+    if (helpOpen && helpCloseWidget != null) {
+      setFocused(helpCloseWidget);
+    }
+  }
+
+  private void onMorphWidgetFocusGained(MorphType morph) {
+    focusedMorph = morph;
+    detailScroll = 0;
+    ensureMorphVisible(morph);
+  }
+
+  private void ensureMorphVisible(MorphType morph) {
+    if (helpOpen) {
+      return;
+    }
+
+    int index = morphTypes.indexOf(morph);
+    if (index < 0) {
+      return;
+    }
+
+    int viewportHeight = Math.max(0, listHeight - 32);
+    int contentTop = index * (LIST_ROW_HEIGHT + LIST_ROW_GAP);
+    int contentBottom = contentTop + LIST_ROW_HEIGHT;
+    int newScroll = listScroll;
+    if (contentTop < listScroll) {
+      newScroll = contentTop;
+    } else if (contentBottom > listScroll + viewportHeight) {
+      newScroll = contentBottom - viewportHeight;
+    }
+
+    setListScroll(newScroll);
+  }
+
+  private void setListScroll(int scroll) {
+    int clamped = Math.clamp(scroll, 0, listScrollRange());
+    if (clamped != listScroll) {
+      listScroll = clamped;
+      syncInteractiveWidgetBounds();
+    }
+  }
+
+  private void updateWidgetVisibility() {
+    syncInteractiveWidgetBounds();
+
+    boolean interactiveVisible = !helpOpen;
+    for (MorphSelectionWidget widget : rowWidgets.values()) {
+      widget.visible = interactiveVisible;
+      widget.active = interactiveVisible;
+    }
+    for (MorphSelectionWidget widget : questionWidgets.values()) {
+      widget.visible = interactiveVisible;
+      widget.active = interactiveVisible;
+    }
+
+    if (nbtInput != null) {
+      nbtInput.visible = interactiveVisible;
+      nbtInput.active = interactiveVisible;
+    }
+
+    if (confirmButton != null) {
+      confirmButton.visible = interactiveVisible;
+    }
+
+    if (helpCloseWidget != null) {
+      helpCloseWidget.visible = helpOpen;
+      helpCloseWidget.active = helpOpen;
+    }
+  }
+
+  private void syncInteractiveWidgetBounds() {
+    int maxScroll = listScrollRange();
+    listScroll = Math.clamp(listScroll, 0, maxScroll);
+
+    int innerX = listX + PANEL_PADDING;
+    int innerY = listY + 24;
+    int innerWidth = listWidth - PANEL_PADDING * 2;
+    int visibleWidth = innerWidth - (maxScroll > 0 ? LIST_SCROLLBAR_WIDTH + 4 : 0);
+    int questionX = innerX + visibleWidth - LIST_QUESTION_SIZE - 6;
+    int rowWidth = Math.max(1, questionX - innerX - 4);
+
+    int y = innerY - listScroll;
+    for (MorphType morph : morphTypes) {
+      MorphSelectionWidget rowWidget = rowWidgets.get(morph);
+      if (rowWidget != null) {
+        rowWidget.setRectangle(innerX, y, rowWidth, LIST_ROW_HEIGHT);
+      }
+
+      MorphSelectionWidget questionWidget = questionWidgets.get(morph);
+      if (questionWidget != null) {
+        questionWidget.setRectangle(
+            questionX,
+            y + (LIST_ROW_HEIGHT - LIST_QUESTION_SIZE) / 2,
+            LIST_QUESTION_SIZE,
+            LIST_QUESTION_SIZE);
+      }
+
+      y += LIST_ROW_HEIGHT + LIST_ROW_GAP;
+    }
+
+    if (helpCloseWidget != null) {
+      helpCloseWidget.setRectangle(
+          detailCloseX(), detailCloseY(), DETAIL_CLOSE_SIZE, DETAIL_CLOSE_SIZE);
+    }
   }
 
   private void parseNbt(String value) {
@@ -366,8 +555,35 @@ public final class MorphSelectionScreen extends Screen {
 
   private void refreshSubmitState() {
     if (confirmButton != null) {
-      confirmButton.active = selectedMorph.isPlayer() || nbtValid;
+      confirmButton.active = !helpOpen && (selectedMorph.isPlayer() || nbtValid);
     }
+  }
+
+  @Override
+  protected void setInitialFocus() {
+    if (helpOpen) {
+      focusHelpCloseButton();
+      if (getFocused() == helpCloseWidget) {
+        return;
+      }
+    } else {
+      focusSelectedMorphWidget();
+      if (getFocused() == rowWidgets.get(selectedMorph)) {
+        return;
+      }
+    }
+
+    if (nbtInput != null && nbtInput.active) {
+      setFocused(nbtInput);
+      return;
+    }
+
+    if (confirmButton != null && confirmButton.active) {
+      setFocused(confirmButton);
+      return;
+    }
+
+    super.setInitialFocus();
   }
 
   private static MorphType normalizeSelection(MorphType morph, List<MorphType> morphTypes) {
@@ -447,7 +663,8 @@ public final class MorphSelectionScreen extends Screen {
     int viewportHeight = Math.max(0, listHeight - 32);
     int contentHeight = morphTypes.size() * (LIST_ROW_HEIGHT + LIST_ROW_GAP) - LIST_ROW_GAP;
     int maxScroll = Math.max(0, contentHeight - viewportHeight);
-    listScroll = Math.clamp(listScroll, 0, maxScroll);
+    setListScroll(listScroll);
+    maxScroll = listScrollRange();
 
     int visibleWidth = innerWidth - (maxScroll > 0 ? LIST_SCROLLBAR_WIDTH + 4 : 0);
     graphics.enableScissor(innerX, innerY, innerX + visibleWidth, innerY + viewportHeight);
@@ -484,7 +701,9 @@ public final class MorphSelectionScreen extends Screen {
     boolean focused = morph == focusedMorph;
     boolean hovered =
         mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + LIST_ROW_HEIGHT;
-    boolean questionHovered = isQuestionHovered(morph, mouseX, mouseY);
+    MorphSelectionWidget questionWidget = questionWidgets.get(morph);
+    boolean questionFocused = questionWidget != null && questionWidget.isFocused();
+    boolean questionHovered = questionFocused || isQuestionHovered(morph, mouseX, mouseY);
 
     int background = selected ? SELECTED_BG : hovered ? HOVER_BG : 0x141A2230;
     int border = selected ? ACCENT : focused ? INFO : hovered ? 0xFF4B5A6B : PANEL_EDGE_SOFT;
@@ -525,32 +744,37 @@ public final class MorphSelectionScreen extends Screen {
 
     int questionX = x + width - LIST_QUESTION_SIZE - 6;
     int questionY = y + (LIST_ROW_HEIGHT - LIST_QUESTION_SIZE) / 2;
+    int questionBorder = questionFocused ? INFO : WARN;
+    int questionBackground = questionFocused ? HOVER_BG : questionHovered ? WARN : QUESTION_BG;
+    int questionTextColor = questionFocused ? INFO : questionHovered ? 0xFF241700 : WARN;
     graphics.fill(
         questionX,
         questionY,
         questionX + LIST_QUESTION_SIZE,
         questionY + LIST_QUESTION_SIZE,
-        questionHovered ? WARN : QUESTION_BG);
-    graphics.fill(questionX, questionY, questionX + LIST_QUESTION_SIZE, questionY + 1, WARN);
+        questionBackground);
+    graphics.fill(
+        questionX, questionY, questionX + LIST_QUESTION_SIZE, questionY + 1, questionBorder);
     graphics.fill(
         questionX,
         questionY + LIST_QUESTION_SIZE - 1,
         questionX + LIST_QUESTION_SIZE,
         questionY + LIST_QUESTION_SIZE,
-        WARN);
-    graphics.fill(questionX, questionY, questionX + 1, questionY + LIST_QUESTION_SIZE, WARN);
+        questionBorder);
+    graphics.fill(
+        questionX, questionY, questionX + 1, questionY + LIST_QUESTION_SIZE, questionBorder);
     graphics.fill(
         questionX + LIST_QUESTION_SIZE - 1,
         questionY,
         questionX + LIST_QUESTION_SIZE,
         questionY + LIST_QUESTION_SIZE,
-        WARN);
+        questionBorder);
     graphics.centeredText(
         font,
         Component.literal("?"),
         questionX + LIST_QUESTION_SIZE / 2,
         questionY + 4,
-        questionHovered ? 0xFF241700 : WARN);
+        questionTextColor);
   }
 
   private void renderFooter(GuiGraphicsExtractor graphics) {
@@ -591,9 +815,11 @@ public final class MorphSelectionScreen extends Screen {
   private void renderHelpCloseButton(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
     int closeX = detailCloseX();
     int closeY = detailCloseY();
-    boolean hovered = mouseInHelpClose(mouseX, mouseY);
-    int border = hovered ? 0xFFE06B6B : WARN;
-    int background = hovered ? 0x44E06B6B : QUESTION_BG;
+    boolean focused = helpCloseWidget != null && helpCloseWidget.isFocused();
+    boolean hovered = focused || mouseInHelpClose(mouseX, mouseY);
+    int border = focused ? INFO : hovered ? 0xFFE06B6B : WARN;
+    int background = focused ? HOVER_BG : hovered ? 0x44E06B6B : QUESTION_BG;
+    int textColor = focused ? INFO : border;
     graphics.fill(
         closeX, closeY, closeX + DETAIL_CLOSE_SIZE, closeY + DETAIL_CLOSE_SIZE, background);
     graphics.fill(closeX, closeY, closeX + DETAIL_CLOSE_SIZE, closeY + 1, border);
@@ -611,7 +837,7 @@ public final class MorphSelectionScreen extends Screen {
         closeY + DETAIL_CLOSE_SIZE,
         border);
     graphics.centeredText(
-        font, Component.literal("X"), closeX + DETAIL_CLOSE_SIZE / 2, closeY + 4, border);
+        font, Component.literal("X"), closeX + DETAIL_CLOSE_SIZE / 2, closeY + 4, textColor);
   }
 
   private void renderHelpPreview(GuiGraphicsExtractor graphics, int mouseX, int mouseY) {
@@ -762,11 +988,6 @@ public final class MorphSelectionScreen extends Screen {
         && mouseY < closeY + DETAIL_CLOSE_SIZE;
   }
 
-  private void closeHelp() {
-    helpOpen = false;
-    detailScroll = 0;
-  }
-
   private int footerTop() {
     return height - FOOTER_HEIGHT;
   }
@@ -896,5 +1117,88 @@ public final class MorphSelectionScreen extends Screen {
             18, (int) ((viewportHeight / (float) (viewportHeight + maxScroll)) * viewportHeight));
     int thumbY = y + (int) ((scroll / (float) maxScroll) * (viewportHeight - thumbHeight));
     graphics.fill(x, thumbY, x + width, thumbY + thumbHeight, ACCENT);
+  }
+
+  private final class MorphSelectionWidget extends AbstractWidget {
+    private final Kind kind;
+    private final MorphType morph;
+    private final Consumer<MorphType> morphAction;
+    private final Runnable action;
+
+    private MorphSelectionWidget(
+        Kind kind, MorphType morph, Component message, Consumer<MorphType> morphAction) {
+      super(0, 0, 1, 1, message);
+      this.kind = kind;
+      this.morph = morph;
+      this.morphAction = morphAction;
+      this.action = null;
+    }
+
+    private MorphSelectionWidget(Kind kind, MorphType morph, Component message, Runnable action) {
+      super(0, 0, 1, 1, message);
+      this.kind = kind;
+      this.morph = morph;
+      this.morphAction = null;
+      this.action = action;
+    }
+
+    @Override
+    public boolean shouldTakeFocusAfterInteraction() {
+      return kind == Kind.ROW;
+    }
+
+    @Override
+    public void setFocused(boolean focused) {
+      super.setFocused(focused);
+      if (focused && morph != null && kind != Kind.CLOSE) {
+        onMorphWidgetFocusGained(morph);
+      }
+    }
+
+    @Override
+    public boolean keyPressed(KeyEvent event) {
+      if (!isActive() || !isActivationKey(event)) {
+        return false;
+      }
+
+      playDownSound(MorphSelectionScreen.this.minecraft.getSoundManager());
+      activate();
+      return true;
+    }
+
+    @Override
+    public void onClick(MouseButtonEvent event, boolean handled) {
+      activate();
+    }
+
+    @Override
+    protected void extractWidgetRenderState(
+        GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {}
+
+    @Override
+    protected void updateWidgetNarration(NarrationElementOutput output) {
+      defaultButtonNarrationText(output);
+    }
+
+    private boolean isActivationKey(KeyEvent event) {
+      int key = event.key();
+      return key == GLFW.GLFW_KEY_ENTER
+          || key == GLFW.GLFW_KEY_KP_ENTER
+          || key == GLFW.GLFW_KEY_SPACE;
+    }
+
+    private void activate() {
+      if (morphAction != null && morph != null) {
+        morphAction.accept(morph);
+      } else if (action != null) {
+        action.run();
+      }
+    }
+
+    private enum Kind {
+      ROW,
+      QUESTION,
+      CLOSE
+    }
   }
 }

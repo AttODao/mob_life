@@ -54,6 +54,7 @@
 	"mob_life.world_select.confirm": "選択",
 	"mob_life.world_select.selected_status": "選択中: %s",
 	"mob_life.world_select.list": "Mob一覧",
+	"mob_life.world_select.details": "詳細",
 	"mob_life.world_select.list.summary": "移動: %s",
 	"mob_life.world_select.list.summary.none": "なし",
 	"mob_life.world_select.summary.jump": "ジャンプ",

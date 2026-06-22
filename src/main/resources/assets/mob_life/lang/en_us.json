@@ -54,6 +54,7 @@
 	"mob_life.world_select.confirm": "Select",
 	"mob_life.world_select.selected_status": "Selected: %s",
 	"mob_life.world_select.list": "Mob List",
+	"mob_life.world_select.details": "Details",
 	"mob_life.world_select.list.summary": "Movement: %s",
 	"mob_life.world_select.list.summary.none": "none",
 	"mob_life.world_select.summary.jump": "jump",
