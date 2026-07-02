@@ -1,0 +1,58 @@
+name: release
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - gradle.properties
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: checkout repository
+        uses: https://data.forgejo.org/actions/checkout@v6
+      - name: setup jdk
+        uses: https://data.forgejo.org/actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: read mod version
+        id: version
+        run: echo "value=$(awk -F= '/^mod_version=/{print $2}' gradle.properties)" >> "${FORGEJO_OUTPUT:-$GITHUB_OUTPUT}"
+      - name: read minecraft version
+        id: minecraft_version
+        run: echo "value=$(awk -F= '/^minecraft_version=/{print $2}' gradle.properties)" >> "${FORGEJO_OUTPUT:-$GITHUB_OUTPUT}"
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: build release jar
+        run: ./gradlew build
+      - name: prepare forgejo release assets
+        run: |
+          version="${{ steps.version.outputs.value }}"
+          minecraft_version="${{ steps.minecraft_version.outputs.value }}"
+          release_dir="${{ github.workspace }}/build/forgejo-release"
+          notes_file="${{ github.workspace }}/build/release-notes.md"
+
+          mkdir -p "$release_dir"
+          cp "build/libs/mob_life-${version}.jar" "$release_dir/mob_life-${version}-fabric-mc${minecraft_version}.jar"
+          cp "build/libs/mob_life-${version}-sources.jar" "$release_dir/mob_life-${version}-sources.jar"
+
+          cat > "$notes_file" <<EOF
+Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md).
+EOF
+      - name: create or update release
+        uses: https://data.forgejo.org/actions/forgejo-release@v2.7.3
+        with:
+          url: ${{ github.server_url }}
+          repo: ${{ github.repository }}
+          tag: v${{ steps.version.outputs.value }}
+          sha: ${{ github.sha }}
+          direction: upload
+          release-dir: ${{ github.workspace }}/build/forgejo-release
+          release-notes-file: ${{ github.workspace }}/build/release-notes.md
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Mob Life v${{ steps.version.outputs.value }}
+          override: true
