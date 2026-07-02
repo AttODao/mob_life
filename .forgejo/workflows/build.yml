@@ -11,7 +11,7 @@ jobs:
         uses: https://github.com/actions/setup-java@v5
         with:
           java-version: '25'
-          distribution: 'microsoft'
+          distribution: 'temurin'
       - name: read mod version
         id: version
         run: echo "value=$(awk -F= '/^mod_version=/{print $2}' gradle.properties)" >> "${FORGEJO_OUTPUT:-$GITHUB_OUTPUT}"

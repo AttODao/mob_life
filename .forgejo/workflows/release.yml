@@ -18,7 +18,7 @@ jobs:
         uses: https://github.com/actions/setup-java@v5
         with:
           java-version: '25'
-          distribution: 'microsoft'
+          distribution: 'temurin'
       - name: read mod version
         id: version
         run: echo "value=$(awk -F= '/^mod_version=/{print $2}' gradle.properties)" >> "${FORGEJO_OUTPUT:-$GITHUB_OUTPUT}"
@@ -43,7 +43,7 @@ jobs:
 
           printf 'Release notes are tracked in [changelog.md](%s).\n' "$changelog_url" > "$notes_file"
       - name: create or update release
-        uses: https://data.forgejo.org/actions/forgejo-release@v2.7.3
+        uses: https://data.forgejo.org/actions/forgejo-release@v2.13.1
         with:
           url: ${{ github.server_url }}
           repo: ${{ github.repository }}
