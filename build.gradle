@@ -54,8 +54,14 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	implementation "dev.isxander:yet-another-config-lib:${project.yacl_version}"
-	include "dev.isxander:yet-another-config-lib:${project.yacl_version}"
+	// YACL bundles its parser jars inside META-INF/jars, so keep this non-transitive
+	// to avoid depending on the external Xander Maven mirror during CI.
+	implementation("dev.isxander:yet-another-config-lib:${project.yacl_version}") {
+		transitive = false
+	}
+	include("dev.isxander:yet-another-config-lib:${project.yacl_version}") {
+		transitive = false
+	}
 
 	compileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
 }
