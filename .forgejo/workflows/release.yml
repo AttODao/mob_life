@@ -15,7 +15,7 @@ jobs:
       - name: checkout repository
         uses: https://data.forgejo.org/actions/checkout@v6
       - name: setup jdk
-        uses: https://data.forgejo.org/actions/setup-java@v5
+        uses: https://github.com/actions/setup-java@v5
         with:
           java-version: '25'
           distribution: 'microsoft'
@@ -35,14 +35,13 @@ jobs:
           minecraft_version="${{ steps.minecraft_version.outputs.value }}"
           release_dir="${{ github.workspace }}/build/forgejo-release"
           notes_file="${{ github.workspace }}/build/release-notes.md"
+          changelog_url="${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md"
 
           mkdir -p "$release_dir"
           cp "build/libs/mob_life-${version}.jar" "$release_dir/mob_life-${version}-fabric-mc${minecraft_version}.jar"
           cp "build/libs/mob_life-${version}-sources.jar" "$release_dir/mob_life-${version}-sources.jar"
 
-          cat > "$notes_file" <<EOF
-Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md).
-EOF
+          printf 'Release notes are tracked in [changelog.md](%s).\n' "$changelog_url" > "$notes_file"
       - name: create or update release
         uses: https://data.forgejo.org/actions/forgejo-release@v2.7.3
         with:
