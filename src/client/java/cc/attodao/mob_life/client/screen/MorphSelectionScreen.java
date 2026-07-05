@@ -10,7 +10,6 @@ import cc.attodao.mob_life.world.PendingWorldSelection;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.EnumMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.function.Consumer;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.ComponentPath;
@@ -207,33 +206,26 @@ public final class MorphSelectionScreen extends Screen {
       return true;
     }
 
-    Optional<GuiEventListener> child = getChildAt(event.x(), event.y());
-    if (child.isPresent()) {
-      GuiEventListener listener = child.get();
-      if (!listener.mouseClicked(event, handled)) {
+    if (event.button() == 0) {
+      MorphType questionClicked = questionAt(event.x(), event.y());
+      if (questionClicked != null) {
+        openHelpForMorph(questionClicked);
         return true;
       }
 
-      if (listener.shouldTakeFocusAfterInteraction()) {
-        setFocused(listener);
-        if (event.button() == 0) {
-          setDragging(true);
-        }
-      }
-
-      return true;
-    }
-
-    if (event.button() == 0) {
       MorphType clicked = rowAt(event.x(), event.y());
       if (clicked != null) {
-        if (questionAt(event.x(), event.y()) == clicked) {
-          openHelpForMorph(clicked);
-        } else {
-          selectMorph(clicked, true);
-        }
+        selectMorph(clicked, true);
         return true;
       }
+    }
+
+    if (mouseInFooterInput(event.x(), event.y()) && nbtInput != null) {
+      return nbtInput.mouseClicked(event, handled);
+    }
+
+    if (mouseInConfirmButton(event.x(), event.y()) && confirmButton != null) {
+      return confirmButton.mouseClicked(event, handled);
     }
 
     return false;
@@ -744,7 +736,8 @@ public final class MorphSelectionScreen extends Screen {
     }
 
     boolean selected = morph == selectedMorph;
-    boolean focused = morph == focusedMorph;
+    MorphSelectionWidget rowWidget = rowWidgets.get(morph);
+    boolean rowFocused = rowWidget != null && rowWidget.isFocused();
     boolean hovered =
         mouseX >= x && mouseX < x + width && mouseY >= y && mouseY < y + LIST_ROW_HEIGHT;
     boolean questionHovered = isQuestionHovered(morph, mouseX, mouseY);
@@ -752,7 +745,7 @@ public final class MorphSelectionScreen extends Screen {
     boolean questionFocused = questionWidget != null && questionWidget.isFocused();
 
     int background = selected ? SELECTED_BG : hovered ? HOVER_BG : 0x141A2230;
-    int border = selected ? ACCENT : focused ? INFO : hovered ? 0xFF4B5A6B : PANEL_EDGE_SOFT;
+    int border = selected ? ACCENT : rowFocused ? INFO : hovered ? 0xFF4B5A6B : PANEL_EDGE_SOFT;
 
     graphics.fill(x, y, x + width, y + LIST_ROW_HEIGHT, background);
     graphics.fill(x, y, x + width, y + 1, border);
@@ -1117,6 +1110,20 @@ public final class MorphSelectionScreen extends Screen {
         && mouseX < listX + listWidth
         && mouseY >= listY
         && mouseY < listY + listHeight;
+  }
+
+  private boolean mouseInFooterInput(double mouseX, double mouseY) {
+    return mouseX >= footerInputX()
+        && mouseX < footerInputX() + footerInputWidth()
+        && mouseY >= footerInputY()
+        && mouseY < footerInputY() + DETAIL_INPUT_HEIGHT;
+  }
+
+  private boolean mouseInConfirmButton(double mouseX, double mouseY) {
+    return mouseX >= confirmX
+        && mouseX < confirmX + confirmWidth
+        && mouseY >= confirmY
+        && mouseY < confirmY + 20;
   }
 
   private boolean beginListScrollbarDrag(double mouseX, double mouseY) {

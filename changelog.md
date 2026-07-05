@@ -2,6 +2,14 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-07-05 - v1.0.4
+
+- Fixed mob selection mouse hit testing so clicks on rows, description
+  buttons, and footer controls land on the correct widget instead of opening
+  the mob details overlay.
+- Kept the row frame unchanged when the `?` button is focused, so only the
+  `?` button itself highlights.
+
 ## 2026-06-22 - v1.0.3
 
 - Fixed controller focus traversal in the mob selection screen so the mob
