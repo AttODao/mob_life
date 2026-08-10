@@ -1,9 +1,9 @@
 {
   "movement": {
     "reference_mob_speed": 0.225,
-    "walk_speed": 0.225,
+    "sneak_speed": 0.135,
+    "walk_speed": 0.18,
     "sprint_speed": 0.225,
-    "fast_sprint_speed": 0.225,
     "sideways_multiplier": 0.5,
     "backward_multiplier": 0.25,
     "water_input_multiplier": 1,
@@ -12,10 +12,13 @@
     "wing_animation": false,
     "rabbit_hop": {
       "enabled": false,
+      "sneak_cooldown": 10,
       "walk_cooldown": 10,
       "sprint_cooldown": 3,
+      "sneak_horizontal_speed": 0.15,
       "walk_horizontal_speed": 0.2,
       "sprint_horizontal_speed": 0.35,
+      "sneak_jump_velocity": 0.2,
       "walk_jump_velocity": 0.2,
       "sprint_jump_velocity": 0.3
     }

@@ -253,7 +253,6 @@ public final class ServerMorphManager {
     setActiveDefinition(server, data.definition());
 
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-      MorphAbility.clearFastSprint(player);
       ServerPlayerMorphApplier.apply(player, data.definition(), true);
     }
 
@@ -288,7 +287,6 @@ public final class ServerMorphManager {
 
     GRASS_EATING_TICKS.remove(player.getUUID());
     ServerPlayerMorphApplier.apply(player, definition, false);
-    MorphAbility.restore(player);
     syncAwkwardness(player, true);
     if (!activeConfig().movement().rabbitHop().enabled()) {
       syncJumpCooldown(player);
@@ -365,7 +363,6 @@ public final class ServerMorphManager {
   }
 
   private static void tickPlayer(ServerPlayer player) {
-    MorphAbility.tick(player);
     tickGrassEating(player);
     addMovementExhaustion(player);
     tickAwkwardness(player);
@@ -474,8 +471,7 @@ public final class ServerMorphManager {
     }
 
     RabbitHopMovement.launch(player, input);
-    boolean sprinting = moving && (player.isSprinting() || MorphAbility.isFastSprintActive(player));
-    RABBIT_HOP_COOLDOWNS.put(uuid, RabbitHopMovement.cooldown(player, sprinting));
+    RABBIT_HOP_COOLDOWNS.put(uuid, RabbitHopMovement.cooldown(player, input));
     player
         .level()
         .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
@@ -509,9 +505,7 @@ public final class ServerMorphManager {
       return;
     }
 
-    if (MorphAbility.isFastSprintActive(player)) {
-      player.causeFoodExhaustion(0.02F * MorphAbility.FAST_SPRINT_EXHAUSTION_MULTIPLIER);
-    } else if (player.isSprinting() && MorphMovementSpeed.canSprint(player)) {
+    if (player.isSprinting() && !player.isShiftKeyDown() && MorphMovementSpeed.canSprint(player)) {
       player.causeFoodExhaustion(0.02F);
     } else if (player.isShiftKeyDown()) {
       player.causeFoodExhaustion(0.01F);
@@ -584,12 +578,11 @@ public final class ServerMorphManager {
     Input input = player.getLastClientInput();
     boolean moving = hasMovementInput(input);
     boolean sprinting = player.isSprinting() && MorphMovementSpeed.canSprint(player);
-    boolean fastSprintActive = MorphAbility.isFastSprintActive(player);
     if (moving && (input.backward() || input.left() || input.right())) {
       delta += NON_FORWARD_MOVEMENT_GAIN;
     }
 
-    if (!sprinting && !fastSprintActive && player.tickCount % 20 == 0) {
+    if (!sprinting && player.tickCount % 20 == 0) {
       delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
       if (hasNearbySameMob(player)) {
         delta -= SAME_MOB_DECAY_PER_SECOND;

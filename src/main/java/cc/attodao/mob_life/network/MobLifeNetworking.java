@@ -28,8 +28,6 @@ public final class MobLifeNetworking {
     PayloadTypeRegistry.clientboundPlay()
         .register(AwkwardnessPayload.TYPE, AwkwardnessPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
-        .register(FastSprintStatePayload.TYPE, FastSprintStatePayload.CODEC);
-    PayloadTypeRegistry.clientboundPlay()
         .register(GrassEatingStatePayload.TYPE, GrassEatingStatePayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(ChargedJumpPayload.TYPE, ChargedJumpPayload.CODEC);
@@ -194,20 +192,6 @@ public final class MobLifeNetworking {
         StreamCodec.of(
             (buffer, payload) -> buffer.writeFloat(payload.value()),
             buffer -> new AwkwardnessPayload(buffer.readFloat()));
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-      return TYPE;
-    }
-  }
-
-  public record FastSprintStatePayload(boolean active) implements CustomPacketPayload {
-    public static final Type<FastSprintStatePayload> TYPE =
-        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "fast_sprint_state"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, FastSprintStatePayload> CODEC =
-        StreamCodec.of(
-            (buffer, payload) -> buffer.writeBoolean(payload.active()),
-            buffer -> new FastSprintStatePayload(buffer.readBoolean()));
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

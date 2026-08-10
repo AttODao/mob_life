@@ -11,9 +11,10 @@
 - Cat, ocelot, and wolf use a plain jump instead of charged jump, but still
   obey the same 10-tick landing cooldown.
 - Rabbit form instead hops automatically while movement input is held. It uses
-  vanilla rabbit-style `0.2` walking and `0.3` sprinting jump velocity, with
-  10-tick and 3-tick cooldowns respectively. Hop launch also supplies explicit
-  horizontal velocity, with sprinting hops moving faster than walking hops.
+  `0.2` sneak and walking jump velocity and `0.3` sprinting jump velocity, with
+  10-tick, 10-tick, and 3-tick cooldowns respectively. Hop launch also supplies
+  explicit horizontal velocity of `0.15`, `0.2`, and `0.35` for sneak, walking,
+  and sprinting hops.
 - Rabbit form retains horizontal momentum while grounded between hops. Holding
   space together with movement input changes the next hop to the player's
   normal jump height while retaining the rabbit hop cooldown. Standing still
@@ -22,18 +23,21 @@
   forward component of diagonal movement remains unchanged.
 - Horse, donkey, and mule forms use the mounted-horse direction factors:
   forward `1.0x`, sideways `0.5x`, and backward `0.25x`.
-- Movement speeds are tracked as `generic.movement_speed` values:
-  - Player walk: `0.1`, sprint effective: `0.13`
-  - Cow: `0.2` walk, `0.25` dash, `0.4` fast sprint
-  - Sheep: `0.23` walk, `0.253` dash, `0.2875` fast sprint
-  - Chicken: `0.25` walk, `0.275` dash, `0.35` fast sprint
-  - Cat: `0.18` walk, `0.24` dash, `0.399` fast sprint
-  - Ocelot: `0.18` walk, `0.24` dash, `0.399` fast sprint
-  - Wolf: `0.3` walk, `0.45` dash; fast sprint removed
-  - Pig: `0.25` walk, `0.3` dash, `0.3125` fast sprint
-  - Rabbit: `0.18` walk, `0.66` dash; fast sprint removed
-  - Horse, donkey, and mule: `0.225` ridden speed; sprint input does not add
-    the player's `1.3x` modifier, so walk and dash use the same base speed
+- Movement speeds are tracked as `generic.movement_speed` values in sneak,
+  walk, and sprint order. Sneaking uses the configured sneak-to-walk ratio
+  through `generic.sneaking_speed`:
+  - Player: `0.03` sneak, `0.1` walk, `0.13` sprint effective
+  - Cow: `0.15` sneak, `0.2` walk, `0.4` sprint
+  - Sheep: `0.1725` sneak, `0.23` walk, `0.2875` sprint
+  - Chicken: `0.1875` sneak, `0.25` walk, `0.35` sprint
+  - Cat: `0.18` sneak, `0.24` walk, `0.65` sprint
+  - Ocelot: `0.18` sneak, `0.24` walk, `0.65` sprint
+  - Wolf: `0.225` sneak, `0.3` walk, `0.45` sprint
+  - Pig: `0.1875` sneak, `0.25` walk, `0.3125` sprint
+  - Rabbit: `0.135` sneak, `0.18` walk, `0.66` sprint
+  - Horse, donkey, and mule: `0.135` sneak, `0.18` walk, `0.225` sprint
+    The sprint value matches the NBT-adjusted ridden forward speed; walking and
+    sneaking are intentionally slower rather than sharing the ridden speed.
 - The built-in `data/mob_life/mob_life/morphs/*.json` files, including
   `player.json`, store each form's `reference_mob_speed`, and the code converts
   the configured `generic.movement_speed` values to `block/s` by comparing the

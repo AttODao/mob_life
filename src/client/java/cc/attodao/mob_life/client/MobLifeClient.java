@@ -72,10 +72,6 @@ public final class MobLifeClient implements ClientModInitializer {
         (payload, context) ->
             context.client().execute(() -> ClientMorphState.setAwkwardness(payload.value())));
     ClientPlayNetworking.registerGlobalReceiver(
-        MobLifeNetworking.FastSprintStatePayload.TYPE,
-        (payload, context) ->
-            context.client().execute(() -> ClientMorphState.setFastSprintActive(payload.active())));
-    ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.GrassEatingStatePayload.TYPE,
         (payload, context) ->
             context

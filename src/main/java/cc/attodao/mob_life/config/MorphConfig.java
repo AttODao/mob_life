@@ -20,9 +20,9 @@ public record MorphConfig(
 
   public record Movement(
       double referenceMobSpeed,
+      double sneakSpeed,
       double walkSpeed,
       double sprintSpeed,
-      double fastSprintSpeed,
       float sidewaysMultiplier,
       float backwardMultiplier,
       float waterInputMultiplier,
@@ -33,10 +33,13 @@ public record MorphConfig(
 
   public record RabbitHop(
       boolean enabled,
+      int sneakCooldown,
       int walkCooldown,
       int sprintCooldown,
+      float sneakHorizontalSpeed,
       float walkHorizontalSpeed,
       float sprintHorizontalSpeed,
+      double sneakJumpVelocity,
       double walkJumpVelocity,
       double sprintJumpVelocity) {}
 
@@ -88,7 +91,6 @@ public record MorphConfig(
 
   public enum Ability {
     NONE("none"),
-    FAST_SPRINT("fast_sprint"),
     EGG_LAYING("egg_laying");
 
     private final String id;

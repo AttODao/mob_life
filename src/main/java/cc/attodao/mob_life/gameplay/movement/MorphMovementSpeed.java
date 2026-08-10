@@ -3,7 +3,6 @@ package cc.attodao.mob_life.gameplay.movement;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
-import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.resources.Identifier;
@@ -38,17 +37,6 @@ public final class MorphMovementSpeed {
     return movement.sprintSpeed() != movement.walkSpeed();
   }
 
-  public static boolean canFastSprint(Player player) {
-    MorphType morph = MorphEquipment.morph(player);
-    return canFastSprint(morph);
-  }
-
-  public static boolean canFastSprint(MorphType morph) {
-    MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
-    return MorphConfigManager.get(morph).abilities().value() == MorphConfig.Ability.FAST_SPRINT
-        && movement.fastSprintSpeed() != movement.sprintSpeed();
-  }
-
   public static void refresh(Player player) {
     AttributeInstance movementSpeed = player.getAttribute(Attributes.MOVEMENT_SPEED);
     if (movementSpeed == null) {
@@ -63,24 +51,14 @@ public final class MorphMovementSpeed {
     MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
     boolean sprinting = player.isSprinting();
     boolean sprintAllowed = canSprint(morph);
-    boolean fastSprintActive = MorphAbility.isFastSprintActive(player) && canFastSprint(morph);
 
     if (!sprintAllowed && sprinting) {
       player.setSprinting(false);
       sprinting = false;
     }
-    if (fastSprintActive && sprinting) {
-      player.setSprinting(false);
-      sprinting = false;
-    }
 
     double walkSpeed = movement.walkSpeed();
-    double targetSpeed = walkSpeed;
-    if (fastSprintActive) {
-      targetSpeed = movement.fastSprintSpeed();
-    } else if (sprinting && sprintAllowed) {
-      targetSpeed = movement.sprintSpeed();
-    }
+    double targetSpeed = sprinting && sprintAllowed ? movement.sprintSpeed() : walkSpeed;
 
     if (Double.compare(targetSpeed, walkSpeed) == 0) {
       movementSpeed.removeModifier(SPRINT_MODIFIER_ID);

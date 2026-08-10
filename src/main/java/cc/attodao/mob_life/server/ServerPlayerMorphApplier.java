@@ -2,6 +2,7 @@ package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.config.MobLifeConfig;
+import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
@@ -31,6 +32,7 @@ import net.minecraft.world.item.ItemStack;
 final class ServerPlayerMorphApplier {
 
   private static final Identifier SPEED_MODIFIER_ID = MobLife.id("morph_speed");
+  private static final Identifier SNEAKING_SPEED_MODIFIER_ID = MobLife.id("morph_sneaking_speed");
   private static final Identifier MAX_HEALTH_MODIFIER_ID = MobLife.id("morph_max_health");
   private static final Identifier BLOCK_BREAK_SPEED_MODIFIER_ID =
       MobLife.id("morph_block_break_speed");
@@ -86,6 +88,9 @@ final class ServerPlayerMorphApplier {
         SPEED_MODIFIER_ID,
         MorphMovementSpeed.walkingSpeed(
             definition.type(), livingMorph.getAttributeValue(Attributes.MOVEMENT_SPEED)));
+    MorphConfig.Movement movement = MorphConfigManager.get(definition.type()).movement();
+    setAttributeValue(
+        player, Attributes.SNEAKING_SPEED, SNEAKING_SPEED_MODIFIER_ID, sneakingSpeed(movement));
     setAttributeValue(
         player,
         Attributes.ATTACK_DAMAGE,
@@ -101,6 +106,7 @@ final class ServerPlayerMorphApplier {
     float oldHealth = player.getHealth();
     float oldMaxHealth = player.getMaxHealth();
     removeModifier(player, Attributes.MOVEMENT_SPEED, SPEED_MODIFIER_ID);
+    removeModifier(player, Attributes.SNEAKING_SPEED, SNEAKING_SPEED_MODIFIER_ID);
     removeModifier(player, Attributes.MAX_HEALTH, MAX_HEALTH_MODIFIER_ID);
     removeModifier(player, Attributes.BLOCK_BREAK_SPEED, BLOCK_BREAK_SPEED_MODIFIER_ID);
     removeModifier(player, Attributes.STEP_HEIGHT, STEP_HEIGHT_MODIFIER_ID);
@@ -218,6 +224,13 @@ final class ServerPlayerMorphApplier {
             modifierId,
             targetValue - attribute.getBaseValue(),
             AttributeModifier.Operation.ADD_VALUE));
+  }
+
+  private static double sneakingSpeed(MorphConfig.Movement movement) {
+    if (movement.walkSpeed() <= 0.0) {
+      return 0.0;
+    }
+    return Math.clamp(movement.sneakSpeed() / movement.walkSpeed(), 0.0, 1.0);
   }
 
   private static void updateHealth(

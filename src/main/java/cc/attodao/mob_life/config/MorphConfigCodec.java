@@ -64,16 +64,16 @@ final class MorphConfigCodec {
     MorphConfig.Movement movement =
         new MorphConfig.Movement(
             0.1,
+            0.03,
             0.1,
             0.13,
-            0.13,
             0.25F,
             0.25F,
             1.0F,
             false,
             1.0F,
             false,
-            new MorphConfig.RabbitHop(false, 10, 3, 0.2F, 0.35F, 0.2, 0.3));
+            new MorphConfig.RabbitHop(false, 10, 10, 3, 0.15F, 0.2F, 0.35F, 0.2, 0.2, 0.3));
     return new MorphConfig(
         movement,
         new MorphConfig.Diet(List.of(), 4, 0.3F),
@@ -126,9 +126,9 @@ final class MorphConfigCodec {
     return new MorphConfig(
         new MorphConfig.Movement(
             number(movement, "reference_mob_speed", defaultMovement.referenceMobSpeed()),
+            number(movement, "sneak_speed", defaultMovement.sneakSpeed()),
             number(movement, "walk_speed", defaultMovement.walkSpeed()),
             number(movement, "sprint_speed", defaultMovement.sprintSpeed()),
-            number(movement, "fast_sprint_speed", defaultMovement.fastSprintSpeed()),
             decimal(movement, "sideways_multiplier", defaultMovement.sidewaysMultiplier()),
             decimal(movement, "backward_multiplier", defaultMovement.backwardMultiplier()),
             decimal(movement, "water_input_multiplier", defaultMovement.waterInputMultiplier()),
@@ -137,10 +137,13 @@ final class MorphConfigCodec {
             bool(movement, "wing_animation", defaultMovement.wingAnimation()),
             new MorphConfig.RabbitHop(
                 bool(rabbit, "enabled", defaultHop.enabled()),
+                integer(rabbit, "sneak_cooldown", defaultHop.sneakCooldown()),
                 integer(rabbit, "walk_cooldown", defaultHop.walkCooldown()),
                 integer(rabbit, "sprint_cooldown", defaultHop.sprintCooldown()),
+                decimal(rabbit, "sneak_horizontal_speed", defaultHop.sneakHorizontalSpeed()),
                 decimal(rabbit, "walk_horizontal_speed", defaultHop.walkHorizontalSpeed()),
                 decimal(rabbit, "sprint_horizontal_speed", defaultHop.sprintHorizontalSpeed()),
+                number(rabbit, "sneak_jump_velocity", defaultHop.sneakJumpVelocity()),
                 number(rabbit, "walk_jump_velocity", defaultHop.walkJumpVelocity()),
                 number(rabbit, "sprint_jump_velocity", defaultHop.sprintJumpVelocity()))),
         new MorphConfig.Diet(
@@ -203,9 +206,9 @@ final class MorphConfigCodec {
   private static JsonObject movementJson(MorphConfig.Movement movement) {
     JsonObject movementJson = new JsonObject();
     movementJson.addProperty("reference_mob_speed", movement.referenceMobSpeed());
+    movementJson.addProperty("sneak_speed", movement.sneakSpeed());
     movementJson.addProperty("walk_speed", movement.walkSpeed());
     movementJson.addProperty("sprint_speed", movement.sprintSpeed());
-    movementJson.addProperty("fast_sprint_speed", movement.fastSprintSpeed());
     movementJson.addProperty("sideways_multiplier", movement.sidewaysMultiplier());
     movementJson.addProperty("backward_multiplier", movement.backwardMultiplier());
     movementJson.addProperty("water_input_multiplier", movement.waterInputMultiplier());
@@ -219,10 +222,13 @@ final class MorphConfigCodec {
   private static JsonObject rabbitHopJson(MorphConfig.RabbitHop rabbitHop) {
     JsonObject rabbitJson = new JsonObject();
     rabbitJson.addProperty("enabled", rabbitHop.enabled());
+    rabbitJson.addProperty("sneak_cooldown", rabbitHop.sneakCooldown());
     rabbitJson.addProperty("walk_cooldown", rabbitHop.walkCooldown());
     rabbitJson.addProperty("sprint_cooldown", rabbitHop.sprintCooldown());
+    rabbitJson.addProperty("sneak_horizontal_speed", rabbitHop.sneakHorizontalSpeed());
     rabbitJson.addProperty("walk_horizontal_speed", rabbitHop.walkHorizontalSpeed());
     rabbitJson.addProperty("sprint_horizontal_speed", rabbitHop.sprintHorizontalSpeed());
+    rabbitJson.addProperty("sneak_jump_velocity", rabbitHop.sneakJumpVelocity());
     rabbitJson.addProperty("walk_jump_velocity", rabbitHop.walkJumpVelocity());
     rabbitJson.addProperty("sprint_jump_velocity", rabbitHop.sprintJumpVelocity());
     return rabbitJson;

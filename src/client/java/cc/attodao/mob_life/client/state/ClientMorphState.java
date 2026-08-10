@@ -2,8 +2,6 @@ package cc.attodao.mob_life.client.state;
 
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
-import cc.attodao.mob_life.gameplay.ability.MorphAbility;
-import cc.attodao.mob_life.gameplay.ability.MorphAbilityHolder;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
@@ -97,16 +95,6 @@ public final class ClientMorphState {
 
   public static void setAwkwardness(float value) {
     awkwardness = value;
-  }
-
-  public static void setFastSprintActive(boolean active) {
-    LocalPlayer player = Minecraft.getInstance().player;
-    if (player == null) {
-      return;
-    }
-
-    ((MorphAbilityHolder) player).mobLife$setFastSprintActive(active);
-    MorphMovementSpeed.refresh(player);
   }
 
   public static void setGrassEatingTicks(int entityId, int ticks) {
@@ -207,7 +195,6 @@ public final class ClientMorphState {
     GRASS_EATING_TICKS.clear();
     LocalPlayer player = Minecraft.getInstance().player;
     if (player != null) {
-      ((MorphAbilityHolder) player).mobLife$setFastSprintActive(false);
       MorphMovementSpeed.refresh(player);
     }
     RENDER_ENTITIES.clear();
@@ -268,7 +255,6 @@ public final class ClientMorphState {
     }
 
     RabbitHopMovement.launch(player, keys);
-    boolean sprinting = moving && (player.isSprinting() || MorphAbility.isFastSprintActive(player));
-    rabbitHopCooldown = RabbitHopMovement.cooldown(player, sprinting);
+    rabbitHopCooldown = RabbitHopMovement.cooldown(player, keys);
   }
 }

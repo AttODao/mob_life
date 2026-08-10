@@ -1,9 +1,9 @@
 {
   "movement": {
     "reference_mob_speed": 0.23,
+    "sneak_speed": 0.1725,
     "walk_speed": 0.23,
-    "sprint_speed": 0.253,
-    "fast_sprint_speed": 0.2875,
+    "sprint_speed": 0.2875,
     "sideways_multiplier": 0.25,
     "backward_multiplier": 0.25,
     "water_input_multiplier": 1,
@@ -12,10 +12,13 @@
     "wing_animation": false,
     "rabbit_hop": {
       "enabled": false,
+      "sneak_cooldown": 10,
       "walk_cooldown": 10,
       "sprint_cooldown": 3,
+      "sneak_horizontal_speed": 0.15,
       "walk_horizontal_speed": 0.2,
       "sprint_horizontal_speed": 0.35,
+      "sneak_jump_velocity": 0.2,
       "walk_jump_velocity": 0.2,
       "sprint_jump_velocity": 0.3
     }
@@ -91,7 +94,7 @@
     "maximum_awkwardness": 30,
     "food_cost": 6
   },
-  "abilities": ["fast_sprint"],
+  "abilities": ["none"],
   "traits": [
     "eats_grass"
   ]
