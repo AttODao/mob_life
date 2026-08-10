@@ -8,8 +8,15 @@
 - The base pass progressively blurs the peripheral view. The client multiplies
   peripheral blur by 16 and leaves peripheral darkening disabled, so low-FOV
   forms get a much stronger edge treatment without changing the distance pass.
-- The base pass preserves the source luminance, and distant darkening and haze
-  use the current sky brightness so daytime and nighttime remain distinguishable.
+- The base pass generally preserves the source luminance, and distant darkening
+  and haze use the current sky brightness so daytime and nighttime remain
+  distinguishable. High `low_light_brightness` profiles also use local darkness
+  to boost dark-adapted luminance.
+- High `low_light_brightness` profiles add a sharp isolated-bright-pixel
+  overlay in the distant pass, so far light sources remain visible through
+  distance darkening, haze, and blur without reducing the distance blur amount.
+  The overlay is gated by local darkness and point contrast so broad bright
+  blocks such as sand do not become light sources.
 - Vision rendering uses two passes: distant effects run immediately after
   `LevelRenderer.renderLevel`, before HUD projection setup and depth clear, so
   the world projection matrix still matches the world depth buffer. Base

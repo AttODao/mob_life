@@ -46,18 +46,18 @@
       0.6
     ],
     "effect_start_distance": 2,
-    "full_blur_distance": 10,
-    "full_darkening_distance": 18,
-    "full_fog_distance": 28,
-    "maximum_blur_radius": 8.5,
+    "full_blur_distance": 16,
+    "full_darkening_distance": 38,
+    "full_fog_distance": 64,
+    "maximum_blur_radius": 6,
     "peripheral_edge_brightness": 0.68,
-    "haze_strength": 0.65,
+    "haze_strength": 0.5,
     "retained_saturation": 0.5,
     "contrast": 1.05,
     "brightness": 1.02,
     "peripheral_blur_radius": 3,
     "peripheral_start": 0.42,
-    "low_light_brightness": 1.42
+    "low_light_brightness": 1.62
   },
   "combat": {
     "attack_mode": "always",

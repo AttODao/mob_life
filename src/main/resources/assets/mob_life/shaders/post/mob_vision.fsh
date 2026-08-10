@@ -121,6 +121,23 @@ float playerDistance(float depth) {
     return forwardDistance * length(vec3(rayOffset, 1.0));
 }
 
+float lowLightSensitivity() {
+    return smoothstep(1.30, 1.55, VisionBehavior.y);
+}
+
+float localDarkness(float luminance) {
+    return 1.0 - smoothstep(0.04, 0.45, luminance);
+}
+
+float adaptedDarkness(float luminance) {
+    float skyDarkness = 1.0 - clamp(Effects.y, 0.0, 1.0);
+    return localDarkness(luminance) * mix(lowLightSensitivity(), 1.0, skyDarkness);
+}
+
+float brightLightSignal(vec3 color) {
+    return smoothstep(0.18, 0.82, dot(color, LUMINANCE_RESPONSE));
+}
+
 void main() {
     vec4 sourceColor = texture(InSampler, texCoord);
     if (DepthRange.z < 0.5) {
@@ -163,14 +180,15 @@ void main() {
             0.001
         );
         float sourceLuminance = dot(sourceColor.rgb, LUMINANCE_RESPONSE);
-        float lowLightBrightness = mix(
-            VisionBehavior.y,
-            1.0,
-            Effects.y
-        );
+        float darkness = adaptedDarkness(sourceLuminance);
+        float lowLightBrightness = mix(1.0, VisionBehavior.y, darkness);
+        float lightResponse = brightLightSignal(sourceColor.rgb);
+        float sensitivityBoost = 1.0
+            + lowLightSensitivity() * darkness * (0.18 + 0.32 * lightResponse);
         baseVisionColor *= sourceLuminance
             * baseBrightness
             * lowLightBrightness
+            * sensitivityBoost
             / transformedLuminance;
         baseVisionColor *= mix(1.0, Effects.z, peripheral);
         fragColor = vec4(
@@ -191,7 +209,13 @@ void main() {
     float fogAmount = fragmentDistance <= Parameters.x
         ? 0.0
         : smoothstep(Parameters.x, Parameters.w, fragmentDistance);
+    vec3 sharpSourceRgb = texture(InSampler, texCoord).rgb;
+    float hasWorldDepth = 1.0 - step(0.99999, depth);
     vec3 sourceRgb = sampleDistanceBlur(blurAmount);
+    float blurredLuminance = dot(sourceRgb, LUMINANCE_RESPONSE);
+    float lightSensitivity = lowLightSensitivity()
+        * hasWorldDepth
+        * localDarkness(blurredLuminance);
     float extraInterference = clamp(DepthRange.w - 1.0, 0.0, 1.0);
     float skyBrightness = Effects.y;
     float distantBrightness = mix(0.30, 0.52, skyBrightness)
@@ -209,6 +233,52 @@ void main() {
         distantColor,
         hazeColor,
         fogAmount * Effects.w
+    );
+    float sharpLuminance = dot(sharpSourceRgb, LUMINANCE_RESPONSE);
+    vec2 pixel = 1.0 / InSize;
+    float neighborLuminance0 = dot(
+        texture(InSampler, texCoord + vec2( pixel.x, 0.0)).rgb,
+        LUMINANCE_RESPONSE
+    );
+    float neighborLuminance1 = dot(
+        texture(InSampler, texCoord + vec2(-pixel.x, 0.0)).rgb,
+        LUMINANCE_RESPONSE
+    );
+    float neighborLuminance2 = dot(
+        texture(InSampler, texCoord + vec2(0.0,  pixel.y)).rgb,
+        LUMINANCE_RESPONSE
+    );
+    float neighborLuminance3 = dot(
+        texture(InSampler, texCoord + vec2(0.0, -pixel.y)).rgb,
+        LUMINANCE_RESPONSE
+    );
+    float neighborMax = max(
+        max(neighborLuminance0, neighborLuminance1),
+        max(neighborLuminance2, neighborLuminance3)
+    );
+    float localPeak = smoothstep(
+        0.015,
+        0.12,
+        sharpLuminance - neighborMax
+    );
+    float brightCore = smoothstep(0.50, 0.82, sharpLuminance);
+    float pointContrast = smoothstep(
+        0.08,
+        0.28,
+        sharpLuminance - blurredLuminance
+    );
+    float sourceLight = brightCore * pointContrast * localPeak;
+    float distanceEffect = max(darkAmount, fogAmount);
+    float distantLightVisibility = clamp(
+        lightSensitivity * sourceLight * distanceEffect,
+        0.0,
+        0.9
+    );
+    vec3 visibleLightColor = sharpSourceRgb * (1.25 + 0.45 * lightSensitivity);
+    finalColor = mix(
+        finalColor,
+        max(finalColor, visibleLightColor),
+        distantLightVisibility
     );
     fragColor = vec4(clamp(finalColor, 0.0, 1.0), sourceColor.a);
 }
