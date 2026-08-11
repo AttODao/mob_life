@@ -31,6 +31,8 @@ layout(std140) uniform DistanceBlur {
 out vec4 fragColor;
 
 const vec3 LUMINANCE_RESPONSE = vec3(0.2126, 0.7152, 0.0722);
+const vec3 INSTINCT_GLOBAL_TINT = vec3(1.42, 0.93, 0.48);
+const vec3 INSTINCT_EDGE_TINT = vec3(1.35, 0.68, 0.14);
 
 float peripheralAmount() {
     vec2 edgePosition = abs(texCoord * 2.0 - 1.0);
@@ -39,6 +41,22 @@ float peripheralAmount() {
         0.25
     );
     return smoothstep(VisionBehavior.x, 1.0, roundedEdgeDistance);
+}
+
+float instinctFrameAmount() {
+    vec2 edgePosition = abs(texCoord * 2.0 - 1.0);
+    float roundedEdgeDistance = pow(
+        pow(edgePosition.x, 4.0) + pow(edgePosition.y, 4.0),
+        0.25
+    );
+    return smoothstep(0.50, 1.0, roundedEdgeDistance);
+}
+
+vec3 tintPreservingLuminance(vec3 color, vec3 tint) {
+    float luminance = dot(color, LUMINANCE_RESPONSE);
+    vec3 tintedColor = color * tint;
+    float tintedLuminance = max(dot(tintedColor, LUMINANCE_RESPONSE), 0.001);
+    return tintedColor * luminance / tintedLuminance;
 }
 
 vec3 samplePeripheralBlur(float blurAmount) {
@@ -140,9 +158,12 @@ float brightLightSignal(vec3 color) {
 
 void main() {
     vec4 sourceColor = texture(InSampler, texCoord);
+    float instinctStrength = clamp(DynamicGreenResponse.w, 0.0, 1.0);
     if (DepthRange.z < 0.5) {
         float peripheral = peripheralAmount();
-        sourceColor.rgb = samplePeripheralBlur(peripheral);
+        sourceColor.rgb = samplePeripheralBlur(
+            peripheral * (1.0 - 0.15 * instinctStrength)
+        );
         vec3 shiftedColor = vec3(
             dot(
                 sourceColor.rgb,
@@ -190,7 +211,11 @@ void main() {
             * lowLightBrightness
             * sensitivityBoost
             / transformedLuminance;
-        baseVisionColor *= mix(1.0, Effects.z, peripheral);
+        float instinctFrame = instinctFrameAmount() * instinctStrength;
+        vec3 globalInstinctColor = tintPreservingLuminance(baseVisionColor, INSTINCT_GLOBAL_TINT);
+        baseVisionColor = mix(baseVisionColor, globalInstinctColor, instinctStrength * 0.40);
+        vec3 edgeInstinctColor = tintPreservingLuminance(baseVisionColor, INSTINCT_EDGE_TINT);
+        baseVisionColor = mix(baseVisionColor, edgeInstinctColor, instinctFrame * 0.72);
         fragColor = vec4(
             clamp(baseVisionColor, 0.0, 1.0),
             sourceColor.a
@@ -211,7 +236,7 @@ void main() {
         : smoothstep(Parameters.x, Parameters.w, fragmentDistance);
     vec3 sharpSourceRgb = texture(InSampler, texCoord).rgb;
     float hasWorldDepth = 1.0 - step(0.99999, depth);
-    vec3 sourceRgb = sampleDistanceBlur(blurAmount);
+    vec3 sourceRgb = sampleDistanceBlur(blurAmount * (1.0 - 0.15 * instinctStrength));
     float blurredLuminance = dot(sourceRgb, LUMINANCE_RESPONSE);
     float lightSensitivity = lowLightSensitivity()
         * hasWorldDepth

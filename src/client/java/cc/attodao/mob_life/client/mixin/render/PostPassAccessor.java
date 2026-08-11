@@ -8,9 +8,6 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 @Mixin(PostPass.class)
 public interface PostPassAccessor {
-  @Accessor("name")
-  String mobLife$getName();
-
   @Accessor("customUniforms")
   Map<String, GpuBuffer> mobLife$getCustomUniforms();
 }

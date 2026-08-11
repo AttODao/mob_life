@@ -1,6 +1,6 @@
 package cc.attodao.mob_life.client.mixin.render;
 
-import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.client.state.ClientVisionPass;
 import cc.attodao.mob_life.config.MorphConfig;
@@ -34,30 +34,22 @@ public abstract class PostPassDistanceUniformMixin {
     }
 
     PostPassAccessor accessor = (PostPassAccessor) this;
-    if (!accessor.mobLife$getName().startsWith(MobLife.MOD_ID + ":")) {
-      return;
-    }
-
     Map<String, GpuBuffer> customUniforms = accessor.mobLife$getCustomUniforms();
-    GpuBuffer buffer = customUniforms.get("DistanceBlur");
-    if (buffer == null) {
+    if (!customUniforms.containsKey("DistanceBlur")) {
       return;
     }
-    if ((buffer.usage() & GpuBuffer.USAGE_COPY_DST) == 0
-        || buffer.size() < DISTANCE_BLUR_UBO_SIZE) {
-      GpuBuffer writableBuffer =
-          RenderSystem.getDevice()
-              .createBuffer(
-                  () -> "Mob Life dynamic distance blur uniform",
-                  GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST,
-                  DISTANCE_BLUR_UBO_SIZE);
-      customUniforms.put("DistanceBlur", writableBuffer);
-      buffer.close();
-      buffer = writableBuffer;
+    GpuBuffer distanceBlur =
+        mobLife$writableUniform(customUniforms, "DistanceBlur", DISTANCE_BLUR_UBO_SIZE);
+    if (distanceBlur == null) {
+      return;
     }
 
     Minecraft client = Minecraft.getInstance();
-    MorphConfig.Vision vision = MorphConfigManager.get(ClientMorphState.morph()).vision();
+    MorphConfig config = MorphConfigManager.get(ClientMorphState.morph());
+    MorphConfig.Vision vision = config.vision();
+    MorphConfig.VisualEffect visualEffect = config.instinct().visualEffect();
+    float instinctStrength =
+        visualEffect.enabled() && ClientInstinctState.enabled() ? visualEffect.strength() : 0.0F;
     float peripheralStrength = Mth.clamp(2.0F - vision.fieldOfViewMultiplier(), 0.0F, 1.0F);
     float farPlane =
         Math.max(vision.fullFogDistance(), client.options.getEffectiveRenderDistance() * 16.0F);
@@ -75,20 +67,24 @@ public abstract class PostPassDistanceUniformMixin {
     float fullFogDistance =
         Math.max(fullDarkeningDistance + 1.0F, vision.fullFogDistance() + distanceOffset);
     float peripheralBlurRadius =
-        vision.peripheralBlurRadius() * peripheralStrength * PERIPHERAL_BLUR_MULTIPLIER;
+        vision.peripheralBlurRadius()
+            * peripheralStrength
+            * PERIPHERAL_BLUR_MULTIPLIER
+            * (1.0F - 0.25F * instinctStrength);
     float peripheralEdgeBrightness = 1.0F;
     float cameraFov = client.gameRenderer.getMainCamera().getFov();
     if (cameraFov <= 0.0F) {
       cameraFov = FALLBACK_CAMERA_FOV * vision.fieldOfViewMultiplier();
     }
     float tanHalfFov = (float) Math.tan(Math.toRadians(Mth.clamp(cameraFov, 30.0F, 150.0F) * 0.5F));
-
     try (MemoryStack stack = MemoryStack.stackPush()) {
-      Std140Builder data =
+      Std140Builder distanceBlurData =
           Std140Builder.onStack(stack, DISTANCE_BLUR_UBO_SIZE)
               .putVec4(distanceStart, fullBlurDistance, fullDarkeningDistance, fullFogDistance)
               .putVec4(
-                  vision.maximumBlurRadius() * (1.0F + interference),
+                  vision.maximumBlurRadius()
+                      * (1.0F + interference)
+                      * (1.0F - 0.25F * instinctStrength),
                   skyBrightness,
                   peripheralEdgeBrightness,
                   vision.hazeStrength())
@@ -111,14 +107,36 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.greenResponse().red(),
                   vision.greenResponse().green(),
                   vision.greenResponse().blue(),
-                  0.0F)
+                  instinctStrength)
               .putVec4(
                   vision.blueResponse().red(),
                   vision.blueResponse().green(),
                   vision.blueResponse().blue(),
                   0.0F)
               .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), tanHalfFov, 1.0F);
-      RenderSystem.getDevice().createCommandEncoder().writeToBuffer(buffer.slice(), data.get());
+      var encoder = RenderSystem.getDevice().createCommandEncoder();
+      encoder.writeToBuffer(distanceBlur.slice(), distanceBlurData.get());
     }
+  }
+
+  private static GpuBuffer mobLife$writableUniform(
+      Map<String, GpuBuffer> customUniforms, String name, int size) {
+    GpuBuffer buffer = customUniforms.get(name);
+    if (buffer == null) {
+      return null;
+    }
+    if ((buffer.usage() & GpuBuffer.USAGE_COPY_DST) != 0 && buffer.size() >= size) {
+      return buffer;
+    }
+
+    GpuBuffer writableBuffer =
+        RenderSystem.getDevice()
+            .createBuffer(
+                () -> "Mob Life dynamic " + name + " uniform",
+                GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_COPY_DST,
+                size);
+    customUniforms.put(name, writableBuffer);
+    buffer.close();
+    return writableBuffer;
   }
 }

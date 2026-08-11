@@ -52,3 +52,9 @@
   retained saturation, contrast, low-light brightness, peripheral degradation,
   and distance-effect parameters are loaded from its morph data-pack JSON and
   synchronized to the client.
+- Instinct mode uses the same post chain rather than a second full-screen pass.
+  While the mode is enabled, it gives the outer half of the screen a strong
+  amber fringe and shifts the whole view slightly toward amber while preserving
+  luminance. Peripheral and distant blur each reduce by up to 25%.
+  `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`
+  (`0.0` to `1.0`) control this per morph.
