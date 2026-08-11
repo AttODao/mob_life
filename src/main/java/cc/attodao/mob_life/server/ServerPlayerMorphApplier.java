@@ -20,7 +20,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityDimensions;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -45,7 +45,7 @@ final class ServerPlayerMorphApplier {
   private static final Identifier BLOCK_REACH_MODIFIER_ID = MobLife.id("morph_block_reach");
   private static final Identifier ENTITY_REACH_MODIFIER_ID = MobLife.id("morph_entity_reach");
   private static final Identifier ATTACK_DAMAGE_MODIFIER_ID = MobLife.id("morph_attack_damage");
-  private static final float PLAYER_HEIGHT = EntityType.PLAYER.getDimensions().height();
+  private static final float PLAYER_HEIGHT = EntityTypes.PLAYER.getDimensions().height();
 
   private ServerPlayerMorphApplier() {}
 

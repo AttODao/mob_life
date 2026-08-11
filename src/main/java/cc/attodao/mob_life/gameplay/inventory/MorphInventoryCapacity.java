@@ -5,7 +5,7 @@ import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphType;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -13,7 +13,7 @@ import net.minecraft.world.item.ItemStack;
 public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
   public static final int MAX_HOTBAR_SLOTS = 9;
   public static final int MAX_INVENTORY_SLOTS = 27;
-  private static final float PLAYER_HEIGHT = EntityType.PLAYER.getDimensions().height();
+  private static final float PLAYER_HEIGHT = EntityTypes.PLAYER.getDimensions().height();
 
   public static MorphInventoryCapacity forMorph(MorphType morph) {
     float height =

@@ -2,6 +2,20 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-11 - v1.2.0
+
+- Updated the mod to Minecraft 26.2, Fabric API 0.157.0, and the current
+  Fabric build tooling.
+- Updated vision rendering for Minecraft's reversed depth buffer so distance
+  blur, haze, and low-light highlights remain correctly ordered.
+- Consolidated morph vision resources into shared distance and base passes,
+  reducing post-effect duplication while keeping per-morph vision data-driven.
+- Avoided unnecessary bright-light sampling when the distant low-light effect
+  is inactive.
+- Assigned IDs to unregistered morph render entities so 26.2 render components
+  can render selection previews and first-person mob hands without registering
+  them in a world, while keeping previews out of predator and prey outlines.
+
 ## 2026-08-11 - v1.1.0
 
 - Added instinct mode, where each morph can follow its native mob AI for

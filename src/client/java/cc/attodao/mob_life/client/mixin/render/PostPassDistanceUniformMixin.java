@@ -2,7 +2,6 @@ package cc.attodao.mob_life.client.mixin.render;
 
 import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.client.state.ClientVisionPass;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
@@ -72,7 +71,7 @@ public abstract class PostPassDistanceUniformMixin {
             * PERIPHERAL_BLUR_MULTIPLIER
             * (1.0F - 0.25F * instinctStrength);
     float peripheralEdgeBrightness = 1.0F;
-    float cameraFov = client.gameRenderer.getMainCamera().getFov();
+    float cameraFov = client.gameRenderer.mainCamera().getFov();
     if (cameraFov <= 0.0F) {
       cameraFov = FALLBACK_CAMERA_FOV * vision.fieldOfViewMultiplier();
     }
@@ -88,11 +87,7 @@ public abstract class PostPassDistanceUniformMixin {
                   skyBrightness,
                   peripheralEdgeBrightness,
                   vision.hazeStrength())
-              .putVec4(
-                  NEAR_PLANE,
-                  farPlane,
-                  ClientVisionPass.isDistancePass() ? 1.0F : 0.0F,
-                  interference)
+              .putVec4(NEAR_PLANE, farPlane, 0.0F, interference)
               .putVec4(
                   vision.retainedSaturation(),
                   vision.contrast(),
@@ -113,7 +108,7 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.blueResponse().green(),
                   vision.blueResponse().blue(),
                   0.0F)
-              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), tanHalfFov, 1.0F);
+              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), tanHalfFov, 0.0F);
       var encoder = RenderSystem.getDevice().createCommandEncoder();
       encoder.writeToBuffer(distanceBlur.slice(), distanceBlurData.get());
     }

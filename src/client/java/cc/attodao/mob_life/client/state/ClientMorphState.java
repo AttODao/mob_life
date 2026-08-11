@@ -147,6 +147,8 @@ public final class ClientMorphState {
         uuid -> {
           Entity entity = MorphEntityFactory.create(definition, player.level());
           if (entity != null) {
+            // 26.2 render-state extraction reads the proxy ID for item-model state.
+            entity.setId(player.getId());
             entity.setPos(player.position());
           }
           return entity;

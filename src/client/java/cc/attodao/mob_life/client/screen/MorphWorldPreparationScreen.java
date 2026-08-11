@@ -93,7 +93,7 @@ public final class MorphWorldPreparationScreen extends Screen {
   }
 
   private void finishPreparation(OptionalLong seed, Throwable throwable) {
-    if (minecraft == null || minecraft.screen != this || continuing) {
+    if (minecraft == null || minecraft.gui.screen() != this || continuing) {
       return;
     }
 
@@ -109,7 +109,7 @@ public final class MorphWorldPreparationScreen extends Screen {
     if (createWorldScreen instanceof CreateWorldScreenInvoker invoker) {
       invoker.mobLife$onCreate();
     } else {
-      minecraft.setScreen(createWorldScreen);
+      minecraft.gui.setScreen(createWorldScreen);
     }
   }
 }

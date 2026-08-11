@@ -110,7 +110,7 @@ public final class ClientInstinctState {
     if (enabled
         || client.player == null
         || client.isPaused()
-        || client.screen != null
+        || client.gui.screen() != null
         || ClientMorphState.morph() == null) {
       resetEntryTimer();
       return false;
@@ -131,7 +131,7 @@ public final class ClientInstinctState {
         || !state.acceptsView()
         || client.player == null
         || client.isPaused()
-        || client.screen != null
+        || client.gui.screen() != null
         || !client.options.keyAttack.isDown()) {
       exitHoldTicks = 0;
       exitRequestSent = false;

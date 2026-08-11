@@ -2,9 +2,7 @@ package cc.attodao.mob_life.client.mixin.render;
 
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.client.state.ClientVisionPass;
 import cc.attodao.mob_life.config.MobLifeConfig;
-import cc.attodao.mob_life.morph.MorphType;
 import com.mojang.blaze3d.resource.CrossFrameResourcePool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -20,6 +18,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
+  private static final Identifier BASE_VISION_POST_EFFECT = MobLife.id("vision_base");
+  private static final Identifier DISTANCE_VISION_POST_EFFECT = MobLife.id("vision_distance");
+
   @Shadow @Nullable private Identifier postEffectId;
 
   @Shadow private boolean effectActive;
@@ -34,13 +35,11 @@ public abstract class GameRendererMixin {
       return;
     }
 
-    MorphType morph = ClientMorphState.morph();
-    if (morph == null) {
+    if (ClientMorphState.morph() == null) {
       return;
     }
 
-    postEffectId =
-        Identifier.fromNamespaceAndPath(MobLife.MOD_ID, morph.visionProfileId() + "_vision");
+    postEffectId = BASE_VISION_POST_EFFECT;
     effectActive = true;
     ci.cancel();
   }
@@ -51,11 +50,11 @@ public abstract class GameRendererMixin {
           @At(
               value = "INVOKE",
               target =
-                  "Lnet/minecraft/client/renderer/LevelRenderer;renderLevel(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/renderer/state/level/CameraRenderState;Lorg/joml/Matrix4fc;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;ZLnet/minecraft/client/renderer/chunk/ChunkSectionsToRender;)V",
+                  "Lnet/minecraft/client/renderer/LevelRenderer;render(Lcom/mojang/blaze3d/resource/GraphicsResourceAllocator;Lnet/minecraft/client/DeltaTracker;ZLnet/minecraft/client/renderer/state/level/CameraRenderState;Lorg/joml/Matrix4fc;Lcom/mojang/blaze3d/buffers/GpuBufferSlice;Lorg/joml/Vector4f;Z)V",
               shift = At.Shift.AFTER))
   private void mobLife$applyDistanceVisionAfterLevelRender(
       net.minecraft.client.DeltaTracker deltaTracker, CallbackInfo ci) {
-    if (postEffectId == null || !effectActive || ClientMorphState.morph() == null) {
+    if (!effectActive || ClientMorphState.morph() == null) {
       return;
     }
 
@@ -63,24 +62,12 @@ public abstract class GameRendererMixin {
         minecraft
             .getShaderManager()
             .getPostChain(
-                postEffectId, net.minecraft.client.renderer.LevelTargetBundle.MAIN_TARGETS);
+                DISTANCE_VISION_POST_EFFECT,
+                net.minecraft.client.renderer.LevelTargetBundle.MAIN_TARGETS);
     if (chain == null) {
       return;
     }
 
-    mobLife$applyVisionPass(chain, true);
-  }
-
-  private void mobLife$applyVisionPass(PostChain chain, boolean distancePass) {
-    if (ClientMorphState.morph() == null) {
-      return;
-    }
-
-    ClientVisionPass.setDistancePass(distancePass);
-    try {
-      chain.process(minecraft.getMainRenderTarget(), resourcePool);
-    } finally {
-      ClientVisionPass.setDistancePass(false);
-    }
+    chain.process(minecraft.gameRenderer.mainRenderTarget(), resourcePool);
   }
 }

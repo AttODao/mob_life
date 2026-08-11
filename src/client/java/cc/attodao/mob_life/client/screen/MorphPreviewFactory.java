@@ -36,6 +36,8 @@ import net.minecraft.world.level.dimension.BuiltinDimensionTypes;
 import net.minecraft.world.level.dimension.DimensionType;
 
 final class MorphPreviewFactory {
+  private static final int PREVIEW_ENTITY_ID_BASE = 1_000_000;
+
   private final Screen returnScreen;
   private Level previewLevel;
 
@@ -62,7 +64,11 @@ final class MorphPreviewFactory {
     }
 
     Entity candidate = MorphEntityFactory.create(MorphDefinition.of(morph), level);
-    return candidate instanceof LivingEntity livingPreview ? livingPreview : null;
+    if (!(candidate instanceof LivingEntity livingPreview)) {
+      return null;
+    }
+
+    return assignPreviewId(livingPreview, morph);
   }
 
   private LivingEntity createPlayerPreview(Minecraft minecraft, Level level) {
@@ -72,7 +78,7 @@ final class MorphPreviewFactory {
     if (level instanceof ClientLevel clientLevel) {
       PreviewPlayer preview = new PreviewPlayer(clientLevel, profile(minecraft));
       preview.setPos(0.0, 0.0, 0.0);
-      return preview;
+      return assignPreviewId(preview, MorphType.PLAYER);
     }
     return null;
   }
@@ -108,7 +114,11 @@ final class MorphPreviewFactory {
 
       WorldSessionTelemetryManager telemetryManager =
           new WorldSessionTelemetryManager(
-              TelemetryEventSender.DISABLED, false, Duration.ZERO, "mob_life_preview");
+              TelemetryEventSender.DISABLED,
+              false,
+              Duration.ZERO,
+              "mob_life_preview",
+              UUID.randomUUID());
       CommonListenerCookie cookie =
           new CommonListenerCookie(
               new LevelLoadTracker(),
@@ -139,7 +149,7 @@ final class MorphPreviewFactory {
           dimensionType,
           3,
           3,
-          minecraft.levelRenderer,
+          minecraft.levelExtractor,
           false,
           0L,
           63);
@@ -154,6 +164,12 @@ final class MorphPreviewFactory {
       return new GameProfile(minecraft.getUser().getProfileId(), minecraft.getUser().getName());
     }
     return new GameProfile(UUID.randomUUID(), "preview");
+  }
+
+  private static <T extends LivingEntity> T assignPreviewId(T preview, MorphType morph) {
+    // 26.2 render-state extraction requires an ID even for inventory previews.
+    preview.setId(PREVIEW_ENTITY_ID_BASE + morph.ordinal());
+    return preview;
   }
 
   private static final class PreviewPlayer extends RemotePlayer {

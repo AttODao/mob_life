@@ -17,15 +17,14 @@
   distance darkening, haze, and blur without reducing the distance blur amount.
   The overlay is gated by local darkness and point contrast so broad bright
   blocks such as sand do not become light sources.
-- Vision rendering uses two passes: distant effects run immediately after
-  `LevelRenderer.renderLevel`, before HUD projection setup and depth clear, so
-  the world projection matrix still matches the world depth buffer. Base
-  dichromatic vision runs after first-person hand rendering without consulting
-  depth.
+- Vision rendering uses two shared post chains: `vision_distance` runs
+  immediately after `LevelRenderer.render`, before HUD projection setup and
+  depth clear, so the world projection matrix still matches the world depth
+  buffer. `vision_base` runs after first-person hand rendering without
+  consulting depth.
 - Post chains:
-  - `assets/mob_life/post_effect/cow_vision.json`
-  - `assets/mob_life/post_effect/sheep_vision.json`
-  - `assets/mob_life/post_effect/chicken_vision.json`
+  - `assets/mob_life/post_effect/vision_distance.json`
+  - `assets/mob_life/post_effect/vision_base.json`
 - `DistanceBlur.ConfigOverrides.x` controls retained saturation. Current values
   are intentionally muted but not near grayscale. `DistanceBlur.ConfigOverrides.w`
   controls the peripheral blur radius in pixels after FOV and the global 16x
@@ -40,18 +39,18 @@
   only.
 - `DistanceBlur.DepthRange` is updated every frame with Iris-compatible near
   and far planes (`0.05` and effective render distance in blocks), plus the
-  pass selector and interference scalar used by the shader. `VisionBehavior.z`
-  carries `tan(cameraFov / 2)` for distance compensation toward the screen
-  edges.
+  interference scalar used by the shader. `VisionPass.Mode.x` selects the
+  distance or base pass. `VisionBehavior.z` carries `tan(cameraFov / 2)` for
+  distance compensation toward the screen edges.
 - `DistanceBlur.DepthRange.w` stays at the base `1.0` through 70
   awkwardness, then increases to `2.0` at 100. The base therefore uses the
   former 100-awkwardness vision strength without additional awkwardness
   effects, while values above 70 further strengthen desaturation, darkening,
   fog, and blur.
-- Every supported mob has an individual post-effect profile. Color response,
+- All supported mobs share the same post-effect resources. Color response,
   retained saturation, contrast, low-light brightness, peripheral degradation,
-  and distance-effect parameters are loaded from its morph data-pack JSON and
-  synchronized to the client.
+  and distance-effect parameters are loaded from each morph's data-pack JSON
+  and synchronized to the client.
 - Instinct mode uses the same post chain rather than a second full-screen pass.
   While the mode is enabled, it gives the outer half of the screen a strong
   amber fringe and shifts the whole view slightly toward amber while preserving

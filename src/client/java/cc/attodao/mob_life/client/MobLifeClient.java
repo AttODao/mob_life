@@ -50,7 +50,7 @@ public final class MobLifeClient implements ClientModInitializer {
                         morphTypes.add(morph);
                         MorphConfigManager.installSynced(morph, entry.configJson());
                       }
-                      context.client().setScreen(new MorphSelectionScreen(morphTypes));
+                      context.client().gui.setScreen(new MorphSelectionScreen(morphTypes));
                     }));
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.MorphSelectionPayload.TYPE,
@@ -66,8 +66,8 @@ public final class MobLifeClient implements ClientModInitializer {
                           .client()
                           .gameRenderer
                           .checkEntityPostEffect(context.client().getCameraEntity());
-                      if (context.client().screen instanceof MorphSelectionScreen) {
-                        context.client().setScreen(null);
+                      if (context.client().gui.screen() instanceof MorphSelectionScreen) {
+                        context.client().gui.setScreen(null);
                       }
                     }));
     ClientPlayNetworking.registerGlobalReceiver(

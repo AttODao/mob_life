@@ -5,20 +5,21 @@ import com.mojang.serialization.Codec;
 import java.util.Arrays;
 import java.util.Optional;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 
 public enum MorphType {
-  PLAYER("player", EntityType.PLAYER),
-  COW("cow", EntityType.COW),
-  SHEEP("sheep", EntityType.SHEEP),
-  CHICKEN("chicken", EntityType.CHICKEN),
-  CAT("cat", EntityType.CAT),
-  OCELOT("ocelot", EntityType.OCELOT),
-  WOLF("wolf", EntityType.WOLF),
-  PIG("pig", EntityType.PIG),
-  HORSE("horse", EntityType.HORSE),
-  DONKEY("donkey", EntityType.DONKEY),
-  MULE("mule", EntityType.MULE),
-  RABBIT("rabbit", EntityType.RABBIT);
+  PLAYER("player", EntityTypes.PLAYER),
+  COW("cow", EntityTypes.COW),
+  SHEEP("sheep", EntityTypes.SHEEP),
+  CHICKEN("chicken", EntityTypes.CHICKEN),
+  CAT("cat", EntityTypes.CAT),
+  OCELOT("ocelot", EntityTypes.OCELOT),
+  WOLF("wolf", EntityTypes.WOLF),
+  PIG("pig", EntityTypes.PIG),
+  HORSE("horse", EntityTypes.HORSE),
+  DONKEY("donkey", EntityTypes.DONKEY),
+  MULE("mule", EntityTypes.MULE),
+  RABBIT("rabbit", EntityTypes.RABBIT);
 
   public static final Codec<MorphType> CODEC = Codec.STRING.xmap(MorphType::fromId, MorphType::id);
 

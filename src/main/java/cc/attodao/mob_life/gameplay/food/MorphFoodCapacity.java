@@ -3,7 +3,7 @@ package cc.attodao.mob_life.gameplay.food;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphType;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
 
@@ -11,7 +11,7 @@ public final class MorphFoodCapacity {
 
   public static final int PLAYER_MAX_FOOD = 20;
   public static final int ABSOLUTE_MIN_MOB_MAX_FOOD = 8;
-  private static final float PLAYER_HEIGHT = EntityType.PLAYER.getDimensions().height();
+  private static final float PLAYER_HEIGHT = EntityTypes.PLAYER.getDimensions().height();
 
   private MorphFoodCapacity() {}
 

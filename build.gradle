@@ -21,6 +21,13 @@ repositories {
 	// for more information about repositories.
 	mavenCentral()
 	maven {
+		name = "Xander"
+		url = "https://maven.isxander.dev/releases"
+		content {
+			includeGroup("dev.isxander")
+		}
+	}
+	maven {
 		name = "Terraformers"
 		url = "https://maven.terraformersmc.com/"
 		content {
@@ -54,8 +61,7 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	// YACL bundles its parser jars inside META-INF/jars, so keep this non-transitive
-	// to avoid depending on the external Xander Maven mirror during CI.
+	// YACL bundles its parser jars inside META-INF/jars, so keep this non-transitive.
 	implementation("dev.isxander:yet-another-config-lib:${project.yacl_version}") {
 		transitive = false
 	}

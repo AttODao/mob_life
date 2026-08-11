@@ -94,7 +94,7 @@ Mob Life は、Mob の見た目を借りるだけの Mod ではありません�
 
 ## 動作環境
 
-- Minecraft 26.1.2
+- Minecraft 26.2
 - Fabric Loader 0.19.3
 - Java 25
 - Fabric API

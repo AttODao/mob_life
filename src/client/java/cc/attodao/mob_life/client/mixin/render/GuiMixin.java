@@ -9,9 +9,9 @@ import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.contextualbar.ContextualBarRenderer;
+import net.minecraft.client.gui.Hud;
+import net.minecraft.client.gui.contextualbar.ContextualBar;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -29,7 +29,7 @@ import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(Gui.class)
+@Mixin(Hud.class)
 public abstract class GuiMixin {
   private static final Identifier EXPERIENCE_ORB =
       Identifier.withDefaultNamespace("textures/entity/experience/experience_orb.png");
@@ -69,9 +69,9 @@ public abstract class GuiMixin {
           @At(
               value = "INVOKE",
               target =
-                  "Lnet/minecraft/client/gui/Gui;extractItemHotbar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
+                  "Lnet/minecraft/client/gui/Hud;extractItemHotbar(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
   private void mobLife$renderSizedHotbar(
-      Gui gui, GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+      Hud hud, GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
     Player player = getCameraPlayer();
     if (player == null) {
       return;
@@ -96,9 +96,9 @@ public abstract class GuiMixin {
           @At(
               value = "INVOKE",
               target =
-                  "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractBackground(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
+                  "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractBackground(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
   private void mobLife$renderChargedJumpBar(
-      ContextualBarRenderer renderer, GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
+      ContextualBar renderer, GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
     if (ClientMorphState.shouldShowChargedJumpBar()) {
       MorphJumpBarRenderer.render(graphics);
     } else {
@@ -112,11 +112,11 @@ public abstract class GuiMixin {
           @At(
               value = "INVOKE",
               target =
-                  "Lnet/minecraft/client/gui/contextualbar/ContextualBarRenderer;extractExperienceLevel(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V"))
+                  "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractExperienceLevel(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/gui/Font;I)V"))
   private void mobLife$moveExperienceLevelAboveAwkwardness(
       GuiGraphicsExtractor graphics, Font font, int experienceLevel) {
     if (ClientMorphState.morph() == null) {
-      ContextualBarRenderer.extractExperienceLevel(graphics, font, experienceLevel);
+      ContextualBar.extractExperienceLevel(graphics, font, experienceLevel);
       return;
     }
 

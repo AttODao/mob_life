@@ -25,7 +25,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
     }
 
     if (minecraft != null) {
-      minecraft.setScreen(new MorphSelectionScreen((CreateWorldScreen) (Object) this));
+      minecraft.gui.setScreen(new MorphSelectionScreen((CreateWorldScreen) (Object) this));
     }
     ci.cancel();
   }

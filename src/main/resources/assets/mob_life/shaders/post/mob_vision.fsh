@@ -10,13 +10,6 @@ layout(std140) uniform SamplerInfo {
 
 in vec2 texCoord;
 
-layout(std140) uniform VisionConfig {
-    vec4 RedResponse;
-    vec4 GreenResponse;
-    vec4 BlueResponse;
-    vec4 Settings;
-};
-
 layout(std140) uniform DistanceBlur {
     vec4 Parameters;
     vec4 Effects;
@@ -26,6 +19,10 @@ layout(std140) uniform DistanceBlur {
     vec4 DynamicGreenResponse;
     vec4 DynamicBlueResponse;
     vec4 VisionBehavior;
+};
+
+layout(std140) uniform VisionPass {
+    vec4 Mode;
 };
 
 out vec4 fragColor;
@@ -125,7 +122,7 @@ float linearDepth(float depth) {
     float nearPlane = DepthRange.x;
     float farPlane = DepthRange.y;
     return nearPlane * farPlane / max(
-        farPlane - depth * (farPlane - nearPlane),
+        nearPlane + depth * (farPlane - nearPlane),
         0.00001
     );
 }
@@ -159,7 +156,7 @@ float brightLightSignal(vec3 color) {
 void main() {
     vec4 sourceColor = texture(InSampler, texCoord);
     float instinctStrength = clamp(DynamicGreenResponse.w, 0.0, 1.0);
-    if (DepthRange.z < 0.5) {
+    if (Mode.x < 0.5) {
         float peripheral = peripheralAmount();
         sourceColor.rgb = samplePeripheralBlur(
             peripheral * (1.0 - 0.15 * instinctStrength)
@@ -167,15 +164,15 @@ void main() {
         vec3 shiftedColor = vec3(
             dot(
                 sourceColor.rgb,
-                mix(RedResponse.rgb, DynamicRedResponse.rgb, VisionBehavior.w)
+                DynamicRedResponse.rgb
             ),
             dot(
                 sourceColor.rgb,
-                mix(GreenResponse.rgb, DynamicGreenResponse.rgb, VisionBehavior.w)
+                DynamicGreenResponse.rgb
             ),
             dot(
                 sourceColor.rgb,
-                mix(BlueResponse.rgb, DynamicBlueResponse.rgb, VisionBehavior.w)
+                DynamicBlueResponse.rgb
             )
         );
         float luminance = dot(
@@ -234,8 +231,7 @@ void main() {
     float fogAmount = fragmentDistance <= Parameters.x
         ? 0.0
         : smoothstep(Parameters.x, Parameters.w, fragmentDistance);
-    vec3 sharpSourceRgb = texture(InSampler, texCoord).rgb;
-    float hasWorldDepth = 1.0 - step(0.99999, depth);
+    float hasWorldDepth = step(0.00001, depth);
     vec3 sourceRgb = sampleDistanceBlur(blurAmount * (1.0 - 0.15 * instinctStrength));
     float blurredLuminance = dot(sourceRgb, LUMINANCE_RESPONSE);
     float lightSensitivity = lowLightSensitivity()
@@ -259,51 +255,54 @@ void main() {
         hazeColor,
         fogAmount * Effects.w
     );
-    float sharpLuminance = dot(sharpSourceRgb, LUMINANCE_RESPONSE);
-    vec2 pixel = 1.0 / InSize;
-    float neighborLuminance0 = dot(
-        texture(InSampler, texCoord + vec2( pixel.x, 0.0)).rgb,
-        LUMINANCE_RESPONSE
-    );
-    float neighborLuminance1 = dot(
-        texture(InSampler, texCoord + vec2(-pixel.x, 0.0)).rgb,
-        LUMINANCE_RESPONSE
-    );
-    float neighborLuminance2 = dot(
-        texture(InSampler, texCoord + vec2(0.0,  pixel.y)).rgb,
-        LUMINANCE_RESPONSE
-    );
-    float neighborLuminance3 = dot(
-        texture(InSampler, texCoord + vec2(0.0, -pixel.y)).rgb,
-        LUMINANCE_RESPONSE
-    );
-    float neighborMax = max(
-        max(neighborLuminance0, neighborLuminance1),
-        max(neighborLuminance2, neighborLuminance3)
-    );
-    float localPeak = smoothstep(
-        0.015,
-        0.12,
-        sharpLuminance - neighborMax
-    );
-    float brightCore = smoothstep(0.50, 0.82, sharpLuminance);
-    float pointContrast = smoothstep(
-        0.08,
-        0.28,
-        sharpLuminance - blurredLuminance
-    );
-    float sourceLight = brightCore * pointContrast * localPeak;
     float distanceEffect = max(darkAmount, fogAmount);
-    float distantLightVisibility = clamp(
-        lightSensitivity * sourceLight * distanceEffect,
-        0.0,
-        0.9
-    );
-    vec3 visibleLightColor = sharpSourceRgb * (1.25 + 0.45 * lightSensitivity);
-    finalColor = mix(
-        finalColor,
-        max(finalColor, visibleLightColor),
-        distantLightVisibility
-    );
+    if (lightSensitivity > 0.0 && distanceEffect > 0.0) {
+        vec3 sharpSourceRgb = texture(InSampler, texCoord).rgb;
+        float sharpLuminance = dot(sharpSourceRgb, LUMINANCE_RESPONSE);
+        vec2 pixel = 1.0 / InSize;
+        float neighborLuminance0 = dot(
+            texture(InSampler, texCoord + vec2( pixel.x, 0.0)).rgb,
+            LUMINANCE_RESPONSE
+        );
+        float neighborLuminance1 = dot(
+            texture(InSampler, texCoord + vec2(-pixel.x, 0.0)).rgb,
+            LUMINANCE_RESPONSE
+        );
+        float neighborLuminance2 = dot(
+            texture(InSampler, texCoord + vec2(0.0,  pixel.y)).rgb,
+            LUMINANCE_RESPONSE
+        );
+        float neighborLuminance3 = dot(
+            texture(InSampler, texCoord + vec2(0.0, -pixel.y)).rgb,
+            LUMINANCE_RESPONSE
+        );
+        float neighborMax = max(
+            max(neighborLuminance0, neighborLuminance1),
+            max(neighborLuminance2, neighborLuminance3)
+        );
+        float localPeak = smoothstep(
+            0.015,
+            0.12,
+            sharpLuminance - neighborMax
+        );
+        float brightCore = smoothstep(0.50, 0.82, sharpLuminance);
+        float pointContrast = smoothstep(
+            0.08,
+            0.28,
+            sharpLuminance - blurredLuminance
+        );
+        float sourceLight = brightCore * pointContrast * localPeak;
+        float distantLightVisibility = clamp(
+            lightSensitivity * sourceLight * distanceEffect,
+            0.0,
+            0.9
+        );
+        vec3 visibleLightColor = sharpSourceRgb * (1.25 + 0.45 * lightSensitivity);
+        finalColor = mix(
+            finalColor,
+            max(finalColor, visibleLightColor),
+            distantLightVisibility
+        );
+    }
     fragColor = vec4(clamp(finalColor, 0.0, 1.0), sourceColor.a);
 }

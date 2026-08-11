@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ItemInHandRenderer.class)
 public abstract class ItemInHandRendererMixin {
-  @ModifyVariable(method = "renderArmWithItem", at = @At("HEAD"), argsOnly = true)
+  @ModifyVariable(method = "submitArmWithItem", at = @At("HEAD"), argsOnly = true)
   private ItemStack mobLife$showEmptyInstinctHand(ItemStack stack) {
     return ClientInstinctState.enabled() ? ItemStack.EMPTY : stack;
   }

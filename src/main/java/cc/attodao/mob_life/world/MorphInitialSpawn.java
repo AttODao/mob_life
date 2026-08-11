@@ -17,6 +17,7 @@ import net.minecraft.util.random.Weighted;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.SpawnGroupData;
 import net.minecraft.world.entity.SpawnPlacements;
@@ -320,7 +321,7 @@ public final class MorphInitialSpawn {
 
   private static boolean noCollisionNoLiquid(final CollisionGetter level, final BlockPos pos) {
     return level.noCollision(
-        null, EntityType.PLAYER.getDimensions().makeBoundingBox(pos.getBottomCenter()), true);
+        null, EntityTypes.PLAYER.getDimensions().makeBoundingBox(Vec3.atBottomCenterOf(pos)), true);
   }
 
   private static boolean isInitialSpawnPosition(
@@ -384,7 +385,7 @@ public final class MorphInitialSpawn {
     if (variant.endsWith(":striped")) {
       return biome.is(BiomeTags.IS_BADLANDS);
     }
-    return matchingSpawnerData(biome, EntityType.WOLF).isPresent();
+    return matchingSpawnerData(biome, EntityTypes.WOLF).isPresent();
   }
 
   private static boolean rabbitVariantSupportsBiome(

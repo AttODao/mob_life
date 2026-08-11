@@ -3,7 +3,7 @@ package cc.attodao.mob_life.gameplay.inventory;
 import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -41,9 +41,9 @@ public final class MorphEquipment {
       return false;
     }
     return (morph.canEquipHorseArmor()
-            && equippable.canBeEquippedBy(EntityType.HORSE.builtInRegistryHolder()))
+            && equippable.canBeEquippedBy(EntityTypes.HORSE.builtInRegistryHolder()))
         || (morph.canEquipWolfArmor()
-            && equippable.canBeEquippedBy(EntityType.WOLF.builtInRegistryHolder()));
+            && equippable.canBeEquippedBy(EntityTypes.WOLF.builtInRegistryHolder()));
   }
 
   public static boolean mayPlaceSaddle(Player player, ItemStack stack) {

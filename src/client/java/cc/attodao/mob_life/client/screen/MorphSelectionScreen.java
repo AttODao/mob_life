@@ -189,7 +189,7 @@ public final class MorphSelectionScreen extends Screen {
     listScrollbarDragOffset = 0;
 
     if (returnScreen != null && minecraft != null && !createWorldRequested) {
-      minecraft.setScreen(returnScreen);
+      minecraft.gui.setScreen(returnScreen);
     }
   }
 
@@ -658,12 +658,13 @@ public final class MorphSelectionScreen extends Screen {
           && returnScreen instanceof CreateWorldScreenInvoker invoker) {
         createWorldRequested = true;
         if (shouldPrepareWorldSeed(createWorldScreen, worldSelection) && minecraft != null) {
-          minecraft.setScreen(new MorphWorldPreparationScreen(createWorldScreen, worldSelection));
+          minecraft.gui.setScreen(
+              new MorphWorldPreparationScreen(createWorldScreen, worldSelection));
         } else {
           invoker.mobLife$onCreate();
         }
       } else if (minecraft != null) {
-        minecraft.setScreen(returnScreen);
+        minecraft.gui.setScreen(returnScreen);
       }
       return;
     }
@@ -672,7 +673,7 @@ public final class MorphSelectionScreen extends Screen {
         new MobLifeNetworking.WorldMorphSelectionSubmitPayload(
             selection.type().id(), selection.nbt()));
     if (minecraft != null) {
-      minecraft.setScreen(null);
+      minecraft.gui.setScreen(null);
     }
   }
 

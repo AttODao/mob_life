@@ -19,38 +19,16 @@
       ],
       "output": "swap",
       "uniforms": {
-        "VisionConfig": [
-          {
-            "name": "RedResponse",
-            "type": "vec4",
-            "value": [0.625, 0.375, 0.0, 0.0]
-          },
-          {
-            "name": "GreenResponse",
-            "type": "vec4",
-            "value": [0.7, 0.3, 0.0, 0.0]
-          },
-          {
-            "name": "BlueResponse",
-            "type": "vec4",
-            "value": [0.0, 0.3, 0.7, 0.0]
-          },
-          {
-            "name": "Settings",
-            "type": "vec4",
-            "value": [0.46, 0.97, 1.0, 5.0]
-          }
-        ],
         "DistanceBlur": [
           {
             "name": "Parameters",
             "type": "vec4",
-            "value": [2.0, 8.0, 16.0, 24.0]
+            "value": [8.0, 16.0, 32.0, 48.0]
           },
           {
             "name": "Effects",
             "type": "vec4",
-            "value": [32.0, 1.0, 0.4, 1.0]
+            "value": [8.0, 1.0, 1.0, 1.0]
           },
           {
             "name": "DepthRange",
@@ -60,27 +38,34 @@
           {
             "name": "ConfigOverrides",
             "type": "vec4",
-            "value": [0.46, 0.97, 1.0, 5.0]
+            "value": [1.0, 1.0, 1.0, 0.0]
           },
           {
             "name": "DynamicRedResponse",
             "type": "vec4",
-            "value": [0.63, 0.37, 0.0, 0.0]
+            "value": [1.0, 0.0, 0.0, 0.0]
           },
           {
             "name": "DynamicGreenResponse",
             "type": "vec4",
-            "value": [0.68, 0.32, 0.0, 0.0]
+            "value": [0.0, 1.0, 0.0, 0.0]
           },
           {
             "name": "DynamicBlueResponse",
             "type": "vec4",
-            "value": [0.0, 0.3, 0.7, 0.0]
+            "value": [0.0, 0.0, 1.0, 0.0]
           },
           {
             "name": "VisionBehavior",
             "type": "vec4",
-            "value": [0.6, 1.0, 0.0, 1.0]
+            "value": [0.6, 1.0, 0.7, 0.0]
+          }
+        ],
+        "VisionPass": [
+          {
+            "name": "Mode",
+            "type": "vec4",
+            "value": [0.0, 0.0, 0.0, 0.0]
           }
         ]
       }

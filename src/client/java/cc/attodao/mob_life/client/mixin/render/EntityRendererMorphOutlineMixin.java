@@ -14,7 +14,12 @@ public abstract class EntityRendererMorphOutlineMixin {
   @Inject(method = "extractRenderState", at = @At("TAIL"))
   private void mobLife$applyPredatorOrPreyOutline(
       Entity entity, EntityRenderState state, float partialTick, CallbackInfo ci) {
-    int color = ClientOutlineState.color(entity.getId());
+    int entityId = ((EntityIdAccessor) entity).mobLife$getId();
+    if (entityId == Entity.INVALID_ENTITY_ID || entity.level().getEntity(entityId) != entity) {
+      return;
+    }
+
+    int color = ClientOutlineState.color(entityId);
     if (color != 0) {
       state.outlineColor = color;
     }

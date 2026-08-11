@@ -95,7 +95,7 @@ That file controls the handling of normal-player morphs, rendering, inventory li
 
 ## Requirements
 
-- Minecraft 26.1.2
+- Minecraft 26.2
 - Fabric Loader 0.19.3
 - Java 25
 - Fabric API

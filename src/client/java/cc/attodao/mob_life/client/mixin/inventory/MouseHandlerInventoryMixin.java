@@ -31,7 +31,7 @@ public abstract class MouseHandlerInventoryMixin {
   @Inject(method = "onScroll", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventInstinctScroll(
       long window, double horizontal, double vertical, CallbackInfo ci) {
-    if (ClientInstinctState.enabled() && minecraft.screen == null) {
+    if (ClientInstinctState.enabled() && minecraft.gui.screen() == null) {
       ci.cancel();
     }
   }
