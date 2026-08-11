@@ -49,7 +49,7 @@ public abstract class PostPassDistanceUniformMixin {
     MorphConfig.Vision vision = config.vision();
     MorphConfig.VisualEffect visualEffect = config.instinct().visualEffect();
     float instinctStrength =
-        visualEffect.enabled() && ClientInstinctState.enabled() ? visualEffect.strength() : 0.0F;
+        visualEffect.enabled() ? visualEffect.strength() * ClientInstinctState.visualBlend() : 0.0F;
     float peripheralStrength = Mth.clamp(2.0F - vision.fieldOfViewMultiplier(), 0.0F, 1.0F);
     float farPlane =
         Math.max(vision.fullFogDistance(), client.options.getEffectiveRenderDistance() * 16.0F);

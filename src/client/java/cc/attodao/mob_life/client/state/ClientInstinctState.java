@@ -11,6 +11,7 @@ import net.minecraft.world.phys.Vec3;
 public final class ClientInstinctState {
   private static final int IDLE_ENTRY_TICKS = 20 * 10;
   private static final int EXIT_HOLD_TICKS = 20 * 3;
+  private static final int VISUAL_TRANSITION_TICKS = 10;
   private static final int MANUAL_VIEW_GRACE_TICKS = 20;
   private static final float MAX_YAW_CHANGE = 4.0F;
   private static final float MAX_PITCH_CHANGE = 3.0F;
@@ -35,6 +36,7 @@ public final class ClientInstinctState {
   private static boolean entryRequestSent;
   private static int exitHoldTicks;
   private static boolean exitRequestSent;
+  private static float visualBlend;
 
   private ClientInstinctState() {}
 
@@ -92,6 +94,10 @@ public final class ClientInstinctState {
 
   public static boolean locksView() {
     return enabled && state.locksView();
+  }
+
+  public static float visualBlend() {
+    return visualBlend;
   }
 
   public static void recordActivity() {
@@ -177,6 +183,12 @@ public final class ClientInstinctState {
   }
 
   public static void tick(Minecraft client) {
+    float targetBlend = enabled ? 1.0F : 0.0F;
+    float step = 1.0F / VISUAL_TRANSITION_TICKS;
+    visualBlend =
+        targetBlend > visualBlend
+            ? Math.min(targetBlend, visualBlend + step)
+            : Math.max(targetBlend, visualBlend - step);
     if (client.player == null || client.isPaused()) {
       return;
     }
@@ -259,6 +271,7 @@ public final class ClientInstinctState {
     jumpWasDown = false;
     selectedSlot = -1;
     nativeMovement = Vec3.ZERO;
+    visualBlend = 0.0F;
     resetEntryTimer();
     exitHoldTicks = 0;
     exitRequestSent = false;
