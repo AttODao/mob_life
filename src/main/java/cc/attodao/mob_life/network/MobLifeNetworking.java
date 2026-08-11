@@ -46,6 +46,8 @@ public final class MobLifeNetworking {
     PayloadTypeRegistry.serverboundPlay()
         .register(InstinctExitPayload.TYPE, InstinctExitPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
+        .register(InstinctRestHoldPayload.TYPE, InstinctRestHoldPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
         .register(InstinctInterventionPayload.TYPE, InstinctInterventionPayload.CODEC);
     ServerPlayNetworking.registerGlobalReceiver(
         ChargedJumpPayload.TYPE,
@@ -101,11 +103,18 @@ public final class MobLifeNetworking {
         (payload, context) ->
             context.server().execute(() -> InstinctManager.requestExit(context.player())));
     ServerPlayNetworking.registerGlobalReceiver(
+        InstinctRestHoldPayload.TYPE,
+        (payload, context) ->
+            context.server().execute(() -> InstinctManager.holdRestForExit(context.player())));
+    ServerPlayNetworking.registerGlobalReceiver(
         InstinctInterventionPayload.TYPE,
         (payload, context) ->
             context
                 .server()
-                .execute(() -> InstinctManager.intervene(context.player(), payload.flags())));
+                .execute(
+                    () ->
+                        InstinctManager.intervene(
+                            context.player(), payload.flags(), payload.viewYaw())));
   }
 
   public record WorldMorphSelectionPromptPayload(List<MorphConfigEntry> configs)
@@ -303,13 +312,30 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record InstinctInterventionPayload(int flags) implements CustomPacketPayload {
+  public record InstinctRestHoldPayload() implements CustomPacketPayload {
+    public static final Type<InstinctRestHoldPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_rest_hold"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctRestHoldPayload> CODEC =
+        StreamCodec.unit(new InstinctRestHoldPayload());
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record InstinctInterventionPayload(int flags, float viewYaw)
+      implements CustomPacketPayload {
     public static final Type<InstinctInterventionPayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_intervention"));
     public static final StreamCodec<RegistryFriendlyByteBuf, InstinctInterventionPayload> CODEC =
         StreamCodec.of(
-            (buffer, payload) -> buffer.writeByte(payload.flags()),
-            buffer -> new InstinctInterventionPayload(buffer.readUnsignedByte()));
+            (buffer, payload) -> {
+              buffer.writeByte(payload.flags());
+              buffer.writeFloat(payload.viewYaw());
+            },
+            buffer ->
+                new InstinctInterventionPayload(buffer.readUnsignedByte(), buffer.readFloat()));
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

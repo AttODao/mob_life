@@ -26,8 +26,7 @@ public abstract class KeyboardInputInstinctMixin extends ClientInput {
     }
     if (ClientInstinctState.enabled()) {
       boolean manualForward = raw.forward() && ClientInstinctState.state().acceptsForward();
-      boolean manualJump = raw.jump() && ClientInstinctState.state().acceptsJump();
-      ClientInstinctState.recordKeyboard(manualForward, manualJump);
+      ClientInstinctState.recordKeyboard(manualForward, raw.left(), raw.right());
       // Native shadow-mob velocity controls movement; keys only record permitted intervention.
       keyPresses = new Input(false, false, false, false, false, false, false);
       moveVector = Vec2.ZERO;

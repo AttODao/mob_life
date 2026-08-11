@@ -96,6 +96,8 @@ public record MorphConfig(
   public record Instinct(
       boolean enabled,
       Wander wander,
+      Intervention intervention,
+      Social social,
       Senses senses,
       Hunting hunting,
       Feeding feeding,
@@ -103,6 +105,32 @@ public record MorphConfig(
 
   public record Wander(
       int horizontalRange, int verticalRange, int intervalTicks, float gazeWeight) {}
+
+  public record Intervention(
+      float forwardWanderChance,
+      int forwardWanderCooldownTicks,
+      int forwardWanderDurationMinTicks,
+      int forwardWanderDurationMaxTicks,
+      int decayPauseTicks) {
+    public Intervention {
+      forwardWanderChance = Math.clamp(forwardWanderChance, 0.0F, 1.0F);
+      forwardWanderCooldownTicks = Math.clamp(forwardWanderCooldownTicks, 1, 1200);
+      forwardWanderDurationMinTicks = Math.clamp(forwardWanderDurationMinTicks, 1, 1200);
+      forwardWanderDurationMaxTicks =
+          Math.clamp(
+              Math.max(forwardWanderDurationMinTicks, forwardWanderDurationMaxTicks), 1, 1200);
+      decayPauseTicks = Math.clamp(decayPauseTicks, 0, 1200);
+    }
+  }
+
+  public record Social(
+      boolean enabled, double searchRange, double preferredRange, int minimumGroupSize) {
+    public Social {
+      searchRange = Math.clamp(searchRange, 1.0, 64.0);
+      preferredRange = Math.clamp(preferredRange, 1.0, searchRange);
+      minimumGroupSize = Math.clamp(minimumGroupSize, 1, 16);
+    }
+  }
 
   public record Senses(
       double preyRange, double predatorRange, int memoryTicks, int scanIntervalTicks) {}

@@ -32,11 +32,6 @@ public abstract class KeyboardInputQuadrupedMixin extends ClientInput {
     if (player == null || player.isPassenger()) {
       return;
     }
-    float turn = raw.left() ? -movement.quadrupedTurnSpeed() : movement.quadrupedTurnSpeed();
-    float yaw = player.getYRot() + turn;
-    player.setYRot(yaw);
-    player.setYHeadRot(yaw);
-    player.setYBodyRot(yaw);
     keyPresses = new Input(true, false, false, false, raw.jump(), raw.shift(), raw.sprint());
     moveVector = new Vec2(0.0F, 1.0F);
   }

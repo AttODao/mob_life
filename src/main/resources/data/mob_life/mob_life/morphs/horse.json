@@ -79,6 +79,11 @@
     "maximum_awkwardness": 30,
     "food_cost": 7
   },
+  "instinct": {
+    "social": {
+      "enabled": true
+    }
+  },
   "abilities": ["none"],
   "traits": ["can_equip_saddle", "can_equip_horse_armor"]
 }

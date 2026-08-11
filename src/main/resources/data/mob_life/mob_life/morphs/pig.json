@@ -93,6 +93,11 @@
     "maximum_awkwardness": 30,
     "food_cost": 4
   },
+  "instinct": {
+    "social": {
+      "enabled": true
+    }
+  },
   "abilities": ["none"],
   "traits": [
     "can_equip_saddle"

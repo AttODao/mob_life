@@ -646,7 +646,7 @@ public final class ServerMorphManager {
       delta += NON_FORWARD_MOVEMENT_GAIN * NORMAL_AWKWARDNESS_GAIN_MULTIPLIER;
     }
 
-    if (instinct && player.tickCount % 20 == 0) {
+    if (instinct && !InstinctManager.pausesAwkwardnessDecay(player) && player.tickCount % 20 == 0) {
       delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
       if (hasNearbySameMob(player)) {
         delta -= SAME_MOB_DECAY_PER_SECOND;

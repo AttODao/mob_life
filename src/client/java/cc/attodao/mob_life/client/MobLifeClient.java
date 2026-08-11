@@ -122,13 +122,18 @@ public final class MobLifeClient implements ClientModInitializer {
           if (ClientInstinctState.shouldRequestEntry(client)) {
             ClientPlayNetworking.send(new MobLifeNetworking.InstinctEnterPayload());
           }
+          if (ClientInstinctState.shouldHoldRestForExit(client)) {
+            ClientPlayNetworking.send(new MobLifeNetworking.InstinctRestHoldPayload());
+          }
           if (ClientInstinctState.shouldRequestExit(client)) {
             ClientPlayNetworking.send(new MobLifeNetworking.InstinctExitPayload());
           }
-          int interventionFlags = ClientInstinctState.consumeInterventions();
-          if (interventionFlags != 0) {
+          ClientInstinctState.Intervention intervention =
+              ClientInstinctState.consumeInterventions();
+          if (intervention.flags() != 0) {
             ClientPlayNetworking.send(
-                new MobLifeNetworking.InstinctInterventionPayload(interventionFlags));
+                new MobLifeNetworking.InstinctInterventionPayload(
+                    intervention.flags(), intervention.viewYaw()));
           }
           ClientInstinctState.tick(client);
           ClientMorphState.tick(client);

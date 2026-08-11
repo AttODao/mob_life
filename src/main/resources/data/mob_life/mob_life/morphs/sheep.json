@@ -96,6 +96,9 @@
     "food_cost": 6
   },
   "instinct": {
+    "social": {
+      "enabled": true
+    },
     "senses": {
       "predator_range": 96
     },

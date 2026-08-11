@@ -108,6 +108,8 @@ final class MorphConfigCodec {
         new MorphConfig.Instinct(
             true,
             new MorphConfig.Wander(10, 7, 120, 0.55F),
+            new MorphConfig.Intervention(0.75F, 50, 40, 120, 20),
+            new MorphConfig.Social(false, 24.0, 8.0, 2),
             new MorphConfig.Senses(64.0, 64.0, 120, 20),
             new MorphConfig.Hunting(0.45F, 0.75F, 40, 10, 400, 4.0, List.of()),
             new MorphConfig.Feeding(
@@ -131,6 +133,8 @@ final class MorphConfigCodec {
     JsonObject sleep = object(root, "sleep");
     JsonObject instinct = object(root, "instinct");
     JsonObject wander = object(instinct, "wander");
+    JsonObject intervention = object(instinct, "intervention");
+    JsonObject social = object(instinct, "social");
     JsonObject senses = object(instinct, "senses");
     JsonObject hunting = object(instinct, "hunting");
     JsonObject feeding = object(instinct, "feeding");
@@ -148,6 +152,8 @@ final class MorphConfigCodec {
     MorphConfig.Sleep defaultSleep = defaults.sleep();
     MorphConfig.Instinct defaultInstinct = defaults.instinct();
     MorphConfig.Wander defaultWander = defaultInstinct.wander();
+    MorphConfig.Intervention defaultIntervention = defaultInstinct.intervention();
+    MorphConfig.Social defaultSocial = defaultInstinct.social();
     MorphConfig.Senses defaultSenses = defaultInstinct.senses();
     MorphConfig.Hunting defaultHunting = defaultInstinct.hunting();
     MorphConfig.Feeding defaultFeeding = defaultInstinct.feeding();
@@ -243,6 +249,43 @@ final class MorphConfigCodec {
                 clampedInteger(wander, "vertical_range", defaultWander.verticalRange(), 1, 16),
                 clampedInteger(wander, "interval_ticks", defaultWander.intervalTicks(), 1, 1200),
                 clampedDecimal(wander, "gaze_weight", defaultWander.gazeWeight(), 0.0F, 1.0F)),
+            new MorphConfig.Intervention(
+                clampedDecimal(
+                    intervention,
+                    "forward_wander_chance",
+                    defaultIntervention.forwardWanderChance(),
+                    0.0F,
+                    1.0F),
+                clampedInteger(
+                    intervention,
+                    "forward_wander_cooldown_ticks",
+                    defaultIntervention.forwardWanderCooldownTicks(),
+                    1,
+                    1200),
+                clampedInteger(
+                    intervention,
+                    "forward_wander_duration_min_ticks",
+                    defaultIntervention.forwardWanderDurationMinTicks(),
+                    1,
+                    1200),
+                clampedInteger(
+                    intervention,
+                    "forward_wander_duration_max_ticks",
+                    defaultIntervention.forwardWanderDurationMaxTicks(),
+                    1,
+                    1200),
+                clampedInteger(
+                    intervention,
+                    "decay_pause_ticks",
+                    defaultIntervention.decayPauseTicks(),
+                    0,
+                    1200)),
+            new MorphConfig.Social(
+                bool(social, "enabled", defaultSocial.enabled()),
+                clampedNumber(social, "search_range", defaultSocial.searchRange(), 1.0, 64.0),
+                clampedNumber(social, "preferred_range", defaultSocial.preferredRange(), 1.0, 64.0),
+                clampedInteger(
+                    social, "minimum_group_size", defaultSocial.minimumGroupSize(), 1, 16)),
             new MorphConfig.Senses(
                 clampedNumber(senses, "prey_range", defaultSenses.preyRange(), 0.0, 128.0),
                 clampedNumber(senses, "predator_range", defaultSenses.predatorRange(), 0.0, 128.0),
@@ -406,6 +449,27 @@ final class MorphConfigCodec {
     wander.addProperty("interval_ticks", instinct.wander().intervalTicks());
     wander.addProperty("gaze_weight", instinct.wander().gazeWeight());
     result.add("wander", wander);
+
+    JsonObject intervention = new JsonObject();
+    intervention.addProperty(
+        "forward_wander_chance", instinct.intervention().forwardWanderChance());
+    intervention.addProperty(
+        "forward_wander_cooldown_ticks", instinct.intervention().forwardWanderCooldownTicks());
+    intervention.addProperty(
+        "forward_wander_duration_min_ticks",
+        instinct.intervention().forwardWanderDurationMinTicks());
+    intervention.addProperty(
+        "forward_wander_duration_max_ticks",
+        instinct.intervention().forwardWanderDurationMaxTicks());
+    intervention.addProperty("decay_pause_ticks", instinct.intervention().decayPauseTicks());
+    result.add("intervention", intervention);
+
+    JsonObject social = new JsonObject();
+    social.addProperty("enabled", instinct.social().enabled());
+    social.addProperty("search_range", instinct.social().searchRange());
+    social.addProperty("preferred_range", instinct.social().preferredRange());
+    social.addProperty("minimum_group_size", instinct.social().minimumGroupSize());
+    result.add("social", social);
 
     JsonObject senses = new JsonObject();
     senses.addProperty("prey_range", instinct.senses().preyRange());

@@ -1,33 +1,27 @@
 package cc.attodao.mob_life.gameplay.instinct;
 
 public enum InstinctState {
-  REST(true, true, false),
-  LOOK(false, false, false),
-  WANDER(true, true, false),
-  SCENT(false, false, true),
-  FOLLOW(false, false, true),
-  FLEE(false, false, true),
-  STALK(false, false, true),
-  CHASE(false, false, true),
-  ATTACK(false, false, true),
-  EAT(false, false, true);
+  REST(true, false),
+  LOOK(true, false),
+  WANDER(false, false),
+  SCENT(false, true),
+  FOLLOW(false, true),
+  FLEE(false, true),
+  STALK(false, true),
+  CHASE(false, true),
+  ATTACK(false, true),
+  EAT(false, true);
 
   private final boolean acceptsForward;
-  private final boolean acceptsJump;
   private final boolean locksView;
 
-  InstinctState(boolean acceptsForward, boolean acceptsJump, boolean locksView) {
+  InstinctState(boolean acceptsForward, boolean locksView) {
     this.acceptsForward = acceptsForward;
-    this.acceptsJump = acceptsJump;
     this.locksView = locksView;
   }
 
   public boolean acceptsForward() {
     return acceptsForward;
-  }
-
-  public boolean acceptsJump() {
-    return acceptsJump;
   }
 
   public boolean acceptsView() {

@@ -21,8 +21,8 @@ import net.minecraft.world.phys.Vec3;
 
 public final class InstinctManager {
   public static final int INTERVENE_FORWARD = 1;
-  public static final int INTERVENE_JUMP = 1 << 1;
-  public static final int INTERVENE_VIEW = 1 << 2;
+  public static final int INTERVENE_LEFT = 1 << 1;
+  public static final int INTERVENE_RIGHT = 1 << 2;
 
   private static final Map<UUID, InstinctController> CONTROLLERS = new HashMap<>();
   private static final Map<Mob, InstinctController> SHADOW_CONTROLLERS = new IdentityHashMap<>();
@@ -73,6 +73,13 @@ public final class InstinctManager {
     return true;
   }
 
+  public static void holdRestForExit(ServerPlayer player) {
+    InstinctController controller = CONTROLLERS.get(player.getUUID());
+    if (controller != null) {
+      controller.holdRestForExit();
+    }
+  }
+
   public static void forceEnableAtMaximum(ServerPlayer player) {
     if (!isEnabled(player) && MorphAwkwardness.isMaximum(player)) {
       enable(player);
@@ -105,12 +112,17 @@ public final class InstinctManager {
     sync(controller);
   }
 
-  public static void intervene(ServerPlayer player, int flags) {
+  public static void intervene(ServerPlayer player, int flags, float viewYaw) {
     InstinctController controller = CONTROLLERS.get(player.getUUID());
     if (controller == null) {
       return;
     }
-    controller.intervene(flags);
+    controller.intervene(flags, viewYaw);
+  }
+
+  public static boolean pausesAwkwardnessDecay(ServerPlayer player) {
+    InstinctController controller = CONTROLLERS.get(player.getUUID());
+    return controller != null && controller.pausesAwkwardnessDecay();
   }
 
   public static boolean isEnabled(Player player) {
