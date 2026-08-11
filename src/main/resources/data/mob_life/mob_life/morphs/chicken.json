@@ -10,6 +10,7 @@
     "charged_jump": true,
     "slow_fall_multiplier": 0.6,
     "wing_animation": true,
+    "quadruped_turning": false,
     "rabbit_hop": {
       "enabled": false,
       "sneak_cooldown": 10,
@@ -94,6 +95,11 @@
     "required_ticks": 200,
     "maximum_awkwardness": 30,
     "food_cost": 4
+  },
+  "instinct": {
+    "senses": {
+      "predator_range": 96
+    }
   },
   "abilities": ["egg_laying"],
   "traits": [

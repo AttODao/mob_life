@@ -7,11 +7,13 @@ import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
+import cc.attodao.mob_life.gameplay.targeting.MorphOutlineManager;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
 import cc.attodao.mob_life.mixin.sound.LivingEntitySoundAccessor;
 import cc.attodao.mob_life.mixin.sound.MobSoundAccessor;
@@ -32,6 +34,7 @@ import java.util.UUID;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
@@ -70,6 +73,8 @@ public final class ServerMorphManager {
   private static final float ITEM_DECAY_SCALE = 16.0F;
   private static final float SAME_MOB_DECAY_PER_SECOND = 1.0F;
   private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
+  private static final float NORMAL_AWKWARDNESS_GAIN_MULTIPLIER = 2.0F;
+  private static final float MAX_SINGLE_NORMAL_AWKWARDNESS_GAIN = 20.0F;
   private static final int GRASS_EATING_DURATION_TICKS = 40;
   private static final int GRASS_FOOD_RESTORE = 2;
 
@@ -121,6 +126,8 @@ public final class ServerMorphManager {
 
     ServerLifecycleEvents.SERVER_STOPPED.register(
         server -> {
+          InstinctManager.clear();
+          MorphOutlineManager.clear(server);
           resetActiveMorph();
           clearServerPlayerState();
           LAST_SYNCED_AWKWARDNESS.clear();
@@ -130,6 +137,8 @@ public final class ServerMorphManager {
           if (!success || activeDefinition == null) {
             return;
           }
+          InstinctManager.clear();
+          MorphOutlineManager.clear(server);
           setActiveDefinition(server, activeDefinition);
           for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             ServerPlayerMorphApplier.apply(player, activeDefinition, true);
@@ -137,8 +146,15 @@ public final class ServerMorphManager {
         });
 
     ServerPlayerEvents.JOIN.register(ServerMorphManager::initializePlayer);
+    ServerPlayConnectionEvents.DISCONNECT.register(
+        (handler, server) -> {
+          InstinctManager.remove(handler.getPlayer());
+          MorphOutlineManager.remove(handler.getPlayer());
+        });
     ServerPlayerEvents.AFTER_RESPAWN.register(
         (oldPlayer, newPlayer, alive) -> {
+          InstinctManager.disable(newPlayer);
+          MorphOutlineManager.remove(oldPlayer);
           MorphAwkwardness.set(newPlayer, MorphAwkwardness.get(oldPlayer));
           MorphAbility.copy(oldPlayer, newPlayer);
           initializePlayer(newPlayer);
@@ -158,6 +174,10 @@ public final class ServerMorphManager {
 
   public static MorphType activeMorph() {
     return activeDefinition != null ? activeDefinition.type() : null;
+  }
+
+  public static MorphDefinition activeDefinition() {
+    return activeDefinition;
   }
 
   public static EntityDimensions activeDimensions() {
@@ -219,8 +239,24 @@ public final class ServerMorphManager {
     player.causeFoodExhaustion(0.4F);
   }
 
+  public static boolean canUseInstinctJump(ServerPlayer player) {
+    syncJumpCooldown(player);
+    return isJumpGrounded(player) && !isJumpCoolingDown(player);
+  }
+
   public static void adjustAwkwardness(ServerPlayer player, float amount) {
     if (!hasMobForm()) {
+      return;
+    }
+
+    boolean instinct = InstinctManager.isEnabled(player);
+    if (amount > 0.0F) {
+      if (instinct) {
+        return;
+      }
+      amount =
+          Math.min(amount * NORMAL_AWKWARDNESS_GAIN_MULTIPLIER, MAX_SINGLE_NORMAL_AWKWARDNESS_GAIN);
+    } else if (amount < 0.0F && !instinct) {
       return;
     }
 
@@ -286,6 +322,8 @@ public final class ServerMorphManager {
     }
 
     GRASS_EATING_TICKS.remove(player.getUUID());
+    InstinctManager.disable(player);
+    MorphOutlineManager.remove(player);
     ServerPlayerMorphApplier.apply(player, definition, false);
     syncAwkwardness(player, true);
     if (!activeConfig().movement().rabbitHop().enabled()) {
@@ -307,6 +345,8 @@ public final class ServerMorphManager {
   }
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
+    InstinctManager.clear();
+    MorphOutlineManager.clear(server);
     clearPerMorphEffectState();
     resetActiveMorph();
     activeDefinition = definition;
@@ -363,6 +403,9 @@ public final class ServerMorphManager {
   }
 
   private static void tickPlayer(ServerPlayer player) {
+    InstinctManager.tick(player);
+    boolean instinct = InstinctManager.isEnabled(player);
+    MorphOutlineManager.tick(player, activeMorph(), activeMorphHasAttackAi());
     tickGrassEating(player);
     addMovementExhaustion(player);
     tickAwkwardness(player);
@@ -373,7 +416,7 @@ public final class ServerMorphManager {
     clearMorphNightVisionEffect(player);
 
     MorphConfig.Movement movement = activeConfig().movement();
-    if (movement.slowFallMultiplier() < 1.0F) {
+    if (!instinct && movement.slowFallMultiplier() < 1.0F) {
       slowChickenFall(player);
     }
     if (movement.rabbitHop().enabled()) {
@@ -451,6 +494,16 @@ public final class ServerMorphManager {
 
   private static void tickRabbitHop(ServerPlayer player) {
     UUID uuid = player.getUUID();
+    if (InstinctManager.isEnabled(player)) {
+      RABBIT_HOP_COOLDOWNS.remove(uuid);
+      if (InstinctManager.rabbitJumped(player)) {
+        player
+            .level()
+            .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
+      }
+      return;
+    }
+
     int cooldown = Math.max(0, RABBIT_HOP_COOLDOWNS.getOrDefault(uuid, 0) - 1);
     if (cooldown > 0) {
       RABBIT_HOP_COOLDOWNS.put(uuid, cooldown);
@@ -517,7 +570,8 @@ public final class ServerMorphManager {
     Input input = player.getLastClientInput();
     BlockPos grassPos = player.blockPosition().below();
     boolean canEat =
-        activeConfig().traits().eatsGrass()
+        !InstinctManager.isEnabled(player)
+            && activeConfig().traits().eatsGrass()
             && input.shift()
             && !hasMovementInput(input)
             && player.getDeltaMovement().horizontalDistanceSqr() < 1.0E-4
@@ -577,12 +631,12 @@ public final class ServerMorphManager {
     float delta = 0.0F;
     Input input = player.getLastClientInput();
     boolean moving = hasMovementInput(input);
-    boolean sprinting = player.isSprinting() && MorphMovementSpeed.canSprint(player);
-    if (moving && (input.backward() || input.left() || input.right())) {
-      delta += NON_FORWARD_MOVEMENT_GAIN;
+    boolean instinct = InstinctManager.isEnabled(player);
+    if (!instinct && moving && (input.backward() || input.left() || input.right())) {
+      delta += NON_FORWARD_MOVEMENT_GAIN * NORMAL_AWKWARDNESS_GAIN_MULTIPLIER;
     }
 
-    if (!sprinting && player.tickCount % 20 == 0) {
+    if (instinct && player.tickCount % 20 == 0) {
       delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
       if (hasNearbySameMob(player)) {
         delta -= SAME_MOB_DECAY_PER_SECOND;

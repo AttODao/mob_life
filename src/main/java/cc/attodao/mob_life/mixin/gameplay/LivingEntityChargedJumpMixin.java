@@ -1,5 +1,7 @@
 package cc.attodao.mob_life.mixin.gameplay;
 
+import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -21,7 +23,13 @@ public abstract class LivingEntityChargedJumpMixin implements ChargedJumpingPlay
 
   @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventRepeatedMobJump(CallbackInfo ci) {
-    if ((Object) this instanceof ServerPlayer && ServerMorphManager.hasMobForm()) {
+    if ((Object) this instanceof ServerPlayer player
+        && ServerMorphManager.hasMobForm()
+        && (!InstinctManager.isEnabled(player)
+            || MorphConfigManager.get(ServerMorphManager.activeMorph())
+                .movement()
+                .rabbitHop()
+                .enabled())) {
       ci.cancel();
     }
   }

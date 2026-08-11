@@ -17,3 +17,6 @@
   changes contribute only 10% of vanilla's dynamic FOV effect while
   transformed, so walking and sprinting do not substantially alter the field
   of view.
+- Predator and prey outlines remain active independently of instinct mode.
+  They use only two colors, default to a 96-block server-scanned range, never
+  load chunks, and use the per-form data-pack `outline.range` setting.

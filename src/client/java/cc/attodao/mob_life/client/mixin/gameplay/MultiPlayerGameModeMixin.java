@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
+import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
@@ -20,6 +21,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(MultiPlayerGameMode.class)
@@ -66,6 +68,24 @@ public abstract class MultiPlayerGameModeMixin {
     }
   }
 
+  @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventInstinctItemUse(
+      net.minecraft.world.entity.player.Player player,
+      InteractionHand hand,
+      CallbackInfoReturnable<InteractionResult> cir) {
+    if (ClientInstinctState.enabled()) {
+      cir.setReturnValue(InteractionResult.FAIL);
+    }
+  }
+
+  @Inject(method = "attack", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventInstinctAttack(
+      net.minecraft.world.entity.player.Player player, Entity target, CallbackInfo ci) {
+    if (ClientInstinctState.enabled()) {
+      ci.cancel();
+    }
+  }
+
   @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventMobInteraction(
       net.minecraft.world.entity.player.Player player,
@@ -73,7 +93,8 @@ public abstract class MultiPlayerGameModeMixin {
       EntityHitResult hitResult,
       InteractionHand hand,
       CallbackInfoReturnable<InteractionResult> cir) {
-    if (ClientMorphState.morph() != null && entity instanceof Mob) {
+    if (ClientInstinctState.enabled()
+        || ClientMorphState.morph() != null && entity instanceof Mob) {
       cir.setReturnValue(InteractionResult.FAIL);
     }
   }
@@ -93,7 +114,8 @@ public abstract class MultiPlayerGameModeMixin {
   }
 
   private boolean mobLife$isAnyInteractionRestricted() {
-    return ClientMorphState.morph() != null
-        && ClientMorphState.awkwardness() >= MorphAwkwardness.ACTION_LOCK_THRESHOLD;
+    return ClientInstinctState.enabled()
+        || ClientMorphState.morph() != null
+            && ClientMorphState.awkwardness() >= MorphAwkwardness.ACTION_LOCK_THRESHOLD;
   }
 }

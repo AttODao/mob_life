@@ -10,6 +10,7 @@
     "charged_jump": false,
     "slow_fall_multiplier": 1,
     "wing_animation": false,
+    "quadruped_turning": true,
     "rabbit_hop": {
       "enabled": false,
       "sneak_cooldown": 10,
@@ -93,6 +94,20 @@
     "required_ticks": 200,
     "maximum_awkwardness": 30,
     "food_cost": 4
+  },
+  "instinct": {
+    "senses": {
+      "prey_range": 96
+    },
+    "hunting": {
+      "attack_cooldown_ticks": 10,
+      "post_kill_cooldown_ticks": 400,
+      "feline_sprint_start_distance": 12,
+      "prey": [
+        { "selector": "minecraft:chicken", "nutrition": 6 },
+        { "selector": "minecraft:turtle", "nutrition": 4 }
+      ]
+    }
   },
   "abilities": ["none"],
   "traits": [

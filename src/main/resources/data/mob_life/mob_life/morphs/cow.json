@@ -10,6 +10,7 @@
     "charged_jump": true,
     "slow_fall_multiplier": 1,
     "wing_animation": false,
+    "quadruped_turning": true,
     "rabbit_hop": {
       "enabled": false,
       "sneak_cooldown": 10,

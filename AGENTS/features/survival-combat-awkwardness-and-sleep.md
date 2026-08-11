@@ -26,11 +26,44 @@
 - Cat, ocelot, and wolf forms reproduce their vanilla `LeapAtTargetGoal`
   attack movement. Attacking a living target while grounded launches the
   player toward it with the form's original horizontal and vertical velocity.
+- The default `B` key toggles instinct mode. A detached copy of the selected
+  mob runs its complete native AI step for rest, wandering, fleeing, hunting,
+  melee attacks, grass eating, and rabbit garden raids, then transfers its
+  native movement vector to the player. Only forward, jump, and view input can
+  intervene in the states that allow them: forward alters the shadow mob's
+  navigation; jump uses its jump control and the regular landing cooldown;
+  locked target views allow a bounded manual offset that keeps the target in
+  view. Toggling the mode does not display a text overlay or crosshair. Its
+  visual effect is active for the whole mode; per-morph data packs can disable
+  it or scale its intensity with `instinct.visual_effect.enabled` and
+  `instinct.visual_effect.strength`.
+- Feline hunting stores `instinct.hunting.feline_sprint_start_distance` per
+  morph, allowing each feline form to accelerate before its prey's close-range
+  escape behavior can create an unrecoverable gap.
+- In instinct mode, the sheep's hungry grass-eating goal starts immediately
+  when it stands on an edible block or grass block, rather than waiting for
+  the adult vanilla goal's `1/1000` random trigger. Its eating animation and
+  block conversion remain vanilla behavior. The locked instinct view also
+  pitches down toward the grass while this goal is active. It likewise lowers
+  while a rabbit consumes a carrot, but not while it is navigating to a crop.
+  After a successful meal, the sheep configuration applies a 400-tick
+  (20-second) cooldown.
+- Instinct kills consume configured prey directly, suppress non-player mob
+  loot and experience, and restore the final nutrition value stored on each
+  prey entry. Built-in doubled values are stored directly without a nutrition
+  multiplier. Hunger thresholds gate new hunts. The built-in attack interval is
+  10 ticks, while the post-kill hunting cooldown is 400 ticks (20 seconds);
+  both values are configurable per morph through the hunting data-pack fields.
+- Instinct mode is the sole ordinary way to reduce awkwardness. Its passive
+  decay continues while forward, jump, or view input intervenes, and no
+  intervention adds awkwardness.
 - Sheep forms are hunted by wild wolves; chicken forms are hunted by foxes
   and ocelots; rabbit forms are hunted by foxes and wild wolves.
 - Avoidance is configured with `combat.avoided_by`; built-in cat and ocelot
   forms list `minecraft:creeper` and use the creeper's vanilla cat avoidance
-  distance and speeds.
+  distance and speeds. This avoidance works independently of hostile detection
+  and prevents the creeper from selecting the transformed player as an attack
+  target.
 - Cat, ocelot, and wolf forms are nocturnal but are never forced to sleep or
   wake. Their sleep on soft surfaces or in beds is allowed during daytime and
   is rejected at night.
@@ -43,13 +76,16 @@
 - The awkwardness HUD is a disabled-by-default debug display. It can be
   toggled from the global config and is saved in `config/mob_life.json`.
   When Mod Menu is installed, that screen is available from the mod list.
-- Breaking, placing, block interaction, non-forward movement, prolonged
-  sprinting, and attacking increase awkwardness. Eating, staying near the same
-  mob, and passive decay reduce it.
-- Passive awkwardness decay depends on the total item count in active inventory
-  slots. An empty inventory decays at `5x` the base rate, with the multiplier
-  approaching `1x` as more items are carried.
-- Successful block breaking and block placement each add 2 awkwardness.
+- Outside instinct mode, breaking, placing, block interaction, non-forward
+  movement, and attacks gain `2x` their former awkwardness. A single large
+  action cannot add more than 20, keeping failed-form combat from reaching the
+  cap in only a few actions.
+- Passive decay and the nearby-same-mob bonus apply only during instinct mode.
+  Passive decay depends on the total item count in active inventory slots. An
+  empty inventory decays at `5x` the base rate, with the multiplier approaching
+  `1x` as more items are carried.
+- Successful block breaking and block placement each add 4 awkwardness outside
+  instinct mode.
 - Awkwardness multiplies mob-form exhaustion up to `3x` at 100.
 - Hostile detection range scales with awkwardness: at 30 or below monsters
   cannot detect the player, from 30 to 100 their normal follow range is

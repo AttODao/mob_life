@@ -3,6 +3,7 @@ package cc.attodao.mob_life.mixin.targeting;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.server.ServerMorphManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
@@ -22,6 +23,13 @@ public abstract class MobTargetingMixin {
         && target instanceof ServerPlayer player
         && ServerMorphManager.hasMobForm()) {
       Mob mob = (Mob) (Object) this;
+      if (MorphConfigManager.get(ServerMorphManager.activeMorph())
+          .combat()
+          .avoidedBy()
+          .contains(BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType()).toString())) {
+        cir.setReturnValue(false);
+        return;
+      }
       double detectionRange =
           mob.getAttributeValue(Attributes.FOLLOW_RANGE)
               * MorphAwkwardness.hostileDetectionScale(player)

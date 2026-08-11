@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.mixin.gameplay;
 
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.BlockPos;
@@ -95,6 +96,18 @@ public abstract class ServerPlayerGameModeMixin {
     }
   }
 
+  @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventInstinctItemUse(
+      ServerPlayer player,
+      Level level,
+      ItemStack itemStack,
+      InteractionHand hand,
+      CallbackInfoReturnable<InteractionResult> cir) {
+    if (InstinctManager.isEnabled(player)) {
+      cir.setReturnValue(InteractionResult.FAIL);
+    }
+  }
+
   @Inject(method = "useItemOn", at = @At("RETURN"))
   private void mobLife$exhaustAfterPlacingBlock(
       ServerPlayer player,
@@ -123,7 +136,8 @@ public abstract class ServerPlayerGameModeMixin {
   }
 
   private boolean mobLife$isAnyInteractionRestricted() {
-    return ServerMorphManager.hasMobForm() && MorphAwkwardness.blocksWorldInteraction(player);
+    return ServerMorphManager.hasMobForm()
+        && (InstinctManager.isEnabled(player) || MorphAwkwardness.blocksWorldInteraction(player));
   }
 
   private void mobLife$clearDestroyState() {

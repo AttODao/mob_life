@@ -10,6 +10,7 @@
     "charged_jump": false,
     "slow_fall_multiplier": 1,
     "wing_animation": false,
+    "quadruped_turning": false,
     "rabbit_hop": {
       "enabled": false,
       "sneak_cooldown": 10,
@@ -89,6 +90,13 @@
     "required_ticks": 200,
     "maximum_awkwardness": 30,
     "food_cost": 8
+  },
+  "instinct": {
+    "enabled": false
+  },
+  "outline": {
+    "enabled": false,
+    "range": 96
   },
   "abilities": ["none"],
   "traits": []

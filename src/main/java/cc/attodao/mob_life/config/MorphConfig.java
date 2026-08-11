@@ -15,6 +15,8 @@ public record MorphConfig(
     Attributes attributes,
     Inventory inventory,
     Sleep sleep,
+    Instinct instinct,
+    Outline outline,
     Abilities abilities,
     Traits traits) {
 
@@ -29,6 +31,8 @@ public record MorphConfig(
       boolean chargedJump,
       float slowFallMultiplier,
       boolean wingAnimation,
+      boolean quadrupedTurning,
+      float quadrupedTurnSpeed,
       RabbitHop rabbitHop) {}
 
   public record RabbitHop(
@@ -88,6 +92,54 @@ public record MorphConfig(
       int requiredTicks,
       int foodCost,
       float maximumAwkwardness) {}
+
+  public record Instinct(
+      boolean enabled,
+      Wander wander,
+      Senses senses,
+      Hunting hunting,
+      Feeding feeding,
+      VisualEffect visualEffect) {}
+
+  public record Wander(
+      int horizontalRange, int verticalRange, int intervalTicks, float gazeWeight) {}
+
+  public record Senses(
+      double preyRange, double predatorRange, int memoryTicks, int scanIntervalTicks) {}
+
+  public record Hunting(
+      float startFoodRatio,
+      float stopFoodRatio,
+      int eatDurationTicks,
+      int attackCooldownTicks,
+      int postKillCooldownTicks,
+      double felineSprintStartDistance,
+      List<Prey> prey) {
+    public Hunting {
+      startFoodRatio = Math.clamp(startFoodRatio, 0.0F, 1.0F);
+      stopFoodRatio = Math.clamp(stopFoodRatio, 0.0F, 1.0F);
+      if (stopFoodRatio <= startFoodRatio) {
+        startFoodRatio = Math.min(startFoodRatio, 0.95F);
+        stopFoodRatio = startFoodRatio + 0.05F;
+      }
+      felineSprintStartDistance = Math.clamp(felineSprintStartDistance, 0.0, 128.0);
+      prey = List.copyOf(prey);
+    }
+  }
+
+  public record Prey(String selector, int nutrition) {}
+
+  public record Feeding(FeedingAction eatBlock, FeedingAction raidGarden) {}
+
+  public record FeedingAction(boolean enabled, int nutrition, int cooldownTicks) {}
+
+  public record VisualEffect(boolean enabled, float strength) {
+    public VisualEffect {
+      strength = Math.clamp(strength, 0.0F, 1.0F);
+    }
+  }
+
+  public record Outline(boolean enabled, double range) {}
 
   public enum Ability {
     NONE("none"),

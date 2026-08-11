@@ -1,8 +1,6 @@
 package cc.attodao.mob_life.mixin.food;
 
 import cc.attodao.mob_life.gameplay.food.MorphDiet;
-import cc.attodao.mob_life.server.ServerMorphManager;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -42,9 +40,6 @@ public abstract class ItemMorphFoodMixin {
     if (entity instanceof Player player && MorphDiet.isBreedingFood(player, stack)) {
       if (!level.isClientSide()) {
         player.getFoodData().eat(MorphDiet.foodProperties(player));
-        if (player instanceof ServerPlayer serverPlayer) {
-          ServerMorphManager.adjustAwkwardness(serverPlayer, -10.0F);
-        }
         cir.setReturnValue(MOB_LIFE_CONSUMABLE.onConsume(level, player, stack));
       } else {
         cir.setReturnValue(stack);

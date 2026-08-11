@@ -78,6 +78,49 @@ public final class SizedHotbarRenderer {
     renderAttackIndicator(graphics, minecraft, player, offhandArm, left, width);
   }
 
+  public static void renderLocked(
+      GuiGraphicsExtractor graphics,
+      DeltaTracker deltaTracker,
+      Player player,
+      SlotRenderer slotRenderer) {
+    int slotCount = MorphInventoryCapacity.hotbarSlots(player);
+    int width = slotCount * 20 + 2;
+    int left = (graphics.guiWidth() - width) / 2;
+    int top = graphics.guiHeight() - 22;
+
+    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HOTBAR, 182, 22, 0, 0, left, top, width, 22);
+    int seed = 1;
+    int itemY = graphics.guiHeight() - 19;
+    for (int slot = 0; slot < slotCount; slot++) {
+      slotRenderer.render(
+          graphics,
+          left + 3 + slot * 20,
+          itemY,
+          deltaTracker,
+          player,
+          player.getInventory().getItem(slot),
+          seed++);
+    }
+
+    // Keep the stored hotbar visible, but make its unavailable state unambiguous.
+    graphics.fill(left + 2, top + 2, left + width - 2, top + 20, 0x9C0A0E12);
+    renderLock(graphics, left + width / 2, top + 11);
+  }
+
+  private static void renderLock(GuiGraphicsExtractor graphics, int centerX, int centerY) {
+    int outline = 0xFF10171C;
+    int metal = 0xFFC3CCD0;
+    int shadow = 0xFF677278;
+
+    graphics.fill(centerX - 4, centerY - 6, centerX + 4, centerY + 1, outline);
+    graphics.fill(centerX - 3, centerY - 5, centerX + 3, centerY + 1, metal);
+    graphics.fill(centerX - 1, centerY - 4, centerX + 1, centerY + 1, outline);
+    graphics.fill(centerX - 5, centerY, centerX + 5, centerY + 7, outline);
+    graphics.fill(centerX - 4, centerY + 1, centerX + 4, centerY + 6, metal);
+    graphics.fill(centerX - 3, centerY + 5, centerX + 4, centerY + 6, shadow);
+    graphics.fill(centerX - 1, centerY + 2, centerX + 1, centerY + 5, outline);
+  }
+
   private static void renderOffhand(
       GuiGraphicsExtractor graphics,
       DeltaTracker deltaTracker,

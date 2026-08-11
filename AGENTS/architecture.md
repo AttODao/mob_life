@@ -3,6 +3,9 @@
 - `morph`: form IDs and entity-type mapping.
 - `world`: pending world selection and persisted world-wide form.
 - `gameplay/jump`: shared charged-jump calculation and player bridge.
+- `gameplay/instinct`: detached native-mob AI controller, native movement
+  transfer, instinct state, sensing relationships, nutrition, and gaze-biased
+  wandering.
 - `gameplay/food`: diet rules and form-specific food capacity.
 - `gameplay/inventory`: form-specific hotbar and inventory capacity.
 - `gameplay/inventory/MorphEquipment`: armor restrictions and form-specific
@@ -11,6 +14,8 @@
 - `config/MorphConfigCodec`: built-in, data-pack, and synced morph config JSON
   parsing/serialization.
 - `server/ServerMorphManager`: world morph lifecycle, charged jumps, and recurring form effects.
+- `gameplay/targeting/MorphOutlineManager`: mode-independent predator and prey
+  outline scans and differential synchronization.
 - `server/ServerPlayerMorphApplier`: attributes, dimensions, capacity, and client synchronization.
 - `client/state`: active client form, render-entity cache, and charged-jump input state.
 - `client/render`: mob hand, sized hotbar, and jump-bar renderers.

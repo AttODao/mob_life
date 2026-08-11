@@ -10,6 +10,7 @@
     "charged_jump": false,
     "slow_fall_multiplier": 1,
     "wing_animation": false,
+    "quadruped_turning": true,
     "rabbit_hop": {
       "enabled": true,
       "sneak_cooldown": 10,
@@ -94,6 +95,27 @@
     "required_ticks": 200,
     "maximum_awkwardness": 30,
     "food_cost": 4
+  },
+  "instinct": {
+    "senses": {
+      "prey_range": 64,
+      "predator_range": 96
+    },
+    "hunting": {
+      "attack_cooldown_ticks": 10,
+      "post_kill_cooldown_ticks": 400,
+      "prey": [
+        { "selector": "minecraft:player", "nutrition": 10 },
+        { "selector": "minecraft:wolf", "nutrition": 8 }
+      ]
+    },
+    "feeding": {
+      "raid_garden": {
+        "enabled": true,
+        "nutrition": 4,
+        "cooldown_ticks": 100
+      }
+    }
   },
   "abilities": ["none"],
   "traits": []

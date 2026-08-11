@@ -2,6 +2,7 @@ package cc.attodao.mob_life.network;
 
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import java.util.ArrayList;
@@ -29,6 +30,9 @@ public final class MobLifeNetworking {
         .register(AwkwardnessPayload.TYPE, AwkwardnessPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
         .register(GrassEatingStatePayload.TYPE, GrassEatingStatePayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(InstinctControlPayload.TYPE, InstinctControlPayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay().register(OutlinePayload.TYPE, OutlinePayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(ChargedJumpPayload.TYPE, ChargedJumpPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
@@ -37,27 +41,45 @@ public final class MobLifeNetworking {
         .register(AbilityRequestPayload.TYPE, AbilityRequestPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(WorldMorphSelectionSubmitPayload.TYPE, WorldMorphSelectionSubmitPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(InstinctTogglePayload.TYPE, InstinctTogglePayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(InstinctInterventionPayload.TYPE, InstinctInterventionPayload.CODEC);
     ServerPlayNetworking.registerGlobalReceiver(
         ChargedJumpPayload.TYPE,
         (payload, context) -> {
           MinecraftServer server = context.server();
           ServerPlayer player = context.player();
           server.execute(
-              () -> ServerMorphManager.performChargedJump(player, payload.chargeAmount()));
+              () -> {
+                if (!InstinctManager.isEnabled(player)) {
+                  ServerMorphManager.performChargedJump(player, payload.chargeAmount());
+                }
+              });
         });
     ServerPlayNetworking.registerGlobalReceiver(
         SleepRequestPayload.TYPE,
         (payload, context) -> {
           MinecraftServer server = context.server();
           ServerPlayer player = context.player();
-          server.execute(() -> MorphSleep.requestSleep(player));
+          server.execute(
+              () -> {
+                if (!InstinctManager.isEnabled(player)) {
+                  MorphSleep.requestSleep(player);
+                }
+              });
         });
     ServerPlayNetworking.registerGlobalReceiver(
         AbilityRequestPayload.TYPE,
         (payload, context) -> {
           MinecraftServer server = context.server();
           ServerPlayer player = context.player();
-          server.execute(() -> MorphAbility.request(player));
+          server.execute(
+              () -> {
+                if (!InstinctManager.isEnabled(player)) {
+                  MorphAbility.request(player);
+                }
+              });
         });
     ServerPlayNetworking.registerGlobalReceiver(
         WorldMorphSelectionSubmitPayload.TYPE,
@@ -68,6 +90,16 @@ public final class MobLifeNetworking {
                   ServerMorphManager.completeWorldSelection(
                       server, payload.morphId(), payload.nbt()));
         });
+    ServerPlayNetworking.registerGlobalReceiver(
+        InstinctTogglePayload.TYPE,
+        (payload, context) ->
+            context.server().execute(() -> InstinctManager.toggle(context.player())));
+    ServerPlayNetworking.registerGlobalReceiver(
+        InstinctInterventionPayload.TYPE,
+        (payload, context) ->
+            context
+                .server()
+                .execute(() -> InstinctManager.intervene(context.player(), payload.flags())));
   }
 
   public record WorldMorphSelectionPromptPayload(List<MorphConfigEntry> configs)
@@ -238,6 +270,110 @@ public final class MobLifeNetworking {
     @Override
     public Type<? extends CustomPacketPayload> type() {
       return TYPE;
+    }
+  }
+
+  public record InstinctTogglePayload() implements CustomPacketPayload {
+    public static final Type<InstinctTogglePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_toggle"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctTogglePayload> CODEC =
+        StreamCodec.unit(new InstinctTogglePayload());
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record InstinctInterventionPayload(int flags) implements CustomPacketPayload {
+    public static final Type<InstinctInterventionPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_intervention"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctInterventionPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> buffer.writeByte(payload.flags()),
+            buffer -> new InstinctInterventionPayload(buffer.readUnsignedByte()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record InstinctControlPayload(
+      boolean enabled,
+      int state,
+      float targetYaw,
+      float targetPitch,
+      int eatTicks,
+      float movementX,
+      float movementY,
+      float movementZ)
+      implements CustomPacketPayload {
+    public static final Type<InstinctControlPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_control"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctControlPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeBoolean(payload.enabled());
+              buffer.writeVarInt(payload.state());
+              buffer.writeFloat(payload.targetYaw());
+              buffer.writeFloat(payload.targetPitch());
+              buffer.writeVarInt(payload.eatTicks());
+              buffer.writeFloat(payload.movementX());
+              buffer.writeFloat(payload.movementY());
+              buffer.writeFloat(payload.movementZ());
+            },
+            buffer ->
+                new InstinctControlPayload(
+                    buffer.readBoolean(),
+                    buffer.readVarInt(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readVarInt(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readFloat()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record OutlinePayload(List<Integer> predators, List<Integer> prey)
+      implements CustomPacketPayload {
+    public static final Type<OutlinePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "outlines"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, OutlinePayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              writeIds(buffer, payload.predators());
+              writeIds(buffer, payload.prey());
+            },
+            buffer -> new OutlinePayload(readIds(buffer), readIds(buffer)));
+
+    public OutlinePayload {
+      predators = List.copyOf(predators);
+      prey = List.copyOf(prey);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+
+    private static void writeIds(RegistryFriendlyByteBuf buffer, List<Integer> ids) {
+      buffer.writeVarInt(ids.size());
+      ids.forEach(buffer::writeVarInt);
+    }
+
+    private static List<Integer> readIds(RegistryFriendlyByteBuf buffer) {
+      int size = Math.min(buffer.readVarInt(), 4096);
+      ArrayList<Integer> ids = new ArrayList<>(size);
+      for (int index = 0; index < size; index++) {
+        ids.add(buffer.readVarInt());
+      }
+      return ids;
     }
   }
 }

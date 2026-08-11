@@ -1,14 +1,12 @@
 package cc.attodao.mob_life.mixin.targeting;
 
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.targeting.TransformedPlayerAvoidGoal;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.ai.goal.AvoidEntityGoal;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Monster;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,18 +24,18 @@ public abstract class CreeperAvoidMorphMixin extends Monster {
   private void mobLife$avoidConfiguredMorphs(CallbackInfo ci) {
     goalSelector.addGoal(
         3,
-        new AvoidEntityGoal<>(
+        new TransformedPlayerAvoidGoal(
             this,
-            Player.class,
-            6.0F,
-            1.0,
-            1.2,
             entity ->
-                entity instanceof ServerPlayer
+                entity.isAlive()
+                    && !entity.isSpectator()
                     && ServerMorphManager.activeMorph() != null
                     && MorphConfigManager.get(ServerMorphManager.activeMorph())
                         .combat()
                         .avoidedBy()
-                        .contains(BuiltInRegistries.ENTITY_TYPE.getKey(getType()).toString())));
+                        .contains(BuiltInRegistries.ENTITY_TYPE.getKey(getType()).toString()),
+            6.0F,
+            1.0,
+            1.2));
   }
 }
