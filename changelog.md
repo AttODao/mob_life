@@ -2,6 +2,22 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-11 - v1.1.0
+
+- Added instinct mode, where each morph can follow its native mob AI for
+  resting, wandering, fleeing, hunting, attacking, and feeding. Instinct mode
+  enters automatically after inactivity, supports limited movement, view, and
+  jump intervention, and persists across reconnects.
+- Added instinct hunting and feeding behaviors, including configured prey
+  relations, feline pursuit, sheep grass eating, rabbit crop raids, hunger
+  thresholds, and awkwardness reduction through instinct activity.
+- Added predator and prey outlines, plus an amber instinct vision effect with
+  smooth transitions and per-morph configuration.
+- Reworked quadruped, horse, donkey, and mule locomotion, removed the former
+  fast-sprint behavior, and recalibrated morph movement speeds and rabbit hops.
+- Improved feline low-light vision so distant light sources remain visible
+  through the vision effects.
+
 ## 2026-07-05 - v1.0.4
 
 - Fixed mob selection mouse hit testing so clicks on rows, description
