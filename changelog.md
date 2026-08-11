@@ -2,6 +2,23 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-12 - v1.2.2
+
+- Reworked instinct-mode intervention: forward input can start or steer a
+  short native wander, while lateral input can turn the resting body or a
+  current wander's direction intent. Hunting, fleeing, feeding, and social
+  movement retain priority over those interventions.
+- Smoothed instinct camera control with bounded, reduced-sensitivity manual
+  look offsets that recenter naturally, preventing abrupt turns as native AI
+  headings change.
+- Kept the shadow mob in a stationary rest state while holding the attack key
+  to leave instinct mode, so wandering and rabbit hops cannot interrupt the
+  exit hold. Eligible movement-intervention attempts now temporarily pause
+  awkwardness decay.
+- Added configurable social instinct behavior for cow, sheep, chicken, rabbit,
+  wolf, pig, horse, donkey, and mule forms. Nearby natural groups take
+  precedence over wandering, but not over hunting, fleeing, or feeding.
+
 ## 2026-08-11 - v1.2.1
 
 - Tied instinct mode timing to awkwardness: higher awkwardness enters instinct
