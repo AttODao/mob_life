@@ -2,6 +2,13 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-11 - v1.2.1
+
+- Tied instinct mode timing to awkwardness: higher awkwardness enters instinct
+  mode sooner, reaches forced entry at the maximum, and takes longer to exit.
+- Prevented instinct mode from being manually exited while awkwardness is at
+  its maximum.
+
 ## 2026-08-11 - v1.2.0
 
 - Updated the mod to Minecraft 26.2, Fabric API 0.157.0, and the current
