@@ -1,8 +1,8 @@
 {
   "movement": {
     "reference_mob_speed": 0.225,
-    "sneak_speed": 0.135,
-    "walk_speed": 0.18,
+    "sneak_speed": 0.0421875,
+    "walk_speed": 0.05625,
     "sprint_speed": 0.225,
     "sideways_multiplier": 0.5,
     "backward_multiplier": 0.25,
@@ -10,6 +10,7 @@
     "charged_jump": true,
     "slow_fall_multiplier": 1,
     "wing_animation": false,
+    "quadruped_turning": true,
     "rabbit_hop": {
       "enabled": false,
       "sneak_cooldown": 10,

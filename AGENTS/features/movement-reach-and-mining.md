@@ -19,8 +19,24 @@
   space together with movement input changes the next hop to the player's
   normal jump height while retaining the rabbit hop cooldown. Standing still
   with the hop cooldown ready still allows jump-key hops.
+- During instinct mode, every form runs a detached native mob's complete AI
+  step, including path navigation, move control, jump control, gravity, and
+  collision. The native movement vector passed into the shadow mob's own
+  `Entity.move` call is captured and injected as the player's velocity
+  immediately before player travel, avoiding a second copy of AI acceleration,
+  friction, or gravity. Rabbit AI hops consequently retain their native low,
+  normal, and step-up jump heights. In REST and WANDER only,
+  forward input temporarily adds a native navigation goal in the current view
+  direction. Jump input is queued briefly until grounded, obeys the regular
+  landing cooldown, and requests the shadow mob's jump control with a minimum
+  vertical velocity of `0.42`, sufficient for a one-block step; these inputs
+  never act directly on the player.
 - Most mob forms move at quarter speed when strafing or moving backward. The
   forward component of diagonal movement remains unchanged.
+- Outside instinct control, quadruped forms turn their camera and body while
+  converting sideways input into forward movement. It is configured as an
+  independent feature with `movement.quadruped_turning` and
+  `movement.quadruped_turn_speed`; instinct input takes precedence while active.
 - Horse, donkey, and mule forms use the mounted-horse direction factors:
   forward `1.0x`, sideways `0.5x`, and backward `0.25x`.
 - Movement speeds are tracked as `generic.movement_speed` values in sneak,
@@ -35,9 +51,10 @@
   - Wolf: `0.225` sneak, `0.3` walk, `0.45` sprint
   - Pig: `0.1875` sneak, `0.25` walk, `0.3125` sprint
   - Rabbit: `0.135` sneak, `0.18` walk, `0.66` sprint
-  - Horse, donkey, and mule: `0.135` sneak, `0.18` walk, `0.225` sprint
-    The sprint value matches the NBT-adjusted ridden forward speed; walking and
-    sneaking are intentionally slower rather than sharing the ridden speed.
+  - Horse, donkey, and mule: `0.0421875` sneak, `0.05625` walk, `0.225` sprint
+    Walking converts the NBT-adjusted native unmounted-mob speed into the
+    player's movement scale. Sprinting retains the NBT-adjusted ridden forward
+    speed, while sneaking remains 75% of walking speed.
 - The built-in `data/mob_life/mob_life/morphs/*.json` files, including
   `player.json`, store each form's `reference_mob_speed`, and the code converts
   the configured `generic.movement_speed` values to `block/s` by comparing the
