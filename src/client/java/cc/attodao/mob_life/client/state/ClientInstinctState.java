@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.state;
 
+import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -9,8 +10,6 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 public final class ClientInstinctState {
-  private static final int IDLE_ENTRY_TICKS = 20 * 10;
-  private static final int EXIT_HOLD_TICKS = 20 * 3;
   private static final int VISUAL_TRANSITION_TICKS = 10;
   private static final int MANUAL_VIEW_GRACE_TICKS = 20;
   private static final float MAX_YAW_CHANGE = 4.0F;
@@ -119,7 +118,7 @@ public final class ClientInstinctState {
       return false;
     }
     idleTicks++;
-    if (idleTicks < IDLE_ENTRY_TICKS) {
+    if (idleTicks < MorphAwkwardness.instinctEntryDelayTicks(ClientMorphState.awkwardness())) {
       return false;
     }
     entryRequestSent = true;
@@ -132,7 +131,8 @@ public final class ClientInstinctState {
         || client.player == null
         || client.isPaused()
         || client.gui.screen() != null
-        || !client.options.keyAttack.isDown()) {
+        || !client.options.keyAttack.isDown()
+        || MorphAwkwardness.isMaximum(ClientMorphState.awkwardness())) {
       exitHoldTicks = 0;
       exitRequestSent = false;
       return false;
@@ -141,7 +141,7 @@ public final class ClientInstinctState {
       return false;
     }
     exitHoldTicks++;
-    if (exitHoldTicks < EXIT_HOLD_TICKS) {
+    if (exitHoldTicks < MorphAwkwardness.instinctExitHoldTicks(ClientMorphState.awkwardness())) {
       return false;
     }
     exitRequestSent = true;

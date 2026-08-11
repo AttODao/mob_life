@@ -26,10 +26,12 @@
 - Cat, ocelot, and wolf forms reproduce their vanilla `LeapAtTargetGoal`
   attack movement. Attacking a living target while grounded launches the
   player toward it with the form's original horizontal and vertical velocity.
-- After 10 seconds with no gameplay input, instinct mode enters automatically.
-  Holding the mining button for 3 seconds exits only from a state that accepts
-  view input; pursuit, fleeing, feeding, and other locked states cannot be
-  exited. A detached copy of the selected mob runs its complete native AI step
+- With zero awkwardness, instinct mode enters automatically after 10 seconds
+  with no gameplay input. The idle delay decreases to zero as awkwardness
+  reaches 100, which forcibly enters instinct mode at the maximum. Holding the
+  mining button exits only from a state that accepts view input; it takes 3
+  seconds at zero awkwardness, grows without bound as awkwardness reaches 100,
+  and pursuit, fleeing, feeding, and other locked states cannot be exited. A detached copy of the selected mob runs its complete native AI step
   for rest, wandering, fleeing, hunting, melee attacks, grass eating, and
   rabbit garden raids, then transfers its native movement vector to the player.
   Only forward, jump, and view input can intervene in the states that allow

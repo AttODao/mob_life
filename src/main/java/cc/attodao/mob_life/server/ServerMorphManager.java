@@ -266,11 +266,13 @@ public final class ServerMorphManager {
     if (newValue != oldValue) {
       syncAwkwardness(player, true);
     }
+    InstinctManager.forceEnableAtMaximum(player);
   }
 
   public static void setAwkwardness(ServerPlayer player, float value) {
     MorphAwkwardness.set(player, value);
     syncAwkwardness(player, true);
+    InstinctManager.forceEnableAtMaximum(player);
   }
 
   public static void changeMorph(MinecraftServer server, MorphDefinition definition) {
@@ -408,12 +410,15 @@ public final class ServerMorphManager {
   }
 
   private static void tickPlayer(ServerPlayer player) {
+    InstinctManager.forceEnableAtMaximum(player);
     InstinctManager.tick(player);
     boolean instinct = InstinctManager.isEnabled(player);
     MorphOutlineManager.tick(player, activeMorph(), activeMorphHasAttackAi());
     tickGrassEating(player);
     addMovementExhaustion(player);
     tickAwkwardness(player);
+    InstinctManager.forceEnableAtMaximum(player);
+    instinct = InstinctManager.isEnabled(player);
     tickAmbientSound(player);
     if (player.tickCount % 20 == 0) {
       refreshChestedInventory(player);
@@ -651,6 +656,7 @@ public final class ServerMorphManager {
     if (delta != 0.0F) {
       MorphAwkwardness.add(player, delta);
     }
+    InstinctManager.forceEnableAtMaximum(player);
     if (player.tickCount % 5 == 0) {
       syncAwkwardness(player, false);
     }

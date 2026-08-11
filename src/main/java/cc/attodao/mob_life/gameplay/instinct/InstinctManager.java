@@ -2,6 +2,7 @@ package cc.attodao.mob_life.gameplay.instinct;
 
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -64,12 +65,18 @@ public final class InstinctManager {
 
   public static boolean requestExit(ServerPlayer player) {
     InstinctController controller = CONTROLLERS.get(player.getUUID());
-    if (controller == null || !controller.allowsExit()) {
+    if (controller == null || !controller.allowsExit() || MorphAwkwardness.isMaximum(player)) {
       return false;
     }
     ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(false);
     disable(player);
     return true;
+  }
+
+  public static void forceEnableAtMaximum(ServerPlayer player) {
+    if (!isEnabled(player) && MorphAwkwardness.isMaximum(player)) {
+      enable(player);
+    }
   }
 
   public static void forget(ServerPlayer player) {

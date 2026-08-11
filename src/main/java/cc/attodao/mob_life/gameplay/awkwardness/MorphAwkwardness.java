@@ -11,6 +11,8 @@ public final class MorphAwkwardness {
   public static final float HOSTILE_DETECTION_START = 30.0F;
   public static final float HOSTILE_THRESHOLD = 70.0F;
   public static final float ACTION_LOCK_THRESHOLD = 90.0F;
+  public static final int INSTINCT_ENTRY_DELAY_TICKS = 20 * 10;
+  public static final int INSTINCT_EXIT_HOLD_TICKS = 20 * 3;
 
   private MorphAwkwardness() {}
 
@@ -26,6 +28,29 @@ public final class MorphAwkwardness {
 
   public static float add(Player player, float amount) {
     return set(player, get(player) + amount);
+  }
+
+  public static boolean isMaximum(Player player) {
+    return isMaximum(get(player));
+  }
+
+  public static boolean isMaximum(float awkwardness) {
+    return awkwardness >= MAXIMUM;
+  }
+
+  public static int instinctEntryDelayTicks(float awkwardness) {
+    float ratio = normalized(awkwardness);
+    return (int) Math.ceil(INSTINCT_ENTRY_DELAY_TICKS * (1.0F - ratio));
+  }
+
+  public static int instinctExitHoldTicks(float awkwardness) {
+    float clamped = Mth.clamp(awkwardness, MINIMUM, MAXIMUM);
+    if (isMaximum(clamped)) {
+      return Integer.MAX_VALUE;
+    }
+
+    double remainingRatio = (MAXIMUM - clamped) / MAXIMUM;
+    return (int) Math.min(Integer.MAX_VALUE, Math.ceil(INSTINCT_EXIT_HOLD_TICKS / remainingRatio));
   }
 
   public static float exhaustionMultiplier(Player player) {
@@ -48,5 +73,9 @@ public final class MorphAwkwardness {
   public static float visionInterference(float awkwardness) {
     return (1.0F
         + Mth.clamp((awkwardness - HOSTILE_THRESHOLD) / (MAXIMUM - HOSTILE_THRESHOLD), 0.0F, 1.0F));
+  }
+
+  private static float normalized(float awkwardness) {
+    return Mth.clamp((awkwardness - MINIMUM) / (MAXIMUM - MINIMUM), 0.0F, 1.0F);
   }
 }
