@@ -15,6 +15,15 @@ public abstract class KeyboardInputInstinctMixin extends ClientInput {
   @Inject(method = "tick", at = @At("TAIL"))
   private void mobLife$applyMorphInputRules(CallbackInfo ci) {
     Input raw = keyPresses;
+    if (raw.forward()
+        || raw.backward()
+        || raw.left()
+        || raw.right()
+        || raw.jump()
+        || raw.shift()
+        || raw.sprint()) {
+      ClientInstinctState.recordActivity();
+    }
     if (ClientInstinctState.enabled()) {
       boolean manualForward = raw.forward() && ClientInstinctState.state().acceptsForward();
       boolean manualJump = raw.jump() && ClientInstinctState.state().acceptsJump();

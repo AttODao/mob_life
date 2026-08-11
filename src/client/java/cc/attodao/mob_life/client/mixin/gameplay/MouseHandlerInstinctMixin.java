@@ -16,9 +16,11 @@ public abstract class MouseHandlerInstinctMixin {
 
   @Inject(method = "turnPlayer", at = @At("HEAD"))
   private void mobLife$controlInstinctView(double frameTime, CallbackInfo ci) {
-    if (!ClientInstinctState.locksView()
-        && ClientInstinctState.enabled()
-        && (Math.abs(accumulatedDX) > 1.0E-4 || Math.abs(accumulatedDY) > 1.0E-4)) {
+    boolean hasViewInput = Math.abs(accumulatedDX) > 1.0E-4 || Math.abs(accumulatedDY) > 1.0E-4;
+    if (hasViewInput) {
+      ClientInstinctState.recordActivity();
+    }
+    if (hasViewInput && !ClientInstinctState.locksView() && ClientInstinctState.enabled()) {
       ClientInstinctState.recordViewInput();
     }
   }

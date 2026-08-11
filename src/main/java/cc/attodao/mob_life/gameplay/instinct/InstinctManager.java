@@ -29,9 +29,8 @@ public final class InstinctManager {
 
   private InstinctManager() {}
 
-  public static boolean toggle(ServerPlayer player) {
+  public static boolean enable(ServerPlayer player) {
     if (isEnabled(player)) {
-      disable(player);
       return false;
     }
 
@@ -54,8 +53,27 @@ public final class InstinctManager {
     player.setSprinting(false);
     player.setShiftKeyDown(false);
     player.closeContainer();
+    ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(true);
     sync(controller);
     return true;
+  }
+
+  public static boolean shouldRestore(ServerPlayer player) {
+    return ((InstinctPersistenceHolder) player).mobLife$shouldRestoreInstinct();
+  }
+
+  public static boolean requestExit(ServerPlayer player) {
+    InstinctController controller = CONTROLLERS.get(player.getUUID());
+    if (controller == null || !controller.allowsExit()) {
+      return false;
+    }
+    ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(false);
+    disable(player);
+    return true;
+  }
+
+  public static void forget(ServerPlayer player) {
+    ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(false);
   }
 
   public static void tick(ServerPlayer player) {

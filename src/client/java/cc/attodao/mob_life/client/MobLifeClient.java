@@ -16,6 +16,7 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public final class MobLifeClient implements ClientModInitializer {
@@ -32,13 +33,6 @@ public final class MobLifeClient implements ClientModInitializer {
               "key.mob_life.sleep",
               InputConstants.Type.KEYSYM,
               GLFW.GLFW_KEY_N,
-              KeyMapping.Category.GAMEPLAY));
-  private static final KeyMapping INSTINCT_KEY =
-      KeyMappingHelper.registerKeyMapping(
-          new KeyMapping(
-              "key.mob_life.instinct",
-              InputConstants.Type.KEYSYM,
-              GLFW.GLFW_KEY_B,
               KeyMapping.Category.GAMEPLAY));
 
   @Override
@@ -109,6 +103,7 @@ public final class MobLifeClient implements ClientModInitializer {
     ClientTickEvents.END_CLIENT_TICK.register(
         client -> {
           while (ABILITY_KEY.consumeClick()) {
+            ClientInstinctState.recordActivity();
             if (client.player != null
                 && ClientMorphState.morph() != null
                 && !ClientInstinctState.enabled()) {
@@ -116,16 +111,19 @@ public final class MobLifeClient implements ClientModInitializer {
             }
           }
           while (SLEEP_KEY.consumeClick()) {
+            ClientInstinctState.recordActivity();
             if (client.player != null
                 && ClientMorphState.morph() != null
                 && !ClientInstinctState.enabled()) {
               ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());
             }
           }
-          while (INSTINCT_KEY.consumeClick()) {
-            if (client.player != null && ClientMorphState.morph() != null) {
-              ClientPlayNetworking.send(new MobLifeNetworking.InstinctTogglePayload());
-            }
+          mobLife$recordDirectActivity(client);
+          if (ClientInstinctState.shouldRequestEntry(client)) {
+            ClientPlayNetworking.send(new MobLifeNetworking.InstinctEnterPayload());
+          }
+          if (ClientInstinctState.shouldRequestExit(client)) {
+            ClientPlayNetworking.send(new MobLifeNetworking.InstinctExitPayload());
           }
           int interventionFlags = ClientInstinctState.consumeInterventions();
           if (interventionFlags != 0) {
@@ -135,5 +133,23 @@ public final class MobLifeClient implements ClientModInitializer {
           ClientInstinctState.tick(client);
           ClientMorphState.tick(client);
         });
+  }
+
+  private static void mobLife$recordDirectActivity(Minecraft client) {
+    if (client.options.keyAttack.isDown()
+        || client.options.keyUse.isDown()
+        || client.options.keyPickItem.isDown()
+        || client.options.keyDrop.isDown()
+        || client.options.keyInventory.isDown()
+        || client.options.keySwapOffhand.isDown()) {
+      ClientInstinctState.recordActivity();
+      return;
+    }
+    for (KeyMapping key : client.options.keyHotbarSlots) {
+      if (key.isDown()) {
+        ClientInstinctState.recordActivity();
+        return;
+      }
+    }
   }
 }

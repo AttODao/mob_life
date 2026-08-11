@@ -34,6 +34,7 @@
 		"instinct.LivingEntityInstinctDropsMixin",
 		"instinct.MobGoalSelectorAccessor",
 		"instinct.MobInstinctBridgeMixin",
+		"instinct.PlayerInstinctStateMixin",
 		"instinct.PlayerInstinctActionsMixin",
 		"instinct.RabbitCarrotAccessor",
 		"instinct.RandomStrollGoalAccessor",

@@ -9,6 +9,8 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 
 public final class ClientInstinctState {
+  private static final int IDLE_ENTRY_TICKS = 20 * 10;
+  private static final int EXIT_HOLD_TICKS = 20 * 3;
   private static final int MANUAL_VIEW_GRACE_TICKS = 20;
   private static final float MAX_YAW_CHANGE = 4.0F;
   private static final float MAX_PITCH_CHANGE = 3.0F;
@@ -29,6 +31,10 @@ public final class ClientInstinctState {
   private static boolean jumpWasDown;
   private static int selectedSlot = -1;
   private static Vec3 nativeMovement = Vec3.ZERO;
+  private static int idleTicks;
+  private static boolean entryRequestSent;
+  private static int exitHoldTicks;
+  private static boolean exitRequestSent;
 
   private ClientInstinctState() {}
 
@@ -45,12 +51,21 @@ public final class ClientInstinctState {
       desiredPitch = Mth.lerp(TARGET_PITCH_RESPONSE, desiredPitch, payload.targetPitch());
     }
     nativeMovement = new Vec3(payload.movementX(), payload.movementY(), payload.movementZ());
-    if (!enabled) {
+    if (enabled) {
+      if (!wasEnabled) {
+        resetEntryTimer();
+        exitHoldTicks = 0;
+        exitRequestSent = false;
+      }
+    } else {
       pendingInterventions = 0;
       jumpWasDown = false;
       manualViewTicks = 0;
       viewInitialized = false;
       nativeMovement = Vec3.ZERO;
+      resetEntryTimer();
+      exitHoldTicks = 0;
+      exitRequestSent = false;
     }
 
     LocalPlayer player = Minecraft.getInstance().player;
@@ -77,6 +92,54 @@ public final class ClientInstinctState {
 
   public static boolean locksView() {
     return enabled && state.locksView();
+  }
+
+  public static void recordActivity() {
+    if (!enabled) {
+      resetEntryTimer();
+    }
+  }
+
+  public static boolean shouldRequestEntry(Minecraft client) {
+    if (enabled
+        || client.player == null
+        || client.isPaused()
+        || client.screen != null
+        || ClientMorphState.morph() == null) {
+      resetEntryTimer();
+      return false;
+    }
+    if (entryRequestSent) {
+      return false;
+    }
+    idleTicks++;
+    if (idleTicks < IDLE_ENTRY_TICKS) {
+      return false;
+    }
+    entryRequestSent = true;
+    return true;
+  }
+
+  public static boolean shouldRequestExit(Minecraft client) {
+    if (!enabled
+        || !state.acceptsView()
+        || client.player == null
+        || client.isPaused()
+        || client.screen != null
+        || !client.options.keyAttack.isDown()) {
+      exitHoldTicks = 0;
+      exitRequestSent = false;
+      return false;
+    }
+    if (exitRequestSent) {
+      return false;
+    }
+    exitHoldTicks++;
+    if (exitHoldTicks < EXIT_HOLD_TICKS) {
+      return false;
+    }
+    exitRequestSent = true;
+    return true;
   }
 
   public static void recordKeyboard(boolean forward, boolean jump) {
@@ -196,5 +259,13 @@ public final class ClientInstinctState {
     jumpWasDown = false;
     selectedSlot = -1;
     nativeMovement = Vec3.ZERO;
+    resetEntryTimer();
+    exitHoldTicks = 0;
+    exitRequestSent = false;
+  }
+
+  private static void resetEntryTimer() {
+    idleTicks = 0;
+    entryRequestSent = false;
   }
 }

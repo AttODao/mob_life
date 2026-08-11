@@ -154,6 +154,7 @@ public final class ServerMorphManager {
     ServerPlayerEvents.AFTER_RESPAWN.register(
         (oldPlayer, newPlayer, alive) -> {
           InstinctManager.disable(newPlayer);
+          InstinctManager.forget(newPlayer);
           MorphOutlineManager.remove(oldPlayer);
           MorphAwkwardness.set(newPlayer, MorphAwkwardness.get(oldPlayer));
           MorphAbility.copy(oldPlayer, newPlayer);
@@ -322,9 +323,13 @@ public final class ServerMorphManager {
     }
 
     GRASS_EATING_TICKS.remove(player.getUUID());
+    boolean restoreInstinct = InstinctManager.shouldRestore(player);
     InstinctManager.disable(player);
     MorphOutlineManager.remove(player);
     ServerPlayerMorphApplier.apply(player, definition, false);
+    if (restoreInstinct) {
+      InstinctManager.enable(player);
+    }
     syncAwkwardness(player, true);
     if (!activeConfig().movement().rabbitHop().enabled()) {
       syncJumpCooldown(player);

@@ -28,7 +28,6 @@ public abstract class MinecraftInstinctScreenMixin {
     mobLife$discard(client.options.keySwapOffhand);
     mobLife$discard(client.options.keyDrop);
     mobLife$discard(client.options.keyUse);
-    mobLife$discard(client.options.keyAttack);
     mobLife$discard(client.options.keyPickItem);
     for (net.minecraft.client.KeyMapping key : client.options.keyHotbarSlots) {
       mobLife$discard(key);

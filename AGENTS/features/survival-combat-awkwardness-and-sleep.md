@@ -26,17 +26,21 @@
 - Cat, ocelot, and wolf forms reproduce their vanilla `LeapAtTargetGoal`
   attack movement. Attacking a living target while grounded launches the
   player toward it with the form's original horizontal and vertical velocity.
-- The default `B` key toggles instinct mode. A detached copy of the selected
-  mob runs its complete native AI step for rest, wandering, fleeing, hunting,
-  melee attacks, grass eating, and rabbit garden raids, then transfers its
-  native movement vector to the player. Only forward, jump, and view input can
-  intervene in the states that allow them: forward alters the shadow mob's
-  navigation; jump uses its jump control and the regular landing cooldown;
-  locked target views allow a bounded manual offset that keeps the target in
-  view. Toggling the mode does not display a text overlay or crosshair. Its
-  visual effect is active for the whole mode; per-morph data packs can disable
-  it or scale its intensity with `instinct.visual_effect.enabled` and
-  `instinct.visual_effect.strength`.
+- After 10 seconds with no gameplay input, instinct mode enters automatically.
+  Holding the mining button for 3 seconds exits only from a state that accepts
+  view input; pursuit, fleeing, feeding, and other locked states cannot be
+  exited. A detached copy of the selected mob runs its complete native AI step
+  for rest, wandering, fleeing, hunting, melee attacks, grass eating, and
+  rabbit garden raids, then transfers its native movement vector to the player.
+  Only forward, jump, and view input can intervene in the states that allow
+  them: forward alters the shadow mob's navigation; jump uses its jump control
+  and the regular landing cooldown; locked target views allow a bounded manual
+  offset that keeps the target in view. The mode does not display a text
+  overlay or crosshair. Its visual effect is active for the whole mode;
+  per-morph data packs can disable it or scale its intensity with
+  `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`.
+  The active-mode preference is saved with the player and restored after
+  reconnecting to the world; it is cleared by an explicit exit or respawn.
 - Feline hunting stores `instinct.hunting.feline_sprint_start_distance` per
   morph, allowing each feline form to accelerate before its prey's close-range
   escape behavior can create an unrecoverable gap.

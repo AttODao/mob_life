@@ -129,6 +129,10 @@ final class InstinctController {
     return control;
   }
 
+  boolean allowsExit() {
+    return control.state().acceptsView();
+  }
+
   int intervene(int flags) {
     int accepted = 0;
     if ((flags & InstinctManager.INTERVENE_FORWARD) != 0 && control.state().acceptsForward()) {

@@ -42,7 +42,9 @@ public final class MobLifeNetworking {
     PayloadTypeRegistry.serverboundPlay()
         .register(WorldMorphSelectionSubmitPayload.TYPE, WorldMorphSelectionSubmitPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
-        .register(InstinctTogglePayload.TYPE, InstinctTogglePayload.CODEC);
+        .register(InstinctEnterPayload.TYPE, InstinctEnterPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(InstinctExitPayload.TYPE, InstinctExitPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(InstinctInterventionPayload.TYPE, InstinctInterventionPayload.CODEC);
     ServerPlayNetworking.registerGlobalReceiver(
@@ -91,9 +93,13 @@ public final class MobLifeNetworking {
                       server, payload.morphId(), payload.nbt()));
         });
     ServerPlayNetworking.registerGlobalReceiver(
-        InstinctTogglePayload.TYPE,
+        InstinctEnterPayload.TYPE,
         (payload, context) ->
-            context.server().execute(() -> InstinctManager.toggle(context.player())));
+            context.server().execute(() -> InstinctManager.enable(context.player())));
+    ServerPlayNetworking.registerGlobalReceiver(
+        InstinctExitPayload.TYPE,
+        (payload, context) ->
+            context.server().execute(() -> InstinctManager.requestExit(context.player())));
     ServerPlayNetworking.registerGlobalReceiver(
         InstinctInterventionPayload.TYPE,
         (payload, context) ->
@@ -273,11 +279,23 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record InstinctTogglePayload() implements CustomPacketPayload {
-    public static final Type<InstinctTogglePayload> TYPE =
-        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_toggle"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctTogglePayload> CODEC =
-        StreamCodec.unit(new InstinctTogglePayload());
+  public record InstinctEnterPayload() implements CustomPacketPayload {
+    public static final Type<InstinctEnterPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_enter"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctEnterPayload> CODEC =
+        StreamCodec.unit(new InstinctEnterPayload());
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record InstinctExitPayload() implements CustomPacketPayload {
+    public static final Type<InstinctExitPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_exit"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctExitPayload> CODEC =
+        StreamCodec.unit(new InstinctExitPayload());
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
