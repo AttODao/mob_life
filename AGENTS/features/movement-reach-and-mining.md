@@ -25,12 +25,38 @@
   `Entity.move` call is captured and injected as the player's velocity
   immediately before player travel, avoiding a second copy of AI acceleration,
   friction, or gravity. Rabbit AI hops consequently retain their native low,
-  normal, and step-up jump heights. In REST and WANDER only,
-  forward input temporarily adds a native navigation goal in the current view
-  direction. Jump input is queued briefly until grounded, obeys the regular
-  landing cooldown, and requests the shadow mob's jump control with a minimum
-  vertical velocity of `0.42`, sufficient for a one-block step; these inputs
-  never act directly on the player.
+  normal, and step-up jump heights. In REST and LOOK, holding forward retries a
+  chance-based, cooldown-limited request to begin a one- or two-leg local
+  wander toward the current camera yaw. Releasing forward does not stop an
+  accepted wander. While WANDER is active, forward steers a short-lived
+  direction intent toward the camera yaw without directly changing velocity or
+  turning the body. Left and right retry a chance-based intervention using the
+  same probability as forward wander start: during WANDER a success turns the
+  direction intent 15 through 45 degrees to that side, and during REST it
+  turns the body by the same range without beginning movement. Successful and
+  failed lateral attempts use 20- and 10-tick base cooldowns respectively.
+  A completed natural wander also starts the same forward-wander cooldown
+  before another player-requested wander can begin.
+- Direction intent is held for 20 ticks and fades over the following 40 ticks.
+  It biases both prompted and natural wander candidates 70% toward the intent,
+  preferring a 15-degree cone and falling back to 45 degrees or ordinary AI
+  candidates where terrain requires it. Twelve candidates are evaluated so a
+  narrow intent cone remains usable. An existing route is reconsidered only
+  after at least 20 ticks and a 15-degree intent change; a missing replacement
+  path leaves the current route active. Hunting, fleeing, feeding, and social
+  movement clear direction intent and take priority.
+- Instinct camera targets interpolate every rendered frame. Body turns use a
+  dead zone and bounded angular speed, so rapidly changing AI headings cannot
+  snap the camera. During unlocked REST, LOOK, and WANDER states, mouse
+  movement changes only the head and camera at one-quarter sensitivity. The
+  camera-to-body yaw offset is retained while the body turns, then smoothly
+  recenters while mouse yaw input is idle; horizontal and vertical camera
+  offsets are each clamped to `-30` through `30` degrees.
+- Cow, sheep, chicken, rabbit, wolf, pig, horse, donkey, and mule forms give
+  nearby groups of at least two natural mobs of the same type priority over
+  random and player-requested wandering. The group target is its local center;
+  hunting, fleeing, and feeding remain higher priorities. The behavior is
+  enabled per morph with `instinct.social`.
 - Most mob forms move at quarter speed when strafing or moving backward. The
   forward component of diagonal movement remains unchanged.
 - Outside instinct control, quadruped forms turn their camera and body while

@@ -31,13 +31,16 @@
   reaches 100, which forcibly enters instinct mode at the maximum. Holding the
   mining button exits only from a state that accepts view input; it takes 3
   seconds at zero awkwardness, grows without bound as awkwardness reaches 100,
-  and pursuit, fleeing, feeding, and other locked states cannot be exited. A detached copy of the selected mob runs its complete native AI step
+  and pursuit, fleeing, feeding, and other locked states cannot be exited.
+  While the button is held in an exit-eligible state, the shadow AI remains in
+  REST with zero horizontal movement, preventing a wander or rabbit hop from
+  interrupting the hold. A detached copy of the selected mob runs its complete native AI step
   for rest, wandering, fleeing, hunting, melee attacks, grass eating, and
   rabbit garden raids, then transfers its native movement vector to the player.
-  Only forward, jump, and view input can intervene in the states that allow
-  them: forward alters the shadow mob's navigation; jump uses its jump control
-  and the regular landing cooldown; locked target views allow a bounded manual
-  offset that keeps the target in view. The mode does not display a text
+  Only forward, lateral, and view input can intervene in the states that allow
+  them: forward captures the camera direction for a local wander or an active
+  wander's direction intent, and lateral input probabilistically turns that
+  intent or the resting body's direction. The mode does not display a text
   overlay or crosshair. Its visual effect is active for the whole mode;
   per-morph data packs can disable it or scale its intensity with
   `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`.
@@ -60,9 +63,12 @@
   multiplier. Hunger thresholds gate new hunts. The built-in attack interval is
   10 ticks, while the post-kill hunting cooldown is 400 ticks (20 seconds);
   both values are configurable per morph through the hunting data-pack fields.
-- Instinct mode is the sole ordinary way to reduce awkwardness. Its passive
-  decay continues while forward, jump, or view input intervenes, and no
-  intervention adds awkwardness.
+- Instinct mode is the sole ordinary way to reduce awkwardness. A valid forward
+  intervention attempt pauses both passive and nearby-same-mob decay
+  for the configured `instinct.intervention.decay_pause_ticks`. While a valid
+  forward or left/right direction-interference key is held, decay is paused
+  whether its probability roll or path generation succeeds. No intervention adds
+  awkwardness.
 - Sheep forms are hunted by wild wolves; chicken forms are hunted by foxes
   and ocelots; rabbit forms are hunted by foxes and wild wolves.
 - Avoidance is configured with `combat.avoided_by`; built-in cat and ocelot
