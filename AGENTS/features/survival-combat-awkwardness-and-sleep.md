@@ -77,6 +77,9 @@
   The built-in attack interval is 10 ticks, the post-kill cooldown is 400 ticks
   (20 seconds), the pursuit timeout is 400 ticks, and the abandoned-hunt
   cooldown is 1200 ticks (60 seconds); all are configurable per morph.
+  Panic and flee behavior take priority over hunting: danger clears the shadow
+  target before its AI step and prevents prey acquisition or attacks until the
+  threat has passed.
 - Built-in hunting nutrition follows the adjusted prey values: cats restore 4
   from rabbits and 3 from baby turtles; ocelots restore 4 from chickens and 3
   from baby turtles; wolves restore 4 from sheep, rabbits, and foxes and 3

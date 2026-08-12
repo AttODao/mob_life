@@ -510,11 +510,12 @@ final class InstinctController {
     rabbitJumped = false;
     prepareShadow();
     updateHuntingState();
-    validatePreyTarget();
     int scanInterval = config.instinct().senses().scanIntervalTicks();
     if ((player.tickCount + Math.floorMod(player.getId(), scanInterval)) % scanInterval == 0) {
       scanSenses();
     }
+    updateFleeingState();
+    validatePreyTarget();
     applyScentTarget();
     cancelPromptedWanderIfOverridden();
     syncFeedingGoals();
@@ -526,9 +527,10 @@ final class InstinctController {
     bodyYaw = movementYaw();
     player.setYBodyRot(bodyYaw);
     rabbitJumped = shadow instanceof Rabbit && shadowJumped;
+    updateFleeingState();
+    validatePreyTarget();
     performImmediateMeleeAttack();
     detectGardenEating(carrotTicksBefore);
-    validatePreyTarget();
     trackHuntPursuit();
     updateStateAndControl();
     replanDirectionIntent();
@@ -702,7 +704,9 @@ final class InstinctController {
             .filter(entity -> InstinctRelations.isPredator(entity, definition.type()))
             .min(Comparator.comparingDouble(player::distanceToSqr))
             .orElse(null);
-    if (!hunting || !MorphAttackDamage.hasAttackAi(definition.type(), shadow)) {
+    if (!hunting
+        || isFleeingThreat()
+        || !MorphAttackDamage.hasAttackAi(definition.type(), shadow)) {
       return;
     }
     if (huntedTarget == null && shadow.getTarget() == null) {
@@ -772,12 +776,7 @@ final class InstinctController {
       scentMemoryTicks = config.instinct().senses().memoryTicks();
     }
 
-    fleeing =
-        isPanicking()
-            || sensedPredator != null
-                && sensedPredator.isAlive()
-                && sensedPredator.distanceToSqr(player)
-                    <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE;
+    updateFleeingState();
     applyInstinctNavigation();
   }
 
@@ -839,6 +838,12 @@ final class InstinctController {
 
   private void validatePreyTarget() {
     LivingEntity target = shadow.getTarget();
+    if (fleeing) {
+      if (target != null) {
+        shadow.setTarget(null);
+      }
+      return;
+    }
     if (hunting && huntedTarget != null) {
       if (huntedTarget.isAlive()
           && !huntedTarget.isRemoved()
@@ -1187,6 +1192,18 @@ final class InstinctController {
     lastPreyPosition = null;
   }
 
+  private void updateFleeingState() {
+    fleeing = isFleeingThreat();
+  }
+
+  private boolean isFleeingThreat() {
+    return isPanicking()
+        || isRunningGoal(AvoidEntityGoal.class)
+        || sensedPredator != null
+            && sensedPredator.isAlive()
+            && sensedPredator.distanceToSqr(player) <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE;
+  }
+
   private void performImmediateMeleeAttack() {
     if (attackPerformedThisTick
         || meleeAttackCooldown > 0
@@ -1459,7 +1476,8 @@ final class InstinctController {
 
     @Override
     public boolean canContinueToUse() {
-      return target != null
+      return mob.getTarget() == target
+          && target != null
           && target.isAlive()
           && mob.distanceToSqr(target) <= FELINE_NATIVE_CHASE_RANGE_SQR
           && (!mob.getNavigation().isDone() || canUse());

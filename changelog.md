@@ -2,6 +2,11 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-12 - v1.2.6
+
+- Made panic and flee behavior take priority over instinct hunting, preventing
+  prey acquisition, pursuit, and attacks while a threat is active.
+
 ## 2026-08-12 - v1.2.5
 
 - Fixed instinct hunting so a living prey target remains locked while being
