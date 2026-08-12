@@ -2,6 +2,21 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-12 - v1.2.4
+
+- Rebalanced instinct nutrition: cats restore 4 from rabbits and 3 from baby
+  turtles; ocelots restore 4 from chickens and 3 from baby turtles; wolves
+  restore 4 from sheep, rabbits, and foxes and 3 from baby turtles; evil
+  rabbits restore 5 from players and 4 from wolves; sheep grass meals restore
+  2; and rabbit garden raids restore 3.
+- Made low-food awkwardness decay half as fast while keeping low-food gains at
+  2x, and added a 6-second cooldown to damage-based awkwardness increases.
+- Persisted hunting and feeding cooldowns across reconnects and instinct-mode
+  transitions.
+- Added configurable pursuit timeouts and long cooldowns after abandoned hunts,
+  while preserving wall-through prey sensing.
+- Delayed hunting nutrition recovery until the eating animation completes.
+
 ## 2026-08-12 - v1.2.3
 
 - Fixed instinct-mode controller input by using the common player-input and
