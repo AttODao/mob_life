@@ -171,7 +171,7 @@ public final class ClientInstinctState {
         && !MorphAwkwardness.isMaximum(ClientMorphState.awkwardness());
   }
 
-  public static void recordKeyboard(boolean forward, boolean left, boolean right) {
+  public static void recordMovement(boolean forward, boolean left, boolean right) {
     if (!enabled) {
       return;
     }

@@ -40,10 +40,12 @@
   Only forward, lateral, and view input can intervene in the states that allow
   them: forward captures the camera direction for a local wander or an active
   wander's direction intent, and lateral input probabilistically turns that
-  intent or the resting body's direction. The mode does not display a text
+  intent or the resting body's direction. Keyboard and Controllify controller
+  input use the same intervention and idle-activity path. The mode does not display a text
   overlay or crosshair. Its visual effect is active for the whole mode;
   per-morph data packs can disable it or scale its intensity with
-  `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`.
+  `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`. It
+  does not target blocks, and its first-person mob limb remains still.
   The active-mode preference is saved with the player and restored after
   reconnecting to the world; it is cleared by an explicit exit or respawn.
 - Feline hunting stores `instinct.hunting.feline_sprint_start_distance` per
