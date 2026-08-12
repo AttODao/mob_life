@@ -111,8 +111,8 @@
   continuously from green at 0 through yellow to red at 100.
 - Skeleton ranged attacks aim at a transformed player's morph eye height
   instead of the vanilla player-sized target position.
-- At 30 awkwardness or below, the configurable `V` key sleeps without a bed
-  on grass, wool, carpet, hay, moss, or beds. This sleep consumes the exact
-  `sleep.food_cost` configured for the form, requires more current food than
-  that cost, still checks for nearby monsters, and requires 200 ticks instead
-  of 100. Its sleep timer cap is extended only for this soft-surface sleep.
+- Below 30 awkwardness, the configurable `V` key sleeps without a bed on
+  grass, wool, carpet, hay, moss, or beds. It does not consume food; beginning
+  the sleep adds 70 awkwardness instead. It still checks for nearby monsters
+  and requires 200 ticks instead of 100. Its sleep timer cap is extended only
+  for this soft-surface sleep.

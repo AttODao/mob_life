@@ -104,7 +104,7 @@ final class MorphConfigCodec {
             "none", -1.0, new MorphConfig.LeapAttack(0.4, 0.0, 4.0), List.of(), List.of(), 1.0F),
         new MorphConfig.Attributes(1.0, 20, 1.0, 1.0),
         new MorphConfig.Inventory(9, 27, 0),
-        new MorphConfig.Sleep("normal", false, 200, 8, 30.0F),
+        new MorphConfig.Sleep("normal", false, 200),
         new MorphConfig.Instinct(
             true,
             new MorphConfig.Wander(10, 7, 120, 0.55F),
@@ -239,9 +239,7 @@ final class MorphConfigCodec {
         new MorphConfig.Sleep(
             string(sleep, "schedule", defaultSleep.schedule()),
             bool(sleep, "without_bed", defaultSleep.withoutBed()),
-            integer(sleep, "required_ticks", defaultSleep.requiredTicks()),
-            integer(sleep, "food_cost", defaultSleep.foodCost()),
-            decimal(sleep, "maximum_awkwardness", defaultSleep.maximumAwkwardness())),
+            integer(sleep, "required_ticks", defaultSleep.requiredTicks())),
         new MorphConfig.Instinct(
             bool(instinct, "enabled", defaultInstinct.enabled()),
             new MorphConfig.Wander(
@@ -434,8 +432,6 @@ final class MorphConfigCodec {
     sleepJson.addProperty("schedule", sleep.schedule());
     sleepJson.addProperty("without_bed", sleep.withoutBed());
     sleepJson.addProperty("required_ticks", sleep.requiredTicks());
-    sleepJson.addProperty("food_cost", sleep.foodCost());
-    sleepJson.addProperty("maximum_awkwardness", sleep.maximumAwkwardness());
     return sleepJson;
   }
 

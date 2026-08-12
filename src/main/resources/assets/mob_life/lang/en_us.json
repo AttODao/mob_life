@@ -45,7 +45,6 @@
 	"mob_life.options.title": "Mob Life Settings",
 	"mob_life.options.awkwardness_debug": "Awkwardness debug display",
 	"mob_life.sleep.too_awkward": "You feel too awkward to sleep",
-	"mob_life.sleep.not_enough_food": "Sleeping requires more than %s food points",
 	"mob_life.sleep.soft_surface_required": "You can only sleep on a soft block",
 	"mob_life.sleep.not_possible": "You cannot sleep here",
 	"mob_life.sleep.nocturnal_night": "Nocturnal forms cannot sleep at night",

@@ -87,9 +87,7 @@
   "sleep": {
     "schedule": "normal",
     "without_bed": false,
-    "required_ticks": 200,
-    "maximum_awkwardness": 30,
-    "food_cost": 8
+    "required_ticks": 200
   },
   "instinct": {
     "enabled": false

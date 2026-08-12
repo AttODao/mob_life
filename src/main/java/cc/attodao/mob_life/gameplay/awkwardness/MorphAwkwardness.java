@@ -58,7 +58,7 @@ public final class MorphAwkwardness {
   }
 
   public static boolean canSleepWithoutBed(Player player) {
-    return get(player) <= SLEEP_THRESHOLD;
+    return get(player) < SLEEP_THRESHOLD;
   }
 
   public static float hostileDetectionScale(Player player) {

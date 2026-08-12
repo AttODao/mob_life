@@ -16,7 +16,6 @@ import net.minecraft.world.clock.ClockTimeMarker;
 import net.minecraft.world.clock.ClockTimeMarkers;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.food.FoodData;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
@@ -26,6 +25,7 @@ import net.minecraft.world.phys.Vec3;
 public final class MorphSleep {
   private static final long DAY_END_TICK = 12000L;
   private static final long DAY_LENGTH_TICKS = 24000L;
+  private static final float BEDLESS_SLEEP_AWKWARDNESS_COST = 70.0F;
 
   private MorphSleep() {}
 
@@ -38,13 +38,8 @@ public final class MorphSleep {
       return;
     }
     MorphConfig.Sleep config = config();
-    if (!config.withoutBed() || MorphAwkwardness.get(player) > config.maximumAwkwardness()) {
+    if (!config.withoutBed() || !MorphAwkwardness.canSleepWithoutBed(player)) {
       player.sendOverlayMessage(Component.translatable("mob_life.sleep.too_awkward"));
-      return;
-    }
-    int foodCost = foodCost();
-    if (player.getFoodData().getFoodLevel() <= foodCost) {
-      player.sendOverlayMessage(Component.translatable("mob_life.sleep.not_enough_food", foodCost));
       return;
     }
 
@@ -86,7 +81,8 @@ public final class MorphSleep {
     player.startSleeping(sleepPos);
     player.setPos(
         sleepPos.getX() + 0.5, sleepPos.getY() + surfaceHeight + 0.1, sleepPos.getZ() + 0.5);
-    consumeFood(player, foodCost);
+    ServerMorphManager.setAwkwardness(
+        player, MorphAwkwardness.get(player) + BEDLESS_SLEEP_AWKWARDNESS_COST);
     player.level().updateSleepingPlayerList();
   }
 
@@ -158,10 +154,6 @@ public final class MorphSleep {
         .isEmpty();
   }
 
-  private static int foodCost() {
-    return Math.max(0, config().foodCost());
-  }
-
   public static int requiredSleepTicks() {
     return config().requiredTicks();
   }
@@ -182,12 +174,5 @@ public final class MorphSleep {
 
   private static MorphConfig.Sleep config() {
     return MorphConfigManager.get(ServerMorphManager.activeMorph()).sleep();
-  }
-
-  private static void consumeFood(ServerPlayer player, int foodCost) {
-    FoodData food = player.getFoodData();
-    int remaining = Math.max(0, food.getFoodLevel() - foodCost);
-    food.setFoodLevel(remaining);
-    food.setSaturation(Math.min(food.getSaturationLevel(), remaining));
   }
 }

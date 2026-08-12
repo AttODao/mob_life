@@ -45,7 +45,6 @@
 	"mob_life.options.title": "Mob Life設定",
 	"mob_life.options.awkwardness_debug": "違和感のデバッグ表示",
 	"mob_life.sleep.too_awkward": "違和感が強すぎて眠れません",
-	"mob_life.sleep.not_enough_food": "眠るには満腹度が%sより多く必要です",
 	"mob_life.sleep.soft_surface_required": "柔らかいブロックの上でのみ眠れます",
 	"mob_life.sleep.not_possible": "ここでは眠れません",
 	"mob_life.sleep.nocturnal_night": "夜行性の姿では夜に眠れません",

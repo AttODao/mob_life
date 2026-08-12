@@ -89,9 +89,7 @@
   "sleep": {
     "schedule": "day",
     "without_bed": true,
-    "required_ticks": 200,
-    "maximum_awkwardness": 30,
-    "food_cost": 4
+    "required_ticks": 200
   },
   "instinct": {
     "social": {

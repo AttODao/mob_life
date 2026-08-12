@@ -86,12 +86,7 @@ public record MorphConfig(
 
   public record Inventory(int hotbarSlots, int inventorySlots, int chestBonusSlots) {}
 
-  public record Sleep(
-      String schedule,
-      boolean withoutBed,
-      int requiredTicks,
-      int foodCost,
-      float maximumAwkwardness) {}
+  public record Sleep(String schedule, boolean withoutBed, int requiredTicks) {}
 
   public record Instinct(
       boolean enabled,
