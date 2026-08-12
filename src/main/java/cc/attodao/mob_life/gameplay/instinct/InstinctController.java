@@ -805,6 +805,9 @@ final class InstinctController {
           && (isRunningGoal(AvoidEntityGoal.class) || isRunningGoal(PanicGoal.class))) {
         return;
       }
+      if (sensedPredator == null) {
+        return;
+      }
       Vec3 away =
           player.position().subtract(sensedPredator.position()).multiply(1.0, 0.0, 1.0).normalize();
       if (away.lengthSqr() > 1.0E-4) {
