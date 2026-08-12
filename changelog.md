@@ -2,6 +2,11 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-12 - v1.2.5
+
+- Fixed instinct hunting so a living prey target remains locked while being
+  pursued, even when multiple valid prey are nearby.
+
 ## 2026-08-12 - v1.2.4
 
 - Rebalanced instinct nutrition: cats restore 4 from rabbits and 3 from baby

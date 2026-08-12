@@ -72,7 +72,9 @@
   30%. A pursuit can detect prey through walls, but stops after
   `pursuit_timeout_ticks`; it then applies
   `abandoned_hunt_cooldown_ticks`, which cannot be bypassed by hunger. The
-  built-in attack interval is 10 ticks, the post-kill cooldown is 400 ticks
+  selected prey remains fixed throughout a pursuit while it is alive; another
+  prey is selected only after the target is lost or the pursuit is abandoned.
+  The built-in attack interval is 10 ticks, the post-kill cooldown is 400 ticks
   (20 seconds), the pursuit timeout is 400 ticks, and the abandoned-hunt
   cooldown is 1200 ticks (60 seconds); all are configurable per morph.
 - Built-in hunting nutrition follows the adjusted prey values: cats restore 4

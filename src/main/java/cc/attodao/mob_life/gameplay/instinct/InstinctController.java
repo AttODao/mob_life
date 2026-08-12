@@ -87,6 +87,7 @@ final class InstinctController {
   private final PathfinderMob shadow;
   private final List<FeedingGoal> feedingGoals = new ArrayList<>();
   private boolean hunting;
+  private LivingEntity huntedTarget;
   private boolean fleeing;
   private int huntPursuitTicks;
   private int meleeAttackCooldown;
@@ -176,6 +177,11 @@ final class InstinctController {
   boolean allowsTarget(LivingEntity target) {
     if (target == player || fleeing) {
       return false;
+    }
+    if (hunting) {
+      return huntedTarget == null
+          ? InstinctRelations.nutrition(target, config).isPresent()
+          : target == huntedTarget;
     }
     return InstinctRelations.nutrition(target, config).isEmpty() || hunting && !fleeing;
   }
@@ -560,6 +566,7 @@ final class InstinctController {
       InstinctManager.startPostKillHuntCooldown(
           player, config.instinct().hunting().postKillCooldownTicks());
       hunting = false;
+      huntedTarget = null;
       shadow.setTarget(null);
       shadow.getNavigation().stop();
       scentMemoryTicks = 0;
@@ -668,9 +675,15 @@ final class InstinctController {
   private void updateHuntingState() {
     if (config.instinct().hunting().prey().isEmpty() || isEatingMeal()) {
       hunting = false;
+      huntedTarget = null;
+      shadow.setTarget(null);
       return;
     }
     hunting = InstinctManager.canHunt(player);
+    if (!hunting) {
+      huntedTarget = null;
+      shadow.setTarget(null);
+    }
   }
 
   private void scanSenses() {
@@ -692,7 +705,7 @@ final class InstinctController {
     if (!hunting || !MorphAttackDamage.hasAttackAi(definition.type(), shadow)) {
       return;
     }
-    if (shadow.getTarget() == null) {
+    if (huntedTarget == null && shadow.getTarget() == null) {
       nearby.stream()
           .filter(entity -> entity != player)
           .filter(entity -> entity.distanceToSqr(player) <= senses.preyRange() * senses.preyRange())
@@ -700,6 +713,7 @@ final class InstinctController {
           .min(Comparator.comparingDouble(player::distanceToSqr))
           .ifPresent(
               target -> {
+                huntedTarget = target;
                 shadow.setTarget(target);
                 huntPursuitTicks = 0;
               });
@@ -825,8 +839,25 @@ final class InstinctController {
 
   private void validatePreyTarget() {
     LivingEntity target = shadow.getTarget();
+    if (hunting && huntedTarget != null) {
+      if (huntedTarget.isAlive()
+          && !huntedTarget.isRemoved()
+          && InstinctRelations.nutrition(huntedTarget, config).isPresent()) {
+        if (target != huntedTarget) {
+          shadow.setTarget(huntedTarget);
+        }
+        return;
+      }
+      huntedTarget = null;
+      shadow.setTarget(null);
+      return;
+    }
     if (target == player || target != null && (!target.isAlive() || target.isRemoved())) {
       shadow.setTarget(null);
+      return;
+    }
+    if (hunting && target != null && InstinctRelations.nutrition(target, config).isPresent()) {
+      huntedTarget = target;
       return;
     }
     if (target != null && InstinctRelations.nutrition(target, config).isPresent() && !hunting) {
@@ -1148,6 +1179,7 @@ final class InstinctController {
     InstinctManager.startAbandonedHuntCooldown(
         player, config.instinct().hunting().abandonedHuntCooldownTicks());
     hunting = false;
+    huntedTarget = null;
     huntPursuitTicks = 0;
     shadow.setTarget(null);
     shadow.getNavigation().stop();
