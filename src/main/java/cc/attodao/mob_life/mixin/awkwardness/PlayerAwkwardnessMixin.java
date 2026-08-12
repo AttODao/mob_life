@@ -3,6 +3,7 @@ package cc.attodao.mob_life.mixin.awkwardness;
 import cc.attodao.mob_life.gameplay.awkwardness.AwkwardnessHolder;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphLeapAttack;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
@@ -32,6 +33,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Player.class)
 public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
   @Unique private float mobLife$awkwardness;
+  @Unique private float mobLife$healthBeforeDamage;
+  @Unique private float mobLife$absorptionBeforeDamage;
+  @Unique private boolean mobLife$capturingDamage;
 
   @Override
   public float mobLife$getAwkwardness() {
@@ -56,9 +60,41 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
   @Inject(method = "attack", at = @At("HEAD"))
   private void mobLife$recordAttack(Entity target, CallbackInfo ci) {
     if ((Object) this instanceof ServerPlayer player) {
+      InstinctManager.recordActivity(player);
       MorphLeapAttack.tryLeap(player, target, ServerMorphManager.activeMorph());
       if (!ServerMorphManager.activeMorphHasAttackAi()) {
         ServerMorphManager.adjustAwkwardness(player, 12.0F);
+      }
+    }
+  }
+
+  @Inject(method = "hurtServer", at = @At("HEAD"))
+  private void mobLife$captureDamageBeforeMitigation(
+      net.minecraft.server.level.ServerLevel level,
+      DamageSource damageSource,
+      float damage,
+      CallbackInfoReturnable<Boolean> cir) {
+    if ((Object) this instanceof ServerPlayer player) {
+      mobLife$healthBeforeDamage = player.getHealth();
+      mobLife$absorptionBeforeDamage = player.getAbsorptionAmount();
+      mobLife$capturingDamage = true;
+    }
+  }
+
+  @Inject(method = "hurtServer", at = @At("RETURN"))
+  private void mobLife$increaseAwkwardnessAfterDamage(
+      net.minecraft.server.level.ServerLevel level,
+      DamageSource damageSource,
+      float damage,
+      CallbackInfoReturnable<Boolean> cir) {
+    if ((Object) this instanceof ServerPlayer player && mobLife$capturingDamage) {
+      mobLife$capturingDamage = false;
+      float finalDamage =
+          Math.max(0.0F, mobLife$healthBeforeDamage - player.getHealth())
+              + Math.max(0.0F, mobLife$absorptionBeforeDamage - player.getAbsorptionAmount());
+      if (cir.getReturnValueZ() && finalDamage > 0.0F) {
+        ServerMorphManager.increaseAwkwardnessFromDamage(player, finalDamage);
+        InstinctManager.forcePanicFromDamage(player, damageSource);
       }
     }
   }
@@ -69,10 +105,11 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
       InteractionHand hand,
       Vec3 location,
       CallbackInfoReturnable<InteractionResult> cir) {
-    if ((Object) this instanceof ServerPlayer
-        && ServerMorphManager.hasMobForm()
-        && entity instanceof Mob) {
-      cir.setReturnValue(InteractionResult.FAIL);
+    if ((Object) this instanceof ServerPlayer player) {
+      InstinctManager.recordActivity(player);
+      if (ServerMorphManager.hasMobForm() && entity instanceof Mob) {
+        cir.setReturnValue(InteractionResult.FAIL);
+      }
     }
   }
 

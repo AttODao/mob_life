@@ -11,6 +11,7 @@ public final class MorphFoodCapacity {
 
   public static final int PLAYER_MAX_FOOD = 20;
   public static final int ABSOLUTE_MIN_MOB_MAX_FOOD = 8;
+  public static final float CRITICAL_FOOD_RATIO = 0.3F;
   private static final float PLAYER_HEIGHT = EntityTypes.PLAYER.getDimensions().height();
 
   private MorphFoodCapacity() {}
@@ -37,6 +38,11 @@ public final class MorphFoodCapacity {
 
   public static int maxFood(Player player) {
     return ((MorphFoodDataHolder) player.getFoodData()).mobLife$getMaxFood();
+  }
+
+  public static boolean isCriticallyHungry(Player player) {
+    return player.getFoodData().getFoodLevel() / (float) Math.max(1, maxFood(player))
+        <= CRITICAL_FOOD_RATIO;
   }
 
   public static void apply(Player player, MorphType morph) {

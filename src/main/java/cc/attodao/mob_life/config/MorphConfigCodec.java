@@ -111,7 +111,7 @@ final class MorphConfigCodec {
             new MorphConfig.Intervention(0.75F, 50, 40, 120, 20),
             new MorphConfig.Social(false, 24.0, 8.0, 2),
             new MorphConfig.Senses(64.0, 64.0, 120, 20),
-            new MorphConfig.Hunting(0.45F, 0.75F, 40, 10, 400, 4.0, List.of()),
+            new MorphConfig.Hunting(40, 10, 400, 400, 1200, 4.0, List.of()),
             new MorphConfig.Feeding(
                 new MorphConfig.FeedingAction(false, 4, 0),
                 new MorphConfig.FeedingAction(false, 4, 100)),
@@ -291,10 +291,6 @@ final class MorphConfigCodec {
                 clampedInteger(
                     senses, "scan_interval_ticks", defaultSenses.scanIntervalTicks(), 5, 200)),
             new MorphConfig.Hunting(
-                clampedDecimal(
-                    hunting, "start_food_ratio", defaultHunting.startFoodRatio(), 0.0F, 1.0F),
-                clampedDecimal(
-                    hunting, "stop_food_ratio", defaultHunting.stopFoodRatio(), 0.0F, 1.0F),
                 clampedInteger(
                     hunting, "eat_duration_ticks", defaultHunting.eatDurationTicks(), 0, 1200),
                 clampedInteger(
@@ -307,6 +303,18 @@ final class MorphConfigCodec {
                     hunting,
                     "post_kill_cooldown_ticks",
                     defaultHunting.postKillCooldownTicks(),
+                    0,
+                    12000),
+                clampedInteger(
+                    hunting,
+                    "pursuit_timeout_ticks",
+                    defaultHunting.pursuitTimeoutTicks(),
+                    20,
+                    12000),
+                clampedInteger(
+                    hunting,
+                    "abandoned_hunt_cooldown_ticks",
+                    defaultHunting.abandonedHuntCooldownTicks(),
                     0,
                     12000),
                 clampedNumber(
@@ -475,11 +483,12 @@ final class MorphConfigCodec {
     result.add("senses", senses);
 
     JsonObject hunting = new JsonObject();
-    hunting.addProperty("start_food_ratio", instinct.hunting().startFoodRatio());
-    hunting.addProperty("stop_food_ratio", instinct.hunting().stopFoodRatio());
     hunting.addProperty("eat_duration_ticks", instinct.hunting().eatDurationTicks());
     hunting.addProperty("attack_cooldown_ticks", instinct.hunting().attackCooldownTicks());
     hunting.addProperty("post_kill_cooldown_ticks", instinct.hunting().postKillCooldownTicks());
+    hunting.addProperty("pursuit_timeout_ticks", instinct.hunting().pursuitTimeoutTicks());
+    hunting.addProperty(
+        "abandoned_hunt_cooldown_ticks", instinct.hunting().abandonedHuntCooldownTicks());
     hunting.addProperty(
         "feline_sprint_start_distance", instinct.hunting().felineSprintStartDistance());
     JsonArray prey = new JsonArray();

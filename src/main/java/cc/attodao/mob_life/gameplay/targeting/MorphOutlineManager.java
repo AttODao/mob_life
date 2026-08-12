@@ -5,6 +5,7 @@ import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.instinct.InstinctRelations;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -44,16 +45,7 @@ public final class MorphOutlineManager {
     }
 
     double range = Math.min(128.0, config.outline().range());
-    List<LivingEntity> nearby =
-        player
-            .level()
-            .getEntitiesOfClass(
-                LivingEntity.class,
-                player.getBoundingBox().inflate(range),
-                entity ->
-                    entity != player
-                        && entity.isAlive()
-                        && entity.distanceToSqr(player) <= range * range);
+    List<LivingEntity> nearby = new ArrayList<>(MorphNearbyEntities.living(player, range));
     nearby.sort(java.util.Comparator.comparingDouble(player::distanceToSqr));
 
     LinkedHashSet<Integer> predators = new LinkedHashSet<>();

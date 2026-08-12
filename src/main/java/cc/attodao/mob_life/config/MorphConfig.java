@@ -131,20 +131,14 @@ public record MorphConfig(
       double preyRange, double predatorRange, int memoryTicks, int scanIntervalTicks) {}
 
   public record Hunting(
-      float startFoodRatio,
-      float stopFoodRatio,
       int eatDurationTicks,
       int attackCooldownTicks,
       int postKillCooldownTicks,
+      int pursuitTimeoutTicks,
+      int abandonedHuntCooldownTicks,
       double felineSprintStartDistance,
       List<Prey> prey) {
     public Hunting {
-      startFoodRatio = Math.clamp(startFoodRatio, 0.0F, 1.0F);
-      stopFoodRatio = Math.clamp(stopFoodRatio, 0.0F, 1.0F);
-      if (stopFoodRatio <= startFoodRatio) {
-        startFoodRatio = Math.min(startFoodRatio, 0.95F);
-        stopFoodRatio = startFoodRatio + 0.05F;
-      }
       felineSprintStartDistance = Math.clamp(felineSprintStartDistance, 0.0, 128.0);
       prey = List.copyOf(prey);
     }

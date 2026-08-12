@@ -103,7 +103,7 @@
     "feeding": {
       "eat_block": {
         "enabled": true,
-        "nutrition": 4,
+        "nutrition": 2,
         "cooldown_ticks": 1200
       }
     }

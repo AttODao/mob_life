@@ -95,15 +95,17 @@
   },
   "instinct": {
     "senses": {
-      "prey_range": 96
+      "prey_range": 24
     },
     "hunting": {
       "attack_cooldown_ticks": 10,
       "post_kill_cooldown_ticks": 400,
-      "feline_sprint_start_distance": 12,
+      "pursuit_timeout_ticks": 400,
+      "abandoned_hunt_cooldown_ticks": 1200,
+      "feline_sprint_start_distance": 8,
       "prey": [
-        { "selector": "minecraft:chicken", "nutrition": 6 },
-        { "selector": "minecraft:turtle", "nutrition": 4 }
+        { "selector": "minecraft:chicken", "nutrition": 4 },
+        { "selector": "minecraft:turtle", "nutrition": 3 }
       ]
     }
   },

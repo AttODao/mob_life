@@ -44,9 +44,6 @@ public abstract class EntityInstinctViewMixin {
     mobLife$capturingInstinctView = false;
     float yawDelta = Mth.wrapDegrees(player.getYRot() - mobLife$yawBeforeInstinctTurn);
     float pitchDelta = player.getXRot() - mobLife$pitchBeforeInstinctTurn;
-    if (Math.abs(yawDelta) > 1.0E-4F || Math.abs(pitchDelta) > 1.0E-4F) {
-      ClientInstinctState.recordActivity();
-    }
     if (!ClientInstinctState.enabled() || ClientInstinctState.locksView()) {
       return;
     }

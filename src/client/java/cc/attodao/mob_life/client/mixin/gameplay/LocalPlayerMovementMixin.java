@@ -96,9 +96,6 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
   private void mobLife$processInstinctInput() {
     Input raw = input.keyPresses;
     Vec2 movement = input.getMoveVector();
-    if (mobLife$hasInput(raw, movement)) {
-      ClientInstinctState.recordActivity();
-    }
     if (!ClientInstinctState.enabled()) {
       return;
     }
@@ -111,17 +108,6 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
     input.keyPresses = Input.EMPTY;
     ((ClientInputAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
     setSprinting(false);
-  }
-
-  private static boolean mobLife$hasInput(Input input, Vec2 movement) {
-    return input.forward()
-        || input.backward()
-        || input.left()
-        || input.right()
-        || input.jump()
-        || input.shift()
-        || input.sprint()
-        || movement.lengthSquared() > 1.0E-8F;
   }
 
   private boolean mobLife$isRestrictedVehicle() {

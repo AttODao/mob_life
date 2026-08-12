@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.gameplay.ability;
 
 import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,6 +19,7 @@ public final class MorphAbility {
   private MorphAbility() {}
 
   public static void request(ServerPlayer player) {
+    InstinctManager.recordActivity(player);
     if (!ServerMorphManager.hasMobForm() || !player.isAlive()) {
       return;
     }

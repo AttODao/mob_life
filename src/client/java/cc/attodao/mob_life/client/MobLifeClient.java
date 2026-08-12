@@ -16,7 +16,6 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public final class MobLifeClient implements ClientModInitializer {
@@ -103,7 +102,6 @@ public final class MobLifeClient implements ClientModInitializer {
     ClientTickEvents.END_CLIENT_TICK.register(
         client -> {
           while (ABILITY_KEY.consumeClick()) {
-            ClientInstinctState.recordActivity();
             if (client.player != null
                 && ClientMorphState.morph() != null
                 && !ClientInstinctState.enabled()) {
@@ -111,22 +109,14 @@ public final class MobLifeClient implements ClientModInitializer {
             }
           }
           while (SLEEP_KEY.consumeClick()) {
-            ClientInstinctState.recordActivity();
             if (client.player != null
                 && ClientMorphState.morph() != null
                 && !ClientInstinctState.enabled()) {
               ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());
             }
           }
-          mobLife$recordDirectActivity(client);
-          if (ClientInstinctState.shouldRequestEntry(client)) {
-            ClientPlayNetworking.send(new MobLifeNetworking.InstinctEnterPayload());
-          }
           if (ClientInstinctState.shouldHoldRestForExit(client)) {
             ClientPlayNetworking.send(new MobLifeNetworking.InstinctRestHoldPayload());
-          }
-          if (ClientInstinctState.shouldRequestExit(client)) {
-            ClientPlayNetworking.send(new MobLifeNetworking.InstinctExitPayload());
           }
           ClientInstinctState.Intervention intervention =
               ClientInstinctState.consumeInterventions();
@@ -138,23 +128,5 @@ public final class MobLifeClient implements ClientModInitializer {
           ClientInstinctState.tick(client);
           ClientMorphState.tick(client);
         });
-  }
-
-  private static void mobLife$recordDirectActivity(Minecraft client) {
-    if (client.options.keyAttack.isDown()
-        || client.options.keyUse.isDown()
-        || client.options.keyPickItem.isDown()
-        || client.options.keyDrop.isDown()
-        || client.options.keyInventory.isDown()
-        || client.options.keySwapOffhand.isDown()) {
-      ClientInstinctState.recordActivity();
-      return;
-    }
-    for (KeyMapping key : client.options.keyHotbarSlots) {
-      if (key.isDown()) {
-        ClientInstinctState.recordActivity();
-        return;
-      }
-    }
   }
 }

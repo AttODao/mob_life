@@ -3,6 +3,7 @@ package cc.attodao.mob_life.gameplay.sleep;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -30,6 +31,7 @@ public final class MorphSleep {
   private MorphSleep() {}
 
   public static void requestSleep(ServerPlayer player) {
+    InstinctManager.recordActivity(player);
     if (!ServerMorphManager.hasMobForm()) {
       return;
     }

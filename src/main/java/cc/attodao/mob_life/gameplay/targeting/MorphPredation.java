@@ -15,12 +15,11 @@ public final class MorphPredation {
 
   public static void acquirePredators(ServerPlayer player, MorphType morph) {
     for (Mob mob :
-        player
-            .level()
-            .getEntitiesOfClass(
-                Mob.class,
-                player.getBoundingBox().inflate(TARGET_RANGE),
-                candidate -> isPredatorFor(candidate, morph))) {
+        MorphNearbyEntities.living(player, TARGET_RANGE).stream()
+            .filter(Mob.class::isInstance)
+            .map(Mob.class::cast)
+            .filter(candidate -> isPredatorFor(candidate, morph))
+            .toList()) {
       if (mob.getTarget() == null
           || mob.distanceToSqr(player) < mob.distanceToSqr(mob.getTarget())) {
         mob.setTarget(player);

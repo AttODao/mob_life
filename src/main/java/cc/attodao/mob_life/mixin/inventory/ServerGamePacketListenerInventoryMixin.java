@@ -29,6 +29,7 @@ public abstract class ServerGamePacketListenerInventoryMixin {
   @Inject(method = "handleSetCarriedItem", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventInstinctHotbarSelection(
       ServerboundSetCarriedItemPacket packet, CallbackInfo ci) {
+    InstinctManager.recordActivity(player);
     if (InstinctManager.isEnabled(player)) {
       ci.cancel();
     }

@@ -37,10 +37,6 @@ public final class ClientInstinctState {
   private static float pendingViewPitchInput;
   private static int selectedSlot = -1;
   private static Vec3 nativeMovement = Vec3.ZERO;
-  private static int idleTicks;
-  private static boolean entryRequestSent;
-  private static int exitHoldTicks;
-  private static boolean exitRequestSent;
   private static float visualBlend;
 
   private ClientInstinctState() {}
@@ -57,21 +53,12 @@ public final class ClientInstinctState {
     desiredYaw = payload.targetYaw();
     desiredPitch = payload.targetPitch();
     nativeMovement = new Vec3(payload.movementX(), payload.movementY(), payload.movementZ());
-    if (enabled) {
-      if (!wasEnabled) {
-        resetEntryTimer();
-        exitHoldTicks = 0;
-        exitRequestSent = false;
-      }
-    } else {
+    if (!enabled) {
       pendingInterventions = 0;
       pendingViewYawInput = 0.0F;
       pendingViewPitchInput = 0.0F;
       viewInitialized = false;
       nativeMovement = Vec3.ZERO;
-      resetEntryTimer();
-      exitHoldTicks = 0;
-      exitRequestSent = false;
     }
 
     LocalPlayer player = Minecraft.getInstance().player;
@@ -113,57 +100,9 @@ public final class ClientInstinctState {
     return visualBlend;
   }
 
-  public static void recordActivity() {
-    if (!enabled) {
-      resetEntryTimer();
-    }
-  }
-
-  public static boolean shouldRequestEntry(Minecraft client) {
-    if (enabled
-        || client.player == null
-        || client.isPaused()
-        || client.gui.screen() != null
-        || ClientMorphState.morph() == null) {
-      resetEntryTimer();
-      return false;
-    }
-    if (entryRequestSent) {
-      return false;
-    }
-    idleTicks++;
-    if (idleTicks < MorphAwkwardness.instinctEntryDelayTicks(ClientMorphState.awkwardness())) {
-      return false;
-    }
-    entryRequestSent = true;
-    return true;
-  }
-
-  public static boolean shouldRequestExit(Minecraft client) {
-    if (!enabled
-        || !state.acceptsView()
-        || client.player == null
-        || client.isPaused()
-        || client.gui.screen() != null
-        || !client.options.keyAttack.isDown()
-        || MorphAwkwardness.isMaximum(ClientMorphState.awkwardness())) {
-      exitHoldTicks = 0;
-      exitRequestSent = false;
-      return false;
-    }
-    if (exitRequestSent) {
-      return false;
-    }
-    exitHoldTicks++;
-    if (exitHoldTicks < MorphAwkwardness.instinctExitHoldTicks(ClientMorphState.awkwardness())) {
-      return false;
-    }
-    exitRequestSent = true;
-    return true;
-  }
-
   public static boolean shouldHoldRestForExit(Minecraft client) {
     return enabled
+        && state.acceptsView()
         && client.player != null
         && !client.isPaused()
         && client.gui.screen() == null
@@ -311,14 +250,6 @@ public final class ClientInstinctState {
     selectedSlot = -1;
     nativeMovement = Vec3.ZERO;
     visualBlend = 0.0F;
-    resetEntryTimer();
-    exitHoldTicks = 0;
-    exitRequestSent = false;
-  }
-
-  private static void resetEntryTimer() {
-    idleTicks = 0;
-    entryRequestSent = false;
   }
 
   private static float perFrameResponse(float perTickResponse, float frameTicks) {

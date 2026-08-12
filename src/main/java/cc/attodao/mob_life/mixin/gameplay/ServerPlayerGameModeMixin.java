@@ -56,6 +56,7 @@ public abstract class ServerPlayerGameModeMixin {
       int maxY,
       int sequence,
       CallbackInfo ci) {
+    InstinctManager.recordActivity(player);
     if (action != ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK
         && mobLife$isBlockActionRestricted()) {
       mobLife$clearDestroyState();
@@ -90,6 +91,7 @@ public abstract class ServerPlayerGameModeMixin {
       InteractionHand hand,
       BlockHitResult hitResult,
       CallbackInfoReturnable<InteractionResult> cir) {
+    InstinctManager.recordActivity(player);
     if (mobLife$isAnyInteractionRestricted()
         || itemStack.getItem() instanceof BlockItem && mobLife$isMovementRestricted()) {
       cir.setReturnValue(InteractionResult.FAIL);
@@ -103,6 +105,7 @@ public abstract class ServerPlayerGameModeMixin {
       ItemStack itemStack,
       InteractionHand hand,
       CallbackInfoReturnable<InteractionResult> cir) {
+    InstinctManager.recordActivity(player);
     if (InstinctManager.isEnabled(player)) {
       cir.setReturnValue(InteractionResult.FAIL);
     }

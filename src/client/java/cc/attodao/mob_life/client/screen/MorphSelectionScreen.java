@@ -221,7 +221,11 @@ public final class MorphSelectionScreen extends Screen {
     }
 
     if (mouseInFooterInput(event.x(), event.y()) && nbtInput != null) {
-      return nbtInput.mouseClicked(event, handled);
+      if (nbtInput.mouseClicked(event, handled)) {
+        setFocused(nbtInput);
+        return true;
+      }
+      return false;
     }
 
     if (mouseInConfirmButton(event.x(), event.y()) && confirmButton != null) {

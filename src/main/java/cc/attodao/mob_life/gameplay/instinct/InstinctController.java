@@ -3,7 +3,7 @@ package cc.attodao.mob_life.gameplay.instinct;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
-import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
+import cc.attodao.mob_life.gameplay.targeting.MorphNearbyEntities;
 import cc.attodao.mob_life.mixin.instinct.EntityFluidInteractionInvoker;
 import cc.attodao.mob_life.mixin.instinct.MobGoalSelectorAccessor;
 import cc.attodao.mob_life.mixin.instinct.RabbitCarrotAccessor;
@@ -20,6 +20,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -47,10 +48,10 @@ import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CarrotBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.pathfinder.Path;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 final class InstinctController {
@@ -68,6 +69,8 @@ final class InstinctController {
   private static final int DIRECTION_INTENT_FADE_TICKS = 40;
   private static final int DIRECTION_REPLAN_INTERVAL_TICKS = 20;
   private static final int EXIT_REST_HOLD_TICKS = 4;
+  private static final int DAMAGE_PANIC_MEMORY_TICKS = 40;
+  private static final int GARDEN_SEARCH_RANGE = 16;
   private static final float LATERAL_INTERFERENCE_MIN_TURN_DEGREES = 15.0F;
   private static final float LATERAL_INTERFERENCE_MAX_TURN_DEGREES = 45.0F;
   private static final float MAX_DIRECTION_INTENT_TURN_DEGREES = 3.0F;
@@ -85,13 +88,13 @@ final class InstinctController {
   private final List<FeedingGoal> feedingGoals = new ArrayList<>();
   private boolean hunting;
   private boolean fleeing;
-  private int huntingCooldown;
+  private int huntPursuitTicks;
   private int meleeAttackCooldown;
   private boolean attackPerformedThisTick;
   private int eatStateTicks;
   private int gardenEatingTicks;
-  private int eatBlockCooldown;
-  private int raidGardenCooldown;
+  private int pendingMealTicks;
+  private int pendingMealNutrition;
   private int scentMemoryTicks;
   private Vec3 lastPreyPosition;
   private Vec3 nativeMovement = Vec3.ZERO;
@@ -110,9 +113,11 @@ final class InstinctController {
   private int directionIntentTicks;
   private int directionReplanCooldown;
   private int exitRestHoldTicks;
+  private int damagePanicTicks;
   private float directionIntentYaw;
   private float lastPathIntentYaw;
   private Vec3 promptedWanderAnchor;
+  private Vec3 panicSourcePosition;
   private float promptedWanderYaw;
   private Vec3 herdCenter;
   private PromptedWanderGoal promptedWanderGoal;
@@ -147,6 +152,19 @@ final class InstinctController {
     return new InstinctController(player, definition, config, shadow);
   }
 
+  static boolean hasNearbyFeedingTarget(ServerPlayer player, MorphConfig config) {
+    if (!player.level().getGameRules().get(GameRules.MOB_GRIEFING)) {
+      return false;
+    }
+
+    MorphConfig.Feeding feeding = config.instinct().feeding();
+    BlockPos position = player.blockPosition();
+    if (feeding.eatBlock().enabled() && isEdibleForSheep(player, position)) {
+      return true;
+    }
+    return feeding.raidGarden().enabled() && hasMatureCarrotNearby(player, position);
+  }
+
   ServerPlayer player() {
     return player;
   }
@@ -168,6 +186,33 @@ final class InstinctController {
 
   boolean allowsExit() {
     return control.state().acceptsView();
+  }
+
+  boolean triggerPanic(DamageSource source) {
+    prepareShadow();
+    shadow.setInvulnerable(false);
+    try {
+      shadow.hurtServer((ServerLevel) player.level(), source, 0.0F);
+    } finally {
+      shadow.setInvulnerable(true);
+    }
+
+    boolean canPanic =
+        ((MobGoalSelectorAccessor) shadow)
+            .mobLife$getGoalSelector().getAvailableGoals().stream()
+                .map(WrappedGoal::getGoal)
+                .filter(PanicGoal.class::isInstance)
+                .map(PanicGoal.class::cast)
+                .anyMatch(PanicGoal::canUse);
+    if (canPanic) {
+      damagePanicTicks = DAMAGE_PANIC_MEMORY_TICKS;
+      panicSourcePosition = source.getSourcePosition();
+    }
+    return canPanic;
+  }
+
+  boolean isPanicking() {
+    return damagePanicTicks > 0 || isRunningGoal(PanicGoal.class);
   }
 
   void holdRestForExit() {
@@ -443,7 +488,7 @@ final class InstinctController {
 
   void tick() {
     tickCooldowns();
-    if (!player.isAlive() || player.isSpectator() || player.isPassenger()) {
+    if (!player.isAlive() || player.isSpectator()) {
       stopMoving();
       return;
     }
@@ -478,6 +523,7 @@ final class InstinctController {
     performImmediateMeleeAttack();
     detectGardenEating(carrotTicksBefore);
     validatePreyTarget();
+    trackHuntPursuit();
     updateStateAndControl();
     replanDirectionIntent();
   }
@@ -510,9 +556,9 @@ final class InstinctController {
       InstinctManager.endInstinctAttack();
     }
     if (hurt && wasAlive && !living.isAlive() && prey) {
-      feed(nutrition);
-      eatStateTicks = config.instinct().hunting().eatDurationTicks();
-      huntingCooldown = config.instinct().hunting().postKillCooldownTicks();
+      beginMeal(nutrition, config.instinct().hunting().eatDurationTicks());
+      InstinctManager.startPostKillHuntCooldown(
+          player, config.instinct().hunting().postKillCooldownTicks());
       hunting = false;
       shadow.setTarget(null);
       shadow.getNavigation().stop();
@@ -525,14 +571,14 @@ final class InstinctController {
   void ateBlock() {
     MorphConfig.FeedingAction action = config.instinct().feeding().eatBlock();
     if (!action.enabled()
-        || eatBlockCooldown > 0
+        || InstinctManager.isEatBlockCooldownActive(player)
         || !player.getFoodData().needsFood()
         || !player.level().getGameRules().get(GameRules.MOB_GRIEFING)
         || !feedingBlockChanged()) {
       return;
     }
     feed(action.nutrition());
-    eatBlockCooldown = action.cooldownTicks();
+    InstinctManager.startEatBlockCooldown(player, action.cooldownTicks());
   }
 
   private void configureShadow() {
@@ -615,22 +661,16 @@ final class InstinctController {
     shadow.setYBodyRot(bodyYaw);
     shadow.setOnGround(player.onGround());
     shadow.setDeltaMovement(player.getDeltaMovement());
+    shadow.setRemainingFireTicks(player.getRemainingFireTicks());
     ((EntityFluidInteractionInvoker) shadow).mobLife$invokeUpdateFluidInteraction();
   }
 
   private void updateHuntingState() {
-    if (huntingCooldown > 0 || config.instinct().hunting().prey().isEmpty()) {
+    if (config.instinct().hunting().prey().isEmpty() || isEatingMeal()) {
       hunting = false;
       return;
     }
-    float foodRatio =
-        player.getFoodData().getFoodLevel()
-            / (float) Math.max(1, MorphFoodCapacity.maxFood(player));
-    if (!hunting && foodRatio <= config.instinct().hunting().startFoodRatio()) {
-      hunting = true;
-    } else if (hunting && foodRatio >= config.instinct().hunting().stopFoodRatio()) {
-      hunting = false;
-    }
+    hunting = InstinctManager.canHunt(player);
   }
 
   private void scanSenses() {
@@ -652,12 +692,18 @@ final class InstinctController {
     if (!hunting || !MorphAttackDamage.hasAttackAi(definition.type(), shadow)) {
       return;
     }
-    nearby.stream()
-        .filter(entity -> entity != player)
-        .filter(entity -> entity.distanceToSqr(player) <= senses.preyRange() * senses.preyRange())
-        .filter(entity -> InstinctRelations.isPrey(entity, definition.type()))
-        .min(Comparator.comparingDouble(player::distanceToSqr))
-        .ifPresent(shadow::setTarget);
+    if (shadow.getTarget() == null) {
+      nearby.stream()
+          .filter(entity -> entity != player)
+          .filter(entity -> entity.distanceToSqr(player) <= senses.preyRange() * senses.preyRange())
+          .filter(entity -> InstinctRelations.isPrey(entity, definition.type()))
+          .min(Comparator.comparingDouble(player::distanceToSqr))
+          .ifPresent(
+              target -> {
+                shadow.setTarget(target);
+                huntPursuitTicks = 0;
+              });
+    }
   }
 
   private void updateHerdCenter(List<LivingEntity> nearby) {
@@ -697,19 +743,9 @@ final class InstinctController {
   }
 
   private List<LivingEntity> nearbyLiving(double range) {
-    if (range <= 0.0) {
-      return List.of();
-    }
-    AABB area = player.getBoundingBox().inflate(Math.min(128.0, range));
-    return player
-        .level()
-        .getEntitiesOfClass(
-            LivingEntity.class,
-            area,
-            entity ->
-                entity != shadow
-                    && entity.isAlive()
-                    && entity.distanceToSqr(player) <= range * range);
+    return MorphNearbyEntities.living(player, range).stream()
+        .filter(entity -> entity != shadow)
+        .toList();
   }
 
   private void applyScentTarget() {
@@ -723,13 +759,30 @@ final class InstinctController {
     }
 
     fleeing =
-        sensedPredator != null
-            && sensedPredator.isAlive()
-            && sensedPredator.distanceToSqr(player) <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE;
+        isPanicking()
+            || sensedPredator != null
+                && sensedPredator.isAlive()
+                && sensedPredator.distanceToSqr(player)
+                    <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE;
     applyInstinctNavigation();
   }
 
   private void applyInstinctNavigation() {
+    if (isPanicking()) {
+      if (shadow.getTarget() != null) {
+        shadow.setTarget(null);
+      }
+      if (!isRunningGoal(PanicGoal.class) && !shadow.getNavigation().isInProgress()) {
+        Vec3 destination =
+            panicSourcePosition != null
+                ? LandRandomPos.getPosAway(shadow, 5, 4, panicSourcePosition)
+                : LandRandomPos.getPos(shadow, 5, 4);
+        if (destination != null) {
+          shadow.getNavigation().moveTo(destination.x, destination.y, destination.z, 1.4);
+        }
+      }
+      return;
+    }
     if (fleeing) {
       LivingEntity currentTarget = shadow.getTarget();
       if (currentTarget != null) {
@@ -786,8 +839,12 @@ final class InstinctController {
     var selector = ((MobGoalSelectorAccessor) shadow).mobLife$getGoalSelector();
     for (FeedingGoal entry : feedingGoals) {
       MorphConfig.FeedingAction action = feedingAction(entry.goal());
-      int cooldown = entry.goal() instanceof EatBlockGoal ? eatBlockCooldown : raidGardenCooldown;
-      boolean shouldBeAdded = action.enabled() && cooldown <= 0 && player.getFoodData().needsFood();
+      boolean coolingDown =
+          entry.goal() instanceof EatBlockGoal
+              ? InstinctManager.isEatBlockCooldownActive(player)
+              : InstinctManager.isRaidGardenCooldownActive(player);
+      boolean shouldBeAdded =
+          action.enabled() && !coolingDown && !isEatingMeal() && player.getFoodData().needsFood();
       if (shouldBeAdded == entry.added()) {
         continue;
       }
@@ -804,10 +861,11 @@ final class InstinctController {
     int carrotTicksAfter = rabbitCarrotTicks();
     if (carrotTicksAfter > carrotTicksBefore) {
       MorphConfig.FeedingAction action = config.instinct().feeding().raidGarden();
-      if (action.enabled() && raidGardenCooldown <= 0) {
-        feed(action.nutrition());
-        raidGardenCooldown = action.cooldownTicks();
-        eatStateTicks = Math.max(eatStateTicks, GARDEN_EAT_DURATION_TICKS);
+      if (action.enabled()
+          && !InstinctManager.isRaidGardenCooldownActive(player)
+          && !isEatingMeal()) {
+        beginMeal(action.nutrition(), GARDEN_EAT_DURATION_TICKS);
+        InstinctManager.startRaidGardenCooldown(player, action.cooldownTicks());
         gardenEatingTicks = GARDEN_EAT_DURATION_TICKS;
       }
     }
@@ -904,6 +962,9 @@ final class InstinctController {
   }
 
   private InstinctState determineState() {
+    if (isPanicking()) {
+      return InstinctState.FLEE;
+    }
     if (sensedPredator != null
         && sensedPredator.isAlive()
         && sensedPredator.distanceToSqr(player) <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE) {
@@ -1022,12 +1083,13 @@ final class InstinctController {
   }
 
   private void tickCooldowns() {
-    huntingCooldown = Math.max(0, huntingCooldown - 1);
     meleeAttackCooldown = Math.max(0, meleeAttackCooldown - 1);
     eatStateTicks = Math.max(0, eatStateTicks - 1);
     gardenEatingTicks = Math.max(0, gardenEatingTicks - 1);
-    eatBlockCooldown = Math.max(0, eatBlockCooldown - 1);
-    raidGardenCooldown = Math.max(0, raidGardenCooldown - 1);
+    if (pendingMealTicks > 0 && --pendingMealTicks == 0) {
+      feed(pendingMealNutrition);
+      pendingMealNutrition = 0;
+    }
     scentMemoryTicks = Math.max(0, scentMemoryTicks - 1);
     forwardWanderCooldown = Math.max(0, forwardWanderCooldown - 1);
     promptedWanderTicks = Math.max(0, promptedWanderTicks - 1);
@@ -1038,8 +1100,12 @@ final class InstinctController {
     directionIntentTicks = Math.max(0, directionIntentTicks - 1);
     directionReplanCooldown = Math.max(0, directionReplanCooldown - 1);
     exitRestHoldTicks = Math.max(0, exitRestHoldTicks - 1);
+    damagePanicTicks = Math.max(0, damagePanicTicks - 1);
     if (scentMemoryTicks == 0 && shadow.getTarget() == null) {
       lastPreyPosition = null;
+    }
+    if (damagePanicTicks == 0) {
+      panicSourcePosition = null;
     }
   }
 
@@ -1047,6 +1113,46 @@ final class InstinctController {
     if (nutrition > 0) {
       player.getFoodData().eat(nutrition, 0.0F);
     }
+  }
+
+  private boolean isEatingMeal() {
+    return pendingMealTicks > 0;
+  }
+
+  private void beginMeal(int nutrition, int durationTicks) {
+    if (nutrition <= 0) {
+      return;
+    }
+    if (durationTicks <= 0) {
+      feed(nutrition);
+      return;
+    }
+
+    pendingMealNutrition = nutrition;
+    pendingMealTicks = durationTicks;
+    eatStateTicks = Math.max(eatStateTicks, durationTicks);
+  }
+
+  private void trackHuntPursuit() {
+    LivingEntity target = shadow.getTarget();
+    if (!hunting || target == null || InstinctRelations.nutrition(target, config).isEmpty()) {
+      huntPursuitTicks = 0;
+      return;
+    }
+
+    huntPursuitTicks++;
+    if (huntPursuitTicks < config.instinct().hunting().pursuitTimeoutTicks()) {
+      return;
+    }
+
+    InstinctManager.startAbandonedHuntCooldown(
+        player, config.instinct().hunting().abandonedHuntCooldownTicks());
+    hunting = false;
+    huntPursuitTicks = 0;
+    shadow.setTarget(null);
+    shadow.getNavigation().stop();
+    scentMemoryTicks = 0;
+    lastPreyPosition = null;
   }
 
   private void performImmediateMeleeAttack() {
@@ -1086,6 +1192,26 @@ final class InstinctController {
 
   private static boolean isFeedingGoal(Goal goal) {
     return goal instanceof EatBlockGoal || goal.getClass().getSimpleName().equals("RaidGardenGoal");
+  }
+
+  private static boolean isEdibleForSheep(ServerPlayer player, BlockPos position) {
+    return player.level().getBlockState(position).is(BlockTags.EDIBLE_FOR_SHEEP)
+        || player.level().getBlockState(position.below()).is(Blocks.GRASS_BLOCK);
+  }
+
+  private static boolean hasMatureCarrotNearby(ServerPlayer player, BlockPos origin) {
+    for (BlockPos position :
+        BlockPos.betweenClosed(
+            origin.offset(-GARDEN_SEARCH_RANGE, -2, -GARDEN_SEARCH_RANGE),
+            origin.offset(GARDEN_SEARCH_RANGE, 2, GARDEN_SEARCH_RANGE))) {
+      BlockState state = player.level().getBlockState(position);
+      if (player.level().getBlockState(position.below()).is(BlockTags.SUPPORTS_CROPS)
+          && state.getBlock() instanceof CarrotBlock carrot
+          && carrot.isMaxAge(state)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   record Control(

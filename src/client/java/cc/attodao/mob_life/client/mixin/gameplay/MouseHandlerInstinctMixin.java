@@ -33,10 +33,6 @@ public abstract class MouseHandlerInstinctMixin {
 
   @Inject(method = "turnPlayer", at = @At("HEAD"))
   private void mobLife$controlInstinctView(double frameTime, CallbackInfo ci) {
-    boolean hasViewInput = Math.abs(accumulatedDX) > 1.0E-4 || Math.abs(accumulatedDY) > 1.0E-4;
-    if (hasViewInput) {
-      ClientInstinctState.recordActivity();
-    }
     if (ClientInstinctState.enabled() && !ClientInstinctState.locksView()) {
       LocalPlayer player = Minecraft.getInstance().player;
       if (player != null) {
