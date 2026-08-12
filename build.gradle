@@ -21,10 +21,10 @@ repositories {
 	// for more information about repositories.
 	mavenCentral()
 	maven {
-		name = "Xander"
-		url = "https://maven.isxander.dev/releases"
+		name = "Modrinth"
+		url = "https://api.modrinth.com/maven"
 		content {
-			includeGroup("dev.isxander")
+			includeGroup("maven.modrinth")
 		}
 	}
 	maven {
@@ -62,10 +62,10 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
 	// YACL bundles its parser jars inside META-INF/jars, so keep this non-transitive.
-	implementation("dev.isxander:yet-another-config-lib:${project.yacl_version}") {
+	implementation("maven.modrinth:yacl:${project.yacl_version}") {
 		transitive = false
 	}
-	include("dev.isxander:yet-another-config-lib:${project.yacl_version}") {
+	include("maven.modrinth:yacl:${project.yacl_version}") {
 		transitive = false
 	}
 
