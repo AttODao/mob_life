@@ -2,6 +2,16 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-12 - v1.2.3
+
+- Fixed instinct-mode controller input by using the common player-input and
+  view-turn paths, so Controllify movement and camera controls both prevent
+  idle entry and support permitted interventions. Instinct mode now also
+  ignores block targets and keeps the first-person mob limb still.
+- Changed bedless sleep to require awkwardness below 30, consume no food, and
+  add 70 awkwardness when it starts. The former per-morph food-cost and
+  awkwardness-limit sleep settings were removed.
+
 ## 2026-08-12 - v1.2.2
 
 - Reworked instinct-mode intervention: forward input can start or steer a
