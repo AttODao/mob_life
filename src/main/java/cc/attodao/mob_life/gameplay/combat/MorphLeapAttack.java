@@ -19,7 +19,7 @@ public final class MorphLeapAttack {
   private MorphLeapAttack() {}
 
   public static void tryLeap(Player player, Entity target, MorphType morph) {
-    if (morph == null) {
+    if (morph == null || morph.isPlayer()) {
       return;
     }
     MorphConfig.LeapAttack leap = MorphConfigManager.get(morph).combat().leapAttack();

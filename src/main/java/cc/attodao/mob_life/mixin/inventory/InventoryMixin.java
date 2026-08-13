@@ -28,6 +28,9 @@ public abstract class InventoryMixin {
 
   @Inject(method = "getFreeSlot", at = @At("HEAD"), cancellable = true)
   private void mobLife$getActiveFreeSlot(CallbackInfoReturnable<Integer> cir) {
+    if (!MorphInventoryCapacity.hasMobForm(player)) {
+      return;
+    }
     for (int slot = 0; slot < items.size(); slot++) {
       if (MorphInventoryCapacity.isActiveInventorySlot(player, slot) && items.get(slot).isEmpty()) {
         cir.setReturnValue(slot);
@@ -40,6 +43,9 @@ public abstract class InventoryMixin {
   @Inject(method = "getSlotWithRemainingSpace", at = @At("HEAD"), cancellable = true)
   private void mobLife$getActiveSlotWithRemainingSpace(
       ItemStack newStack, CallbackInfoReturnable<Integer> cir) {
+    if (!MorphInventoryCapacity.hasMobForm(player)) {
+      return;
+    }
     int selected = getSelectedSlot();
     if (mobLife$hasRemainingSpace(getItem(selected), newStack)) {
       cir.setReturnValue(selected);
@@ -62,6 +68,9 @@ public abstract class InventoryMixin {
 
   @Inject(method = "getSuitableHotbarSlot", at = @At("HEAD"), cancellable = true)
   private void mobLife$getSuitableActiveHotbarSlot(CallbackInfoReturnable<Integer> cir) {
+    if (!MorphInventoryCapacity.hasMobForm(player)) {
+      return;
+    }
     int selected = getSelectedSlot();
     int size = MorphInventoryCapacity.hotbarSlots(player);
     for (int offset = 0; offset < size; offset++) {
@@ -83,7 +92,9 @@ public abstract class InventoryMixin {
 
   @ModifyVariable(method = "setSelectedSlot", at = @At("HEAD"), argsOnly = true)
   private int mobLife$clampSelectedSlot(int selected) {
-    return Math.min(selected, MorphInventoryCapacity.hotbarSlots(player) - 1);
+    return MorphInventoryCapacity.hasMobForm(player)
+        ? Math.min(selected, MorphInventoryCapacity.hotbarSlots(player) - 1)
+        : selected;
   }
 
   private boolean mobLife$hasRemainingSpace(ItemStack slotStack, ItemStack newStack) {

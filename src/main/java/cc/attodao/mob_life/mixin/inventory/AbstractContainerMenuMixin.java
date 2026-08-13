@@ -15,6 +15,9 @@ public abstract class AbstractContainerMenuMixin {
   @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventSwapToInactiveHotbarSlot(
       int slotIndex, int buttonNum, ContainerInput containerInput, Player player, CallbackInfo ci) {
+    if (!MorphInventoryCapacity.hasMobForm(player)) {
+      return;
+    }
     if (InstinctManager.isEnabled(player)) {
       ci.cancel();
       return;

@@ -1,8 +1,8 @@
 package cc.attodao.mob_life.client.mixin.render;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.config.MobLifeConfig;
 import com.mojang.blaze3d.resource.CrossFrameResourcePool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -31,7 +31,7 @@ public abstract class GameRendererMixin {
 
   @Inject(method = "checkEntityPostEffect", at = @At("HEAD"), cancellable = true)
   private void mobLife$selectMorphVision(@Nullable Entity cameraEntity, CallbackInfo ci) {
-    if (!MobLifeConfig.shaderEnabled()) {
+    if (!ClientMobLifeConfig.shaderEnabled()) {
       return;
     }
 

@@ -101,10 +101,15 @@ final class MorphConfigCodec {
             0.58F,
             1.0F),
         new MorphConfig.Combat(
-            "none", -1.0, new MorphConfig.LeapAttack(0.4, 0.0, 4.0), List.of(), List.of(), 1.0F),
+            MorphConfig.AttackMode.NONE,
+            -1.0,
+            new MorphConfig.LeapAttack(0.4, 0.0, 4.0),
+            List.of(),
+            List.of(),
+            1.0F),
         new MorphConfig.Attributes(1.0, 20, 1.0, 1.0),
         new MorphConfig.Inventory(9, 27, 0),
-        new MorphConfig.Sleep("normal", false, 200),
+        new MorphConfig.Sleep(MorphConfig.SleepSchedule.NORMAL, false, 200),
         new MorphConfig.Instinct(
             true,
             new MorphConfig.Wander(10, 7, 120, 0.55F),
@@ -213,7 +218,9 @@ final class MorphConfigCodec {
             decimal(vision, "peripheral_start", defaultVision.peripheralStart()),
             decimal(vision, "low_light_brightness", defaultVision.lowLightBrightness())),
         new MorphConfig.Combat(
-            string(combat, "attack_mode", defaultCombat.attackMode()),
+            MorphConfig.AttackMode.fromId(
+                string(combat, "attack_mode", defaultCombat.attackMode().id()),
+                defaultCombat.attackMode()),
             number(combat, "attack_damage", defaultCombat.attackDamage()),
             new MorphConfig.LeapAttack(
                 number(
@@ -237,7 +244,8 @@ final class MorphConfigCodec {
             integer(inventory, "inventory_slots", defaultInventory.inventorySlots()),
             integer(inventory, "chest_bonus_slots", defaultInventory.chestBonusSlots())),
         new MorphConfig.Sleep(
-            string(sleep, "schedule", defaultSleep.schedule()),
+            MorphConfig.SleepSchedule.fromId(
+                string(sleep, "schedule", defaultSleep.schedule().id()), defaultSleep.schedule()),
             bool(sleep, "without_bed", defaultSleep.withoutBed()),
             integer(sleep, "required_ticks", defaultSleep.requiredTicks())),
         new MorphConfig.Instinct(
@@ -334,7 +342,7 @@ final class MorphConfigCodec {
         new MorphConfig.Outline(
             bool(outline, "enabled", defaultOutline.enabled()),
             clampedNumber(outline, "range", defaultOutline.range(), 0.0, 128.0)),
-        new MorphConfig.Abilities(ability(root, "abilities")),
+        new MorphConfig.Abilities(ability(root, "abilities", defaults.abilities().value())),
         new MorphConfig.Traits(traits(root, "traits", defaults.traits().values())));
   }
 
@@ -409,7 +417,7 @@ final class MorphConfigCodec {
     leapAttackJson.addProperty("horizontal_speed", leapAttack.horizontalSpeed());
     leapAttackJson.addProperty("vertical_speed", leapAttack.verticalSpeed());
     leapAttackJson.addProperty("maximum_distance", leapAttack.maximumDistance());
-    combatJson.addProperty("attack_mode", combat.attackMode());
+    combatJson.addProperty("attack_mode", combat.attackMode().id());
     combatJson.addProperty("attack_damage", combat.attackDamage());
     combatJson.add("leap_attack", leapAttackJson);
     combatJson.add("predators", array(combat.predators()));
@@ -437,7 +445,7 @@ final class MorphConfigCodec {
 
   private static JsonObject sleepJson(MorphConfig.Sleep sleep) {
     JsonObject sleepJson = new JsonObject();
-    sleepJson.addProperty("schedule", sleep.schedule());
+    sleepJson.addProperty("schedule", sleep.schedule().id());
     sleepJson.addProperty("without_bed", sleep.withoutBed());
     sleepJson.addProperty("required_ticks", sleep.requiredTicks());
     return sleepJson;
@@ -547,27 +555,70 @@ final class MorphConfigCodec {
 
   private static String string(JsonObject object, String name, String fallback) {
     JsonElement element = object.get(name);
-    return element != null && element.isJsonPrimitive() ? element.getAsString() : fallback;
+    if (element == null || !element.isJsonPrimitive()) {
+      return fallback;
+    }
+    try {
+      return element.getAsString();
+    } catch (RuntimeException exception) {
+      return fallback;
+    }
   }
 
   private static boolean bool(JsonObject object, String name, boolean fallback) {
     JsonElement element = object.get(name);
-    return element != null && element.isJsonPrimitive() ? element.getAsBoolean() : fallback;
+    if (element == null
+        || !element.isJsonPrimitive()
+        || !element.getAsJsonPrimitive().isBoolean()) {
+      return fallback;
+    }
+    try {
+      return element.getAsBoolean();
+    } catch (RuntimeException exception) {
+      return fallback;
+    }
   }
 
   private static int integer(JsonObject object, String name, int fallback) {
     JsonElement element = object.get(name);
-    return element != null && element.isJsonPrimitive() ? element.getAsInt() : fallback;
+    if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+      return fallback;
+    }
+    try {
+      double value = element.getAsDouble();
+      if (!Double.isFinite(value) || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+        return fallback;
+      }
+      return (int) value;
+    } catch (RuntimeException exception) {
+      return fallback;
+    }
   }
 
   private static float decimal(JsonObject object, String name, float fallback) {
     JsonElement element = object.get(name);
-    return element != null && element.isJsonPrimitive() ? element.getAsFloat() : fallback;
+    if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+      return fallback;
+    }
+    try {
+      float value = element.getAsFloat();
+      return Float.isFinite(value) ? value : fallback;
+    } catch (RuntimeException exception) {
+      return fallback;
+    }
   }
 
   private static double number(JsonObject object, String name, double fallback) {
     JsonElement element = object.get(name);
-    return element != null && element.isJsonPrimitive() ? element.getAsDouble() : fallback;
+    if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+      return fallback;
+    }
+    try {
+      double value = element.getAsDouble();
+      return Double.isFinite(value) ? value : fallback;
+    } catch (RuntimeException exception) {
+      return fallback;
+    }
   }
 
   private static int clampedInteger(
@@ -622,7 +673,14 @@ final class MorphConfigCodec {
 
     List<String> values = new ArrayList<>();
     for (JsonElement value : element.getAsJsonArray()) {
-      values.add(value.getAsString());
+      if (!value.isJsonPrimitive()) {
+        continue;
+      }
+      try {
+        values.add(value.getAsString());
+      } catch (RuntimeException ignored) {
+        // Malformed datapack entries are ignored without invalidating the whole morph definition.
+      }
     }
     return List.copyOf(values);
   }
@@ -636,22 +694,29 @@ final class MorphConfigCodec {
 
     EnumSet<MorphConfig.Trait> values = EnumSet.noneOf(MorphConfig.Trait.class);
     for (JsonElement value : element.getAsJsonArray()) {
-      values.add(MorphConfig.Trait.fromId(value.getAsString()));
+      if (!value.isJsonPrimitive()) {
+        continue;
+      }
+      MorphConfig.Trait trait = MorphConfig.Trait.fromIdOrNull(value.getAsString());
+      if (trait != null) {
+        values.add(trait);
+      }
     }
     return Set.copyOf(values);
   }
 
-  private static MorphConfig.Ability ability(JsonObject object, String name) {
+  private static MorphConfig.Ability ability(
+      JsonObject object, String name, MorphConfig.Ability fallback) {
     JsonElement element = object.get(name);
     if (element == null || !element.isJsonArray()) {
-      throw new IllegalStateException("Missing ability list: " + name);
+      return fallback;
     }
 
     JsonArray values = element.getAsJsonArray();
-    if (values.size() != 1) {
-      throw new IllegalStateException("Ability list must contain exactly one entry: " + name);
+    if (values.size() != 1 || !values.get(0).isJsonPrimitive()) {
+      return fallback;
     }
-    return MorphConfig.Ability.fromId(values.get(0).getAsString());
+    return MorphConfig.Ability.fromId(values.get(0).getAsString(), fallback);
   }
 
   private static MorphConfig.ColorResponse color(
@@ -663,7 +728,22 @@ final class MorphConfigCodec {
 
     JsonArray values = element.getAsJsonArray();
     return new MorphConfig.ColorResponse(
-        values.get(0).getAsFloat(), values.get(1).getAsFloat(), values.get(2).getAsFloat());
+        decimalAt(values, 0, fallback.red()),
+        decimalAt(values, 1, fallback.green()),
+        decimalAt(values, 2, fallback.blue()));
+  }
+
+  private static float decimalAt(JsonArray values, int index, float fallback) {
+    JsonElement element = values.get(index);
+    if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+      return fallback;
+    }
+    try {
+      float value = element.getAsFloat();
+      return Float.isFinite(value) ? value : fallback;
+    } catch (RuntimeException exception) {
+      return fallback;
+    }
   }
 
   private static JsonArray color(MorphConfig.ColorResponse response) {

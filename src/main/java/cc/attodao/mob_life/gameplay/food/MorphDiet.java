@@ -2,6 +2,7 @@ package cc.attodao.mob_life.gameplay.food;
 
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacityHolder;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.core.component.DataComponents;
@@ -22,7 +23,7 @@ public final class MorphDiet {
   }
 
   public static boolean isBreedingFood(Player player, ItemStack stack) {
-    return matchesAny(stack, config(player).foods());
+    return MorphInventoryCapacity.hasMobForm(player) && matchesAny(stack, config(player).foods());
   }
 
   public static boolean isBlockedNormalFood(Player player, ItemStack stack) {

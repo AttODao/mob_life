@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ServerPlayerEyeHeightMixin {
   @Inject(method = "getEyeHeight()F", at = @At("HEAD"), cancellable = true)
   private void mobLife$useMorphEyeHeight(CallbackInfoReturnable<Float> cir) {
-    if (!((Object) this instanceof ServerPlayer)) {
+    if (!((Object) this instanceof ServerPlayer) || !ServerMorphManager.hasMobForm()) {
       return;
     }
 

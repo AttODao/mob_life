@@ -82,7 +82,8 @@ public final class SizedHotbarRenderer {
       GuiGraphicsExtractor graphics,
       DeltaTracker deltaTracker,
       Player player,
-      SlotRenderer slotRenderer) {
+      SlotRenderer slotRenderer,
+      float instinctLevel) {
     int slotCount = MorphInventoryCapacity.hotbarSlots(player);
     int width = slotCount * 20 + 2;
     int left = (graphics.guiWidth() - width) / 2;
@@ -104,21 +105,38 @@ public final class SizedHotbarRenderer {
 
     // Keep the stored hotbar visible, but make its unavailable state unambiguous.
     graphics.fill(left + 2, top + 2, left + width - 2, top + 20, 0x9C0A0E12);
-    renderLock(graphics, left + width / 2, top + 11);
+    int lockColor = lockColor(instinctLevel);
+    renderLock(graphics, left + width / 2, top + 11, lockColor);
   }
 
-  private static void renderLock(GuiGraphicsExtractor graphics, int centerX, int centerY) {
+  private static void renderLock(
+      GuiGraphicsExtractor graphics, int centerX, int centerY, int lockColor) {
     int outline = 0xFF10171C;
-    int metal = 0xFFC3CCD0;
-    int shadow = 0xFF677278;
+    int shadow = darken(lockColor, 0.45F);
 
     graphics.fill(centerX - 4, centerY - 6, centerX + 4, centerY + 1, outline);
-    graphics.fill(centerX - 3, centerY - 5, centerX + 3, centerY + 1, metal);
+    graphics.fill(centerX - 3, centerY - 5, centerX + 3, centerY + 1, lockColor);
     graphics.fill(centerX - 1, centerY - 4, centerX + 1, centerY + 1, outline);
     graphics.fill(centerX - 5, centerY, centerX + 5, centerY + 7, outline);
-    graphics.fill(centerX - 4, centerY + 1, centerX + 4, centerY + 6, metal);
+    graphics.fill(centerX - 4, centerY + 1, centerX + 4, centerY + 6, lockColor);
     graphics.fill(centerX - 3, centerY + 5, centerX + 4, centerY + 6, shadow);
     graphics.fill(centerX - 1, centerY + 2, centerX + 1, centerY + 5, outline);
+  }
+
+  private static int lockColor(float instinctLevel) {
+    float ratio = Math.clamp(instinctLevel, 0.0F, 1.0F);
+    int red = Math.round(195.0F + (255.0F - 195.0F) * ratio);
+    int green = Math.round(204.0F + (64.0F - 204.0F) * ratio);
+    int blue = Math.round(208.0F + (64.0F - 208.0F) * ratio);
+    return 0xFF000000 | red << 16 | green << 8 | blue;
+  }
+
+  private static int darken(int color, float factor) {
+    float clamped = Math.clamp(factor, 0.0F, 1.0F);
+    int red = Math.round((color >> 16 & 0xFF) * clamped);
+    int green = Math.round((color >> 8 & 0xFF) * clamped);
+    int blue = Math.round((color & 0xFF) * clamped);
+    return color & 0xFF000000 | red << 16 | green << 8 | blue;
   }
 
   private static void renderOffhand(

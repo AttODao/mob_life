@@ -1,13 +1,14 @@
 package cc.attodao.mob_life.server;
 
-import cc.attodao.mob_life.MobLife;
-import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
+import cc.attodao.mob_life.gameplay.movement.MorphAttributeModifiers;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphDefinition;
@@ -30,21 +31,6 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.ItemStack;
 
 final class ServerPlayerMorphApplier {
-
-  private static final Identifier SPEED_MODIFIER_ID = MobLife.id("morph_speed");
-  private static final Identifier SNEAKING_SPEED_MODIFIER_ID = MobLife.id("morph_sneaking_speed");
-  private static final Identifier MAX_HEALTH_MODIFIER_ID = MobLife.id("morph_max_health");
-  private static final Identifier BLOCK_BREAK_SPEED_MODIFIER_ID =
-      MobLife.id("morph_block_break_speed");
-  private static final Identifier STEP_HEIGHT_MODIFIER_ID = MobLife.id("morph_step_height");
-  private static final Identifier JUMP_STRENGTH_MODIFIER_ID = MobLife.id("morph_jump_strength");
-  private static final Identifier SAFE_FALL_DISTANCE_MODIFIER_ID =
-      MobLife.id("morph_safe_fall_distance");
-  private static final Identifier FALL_DAMAGE_MODIFIER_ID =
-      MobLife.id("morph_fall_damage_multiplier");
-  private static final Identifier BLOCK_REACH_MODIFIER_ID = MobLife.id("morph_block_reach");
-  private static final Identifier ENTITY_REACH_MODIFIER_ID = MobLife.id("morph_entity_reach");
-  private static final Identifier ATTACK_DAMAGE_MODIFIER_ID = MobLife.id("morph_attack_damage");
   private static final float PLAYER_HEIGHT = EntityTypes.PLAYER.getDimensions().height();
 
   private ServerPlayerMorphApplier() {}
@@ -53,6 +39,7 @@ final class ServerPlayerMorphApplier {
     MorphType morph = definition.type();
 
     if (morph.isPlayer()) {
+      InstinctManager.forget(player);
       MorphInventoryCapacity.apply(player, morph);
       MorphFoodCapacity.apply(player, morph);
       restorePlayerAttributes(player, preserveHealthRatio);
@@ -72,6 +59,12 @@ final class ServerPlayerMorphApplier {
             morph.id(), definition.nbt(), MorphConfigManager.encode(morph)));
   }
 
+  /** Reconciles server-controlled transient modifiers after a server config change. */
+  static void refreshGameplayModifiers(ServerPlayer player, MorphType morph, float morphHeight) {
+    applyBlockBreakSpeed(player, morph, morphHeight);
+    applyInteractionRanges(player, morph, morphHeight);
+  }
+
   private static void applyMobAttributes(
       ServerPlayer player, MorphDefinition definition, boolean preserveHealthRatio) {
     Entity entity = MorphEntityFactory.create(definition, player.level());
@@ -85,16 +78,19 @@ final class ServerPlayerMorphApplier {
     setAttributeValue(
         player,
         Attributes.MOVEMENT_SPEED,
-        SPEED_MODIFIER_ID,
+        MorphAttributeModifiers.SPEED,
         MorphMovementSpeed.walkingSpeed(
             definition.type(), livingMorph.getAttributeValue(Attributes.MOVEMENT_SPEED)));
     MorphConfig.Movement movement = MorphConfigManager.get(definition.type()).movement();
     setAttributeValue(
-        player, Attributes.SNEAKING_SPEED, SNEAKING_SPEED_MODIFIER_ID, sneakingSpeed(movement));
+        player,
+        Attributes.SNEAKING_SPEED,
+        MorphAttributeModifiers.SNEAKING_SPEED,
+        sneakingSpeed(movement));
     setAttributeValue(
         player,
         Attributes.ATTACK_DAMAGE,
-        ATTACK_DAMAGE_MODIFIER_ID,
+        MorphAttributeModifiers.ATTACK_DAMAGE,
         MorphAttackDamage.fromMorph(definition.type(), livingMorph));
     applyMaxHealth(player, livingMorph, definition, preserveHealthRatio);
     applyBlockBreakSpeed(player, definition.type(), dimensions.height());
@@ -105,17 +101,7 @@ final class ServerPlayerMorphApplier {
   private static void restorePlayerAttributes(ServerPlayer player, boolean preserveHealthRatio) {
     float oldHealth = player.getHealth();
     float oldMaxHealth = player.getMaxHealth();
-    removeModifier(player, Attributes.MOVEMENT_SPEED, SPEED_MODIFIER_ID);
-    removeModifier(player, Attributes.SNEAKING_SPEED, SNEAKING_SPEED_MODIFIER_ID);
-    removeModifier(player, Attributes.MAX_HEALTH, MAX_HEALTH_MODIFIER_ID);
-    removeModifier(player, Attributes.BLOCK_BREAK_SPEED, BLOCK_BREAK_SPEED_MODIFIER_ID);
-    removeModifier(player, Attributes.STEP_HEIGHT, STEP_HEIGHT_MODIFIER_ID);
-    removeModifier(player, Attributes.JUMP_STRENGTH, JUMP_STRENGTH_MODIFIER_ID);
-    removeModifier(player, Attributes.SAFE_FALL_DISTANCE, SAFE_FALL_DISTANCE_MODIFIER_ID);
-    removeModifier(player, Attributes.FALL_DAMAGE_MULTIPLIER, FALL_DAMAGE_MODIFIER_ID);
-    removeModifier(player, Attributes.BLOCK_INTERACTION_RANGE, BLOCK_REACH_MODIFIER_ID);
-    removeModifier(player, Attributes.ENTITY_INTERACTION_RANGE, ENTITY_REACH_MODIFIER_ID);
-    removeModifier(player, Attributes.ATTACK_DAMAGE, ATTACK_DAMAGE_MODIFIER_ID);
+    MorphAttributeModifiers.removeAll(player);
     updateHealth(player, oldHealth, oldMaxHealth, preserveHealthRatio);
   }
 
@@ -125,25 +111,27 @@ final class ServerPlayerMorphApplier {
         morph.isEquine()
             ? livingMorph.getAttributeValue(Attributes.STEP_HEIGHT)
             : Math.clamp(0.6 * morphHeight / PLAYER_HEIGHT, 0.1, 1.5);
-    setAttributeValue(player, Attributes.STEP_HEIGHT, STEP_HEIGHT_MODIFIER_ID, stepHeight);
+    setAttributeValue(
+        player, Attributes.STEP_HEIGHT, MorphAttributeModifiers.STEP_HEIGHT, stepHeight);
     setAttributeValue(
         player,
         Attributes.SAFE_FALL_DISTANCE,
-        SAFE_FALL_DISTANCE_MODIFIER_ID,
+        MorphAttributeModifiers.SAFE_FALL_DISTANCE,
         livingMorph.getAttributeValue(Attributes.SAFE_FALL_DISTANCE));
     setAttributeValue(
         player,
         Attributes.FALL_DAMAGE_MULTIPLIER,
-        FALL_DAMAGE_MODIFIER_ID,
+        MorphAttributeModifiers.FALL_DAMAGE_MULTIPLIER,
         livingMorph.getAttributeValue(Attributes.FALL_DAMAGE_MULTIPLIER));
     if (morph.isEquine()) {
       setAttributeValue(
           player,
           Attributes.JUMP_STRENGTH,
-          JUMP_STRENGTH_MODIFIER_ID,
+          MorphAttributeModifiers.JUMP_STRENGTH,
           livingMorph.getAttributeValue(Attributes.JUMP_STRENGTH));
     } else {
-      removeModifier(player, Attributes.JUMP_STRENGTH, JUMP_STRENGTH_MODIFIER_ID);
+      MorphAttributeModifiers.remove(
+          player, Attributes.JUMP_STRENGTH, MorphAttributeModifiers.JUMP_STRENGTH);
     }
   }
 
@@ -158,13 +146,16 @@ final class ServerPlayerMorphApplier {
         definition.hasHealthOverride()
             ? Math.max(1.0, definition.nbt().getFloatOr("Health", livingMorph.getMaxHealth()))
             : livingMorph.getMaxHealth();
-    setAttributeValue(player, Attributes.MAX_HEALTH, MAX_HEALTH_MODIFIER_ID, targetMaxHealth);
+    setAttributeValue(
+        player, Attributes.MAX_HEALTH, MorphAttributeModifiers.MAX_HEALTH, targetMaxHealth);
     updateHealth(player, oldHealth, oldMaxHealth, preserveHealthRatio);
   }
 
   private static void applyBlockBreakSpeed(
       ServerPlayer player, MorphType morph, float morphHeight) {
-    if (!MobLifeConfig.miningSpeedChangeEnabled()) {
+    MorphAttributeModifiers.remove(
+        player, Attributes.BLOCK_BREAK_SPEED, MorphAttributeModifiers.BLOCK_BREAK_SPEED);
+    if (!ServerMobLifeConfig.miningSpeedChangeEnabled()) {
       return;
     }
     AttributeInstance attribute = player.getAttribute(Attributes.BLOCK_BREAK_SPEED);
@@ -178,26 +169,30 @@ final class ServerPlayerMorphApplier {
     multiplier = Math.max(0.05, multiplier);
     attribute.addOrUpdateTransientModifier(
         new AttributeModifier(
-            BLOCK_BREAK_SPEED_MODIFIER_ID,
+            MorphAttributeModifiers.BLOCK_BREAK_SPEED,
             multiplier - 1.0,
             AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
   }
 
   private static void applyInteractionRanges(
       ServerPlayer player, MorphType morph, float morphHeight) {
-    if (!MobLifeConfig.reachChangeEnabled()) {
+    MorphAttributeModifiers.remove(
+        player, Attributes.BLOCK_INTERACTION_RANGE, MorphAttributeModifiers.BLOCK_REACH);
+    MorphAttributeModifiers.remove(
+        player, Attributes.ENTITY_INTERACTION_RANGE, MorphAttributeModifiers.ENTITY_REACH);
+    if (!ServerMobLifeConfig.reachChangeEnabled()) {
       return;
     }
     double heightScale = morphHeight / PLAYER_HEIGHT;
     setScaledBaseAttribute(
         player,
         Attributes.BLOCK_INTERACTION_RANGE,
-        BLOCK_REACH_MODIFIER_ID,
+        MorphAttributeModifiers.BLOCK_REACH,
         heightScale * MorphConfigManager.get(morph).attributes().blockReachScale());
     setScaledBaseAttribute(
         player,
         Attributes.ENTITY_INTERACTION_RANGE,
-        ENTITY_REACH_MODIFIER_ID,
+        MorphAttributeModifiers.ENTITY_REACH,
         heightScale * MorphConfigManager.get(morph).attributes().entityReachScale());
   }
 
@@ -243,18 +238,8 @@ final class ServerPlayerMorphApplier {
     player.setHealth(newHealth);
   }
 
-  private static void removeModifier(
-      ServerPlayer player, Holder<Attribute> attributeType, Identifier modifierId) {
-    AttributeInstance attribute = player.getAttribute(attributeType);
-    if (attribute != null) {
-      attribute.removeModifier(modifierId);
-    }
-  }
-
   private static void refreshDimensions(ServerPlayer player) {
     player.refreshDimensions();
-    player.setBoundingBox(
-        player.getDimensions(player.getPose()).makeBoundingBox(player.position()));
   }
 
   private static void syncInventory(ServerPlayer player) {

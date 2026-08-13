@@ -1,6 +1,6 @@
 package cc.attodao.mob_life.client.screen;
 
-import cc.attodao.mob_life.config.MobLifeConfig;
+import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
 import dev.isxander.yacl3.api.ConfigCategory;
 import dev.isxander.yacl3.api.Option;
 import dev.isxander.yacl3.api.YetAnotherConfigLib;
@@ -25,60 +25,21 @@ public final class MobLifeConfigScreens {
         .title(Component.translatable("mob_life.config.title"))
         .category(
             category(
-                "mob_life.config.category.gameplay",
-                toggle(
-                    "mob_life.config.player_morph_enabled",
-                    MobLifeConfig.defaultPlayerMorphEnabled(),
-                    MobLifeConfig::playerMorphEnabled,
-                    MobLifeConfig::setPlayerMorphEnabled)))
-        .category(
-            category(
                 "mob_life.config.category.rendering",
                 toggle(
                     "mob_life.config.shader_enabled",
-                    MobLifeConfig.defaultShaderEnabled(),
-                    MobLifeConfig::shaderEnabled,
-                    MobLifeConfig::setShaderEnabled)))
-        .category(
-            category(
-                "mob_life.config.category.inventory",
-                toggle(
-                    "mob_life.config.hotbar_limit_enabled",
-                    MobLifeConfig.defaultHotbarLimitEnabled(),
-                    MobLifeConfig::hotbarLimitEnabled,
-                    MobLifeConfig::setHotbarLimitEnabled),
-                toggle(
-                    "mob_life.config.inventory_slot_limit_enabled",
-                    MobLifeConfig.defaultInventorySlotLimitEnabled(),
-                    MobLifeConfig::inventorySlotLimitEnabled,
-                    MobLifeConfig::setInventorySlotLimitEnabled),
-                toggle(
-                    "mob_life.config.offhand_limit_enabled",
-                    MobLifeConfig.defaultOffhandLimitEnabled(),
-                    MobLifeConfig::offhandLimitEnabled,
-                    MobLifeConfig::setOffhandLimitEnabled)))
-        .category(
-            category(
-                "mob_life.config.category.movement",
-                toggle(
-                    "mob_life.config.mining_speed_change_enabled",
-                    MobLifeConfig.defaultMiningSpeedChangeEnabled(),
-                    MobLifeConfig::miningSpeedChangeEnabled,
-                    MobLifeConfig::setMiningSpeedChangeEnabled),
-                toggle(
-                    "mob_life.config.reach_change_enabled",
-                    MobLifeConfig.defaultReachChangeEnabled(),
-                    MobLifeConfig::reachChangeEnabled,
-                    MobLifeConfig::setReachChangeEnabled)))
+                    ClientMobLifeConfig.defaultShaderEnabled(),
+                    ClientMobLifeConfig::shaderEnabled,
+                    ClientMobLifeConfig::setShaderEnabled)))
         .category(
             category(
                 "mob_life.config.category.debug",
                 toggle(
                     "mob_life.config.awkwardness_debug_enabled",
-                    MobLifeConfig.defaultShowAwkwardnessDebug(),
-                    MobLifeConfig::showAwkwardnessDebug,
-                    MobLifeConfig::setShowAwkwardnessDebug)))
-        .save(MobLifeConfig::save)
+                    ClientMobLifeConfig.defaultShowAwkwardnessDebug(),
+                    ClientMobLifeConfig::showAwkwardnessDebug,
+                    ClientMobLifeConfig::setShowAwkwardnessDebug)))
+        .save(ClientMobLifeConfig::save)
         .build()
         .generateScreen(parent);
   }

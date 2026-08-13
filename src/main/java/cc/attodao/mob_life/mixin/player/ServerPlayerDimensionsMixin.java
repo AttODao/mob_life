@@ -16,7 +16,7 @@ public abstract class ServerPlayerDimensionsMixin {
   @Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
   private void mobLife$useMorphDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
     Entity self = (Entity) (Object) this;
-    if (!(self instanceof ServerPlayer)) {
+    if (!(self instanceof ServerPlayer) || !ServerMorphManager.hasMobForm()) {
       return;
     }
 

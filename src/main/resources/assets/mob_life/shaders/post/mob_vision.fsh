@@ -156,6 +156,8 @@ float brightLightSignal(vec3 color) {
 void main() {
     vec4 sourceColor = texture(InSampler, texCoord);
     float instinctStrength = clamp(DynamicGreenResponse.w, 0.0, 1.0);
+    float instinctLevel = clamp(DynamicBlueResponse.w, 0.0, 1.0);
+    float instinctColorStrength = instinctStrength * instinctLevel;
     if (Mode.x < 0.5) {
         float peripheral = peripheralAmount();
         sourceColor.rgb = samplePeripheralBlur(
@@ -208,9 +210,9 @@ void main() {
             * lowLightBrightness
             * sensitivityBoost
             / transformedLuminance;
-        float instinctFrame = instinctFrameAmount() * instinctStrength;
+        float instinctFrame = instinctFrameAmount() * instinctColorStrength;
         vec3 globalInstinctColor = tintPreservingLuminance(baseVisionColor, INSTINCT_GLOBAL_TINT);
-        baseVisionColor = mix(baseVisionColor, globalInstinctColor, instinctStrength * 0.40);
+        baseVisionColor = mix(baseVisionColor, globalInstinctColor, instinctColorStrength * 0.40);
         vec3 edgeInstinctColor = tintPreservingLuminance(baseVisionColor, INSTINCT_EDGE_TINT);
         baseVisionColor = mix(baseVisionColor, edgeInstinctColor, instinctFrame * 0.72);
         fragColor = vec4(

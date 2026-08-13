@@ -16,7 +16,7 @@ public abstract class ClientPlayerDimensionsMixin {
   @Inject(method = "getDimensions", at = @At("HEAD"), cancellable = true)
   private void mobLife$useMorphDimensions(Pose pose, CallbackInfoReturnable<EntityDimensions> cir) {
     Entity self = (Entity) (Object) this;
-    if (!(self instanceof Player)) {
+    if (!(self instanceof Player) || ClientMorphState.morph() == null) {
       return;
     }
 

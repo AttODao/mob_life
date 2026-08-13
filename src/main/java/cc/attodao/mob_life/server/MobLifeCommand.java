@@ -1,6 +1,6 @@
 package cc.attodao.mob_life.server;
 
-import cc.attodao.mob_life.config.MobLifeConfig;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
@@ -46,7 +46,7 @@ public final class MobLifeCommand {
                                   .suggests(
                                       (context, builder) ->
                                           SharedSuggestionProvider.suggestResource(
-                                              MobLifeConfig.selectableMorphs().stream()
+                                              ServerMobLifeConfig.selectableMorphs().stream()
                                                   .map(MorphType::entityType)
                                                   .map(BuiltInRegistries.ENTITY_TYPE::getKey),
                                               builder))
@@ -114,7 +114,7 @@ public final class MobLifeCommand {
         MorphType.fromEntityType(entityType)
             .orElseThrow(
                 () -> UNSUPPORTED_MORPH.create(BuiltInRegistries.ENTITY_TYPE.getKey(entityType)));
-    if (!MobLifeConfig.isMorphEnabled(morph)) {
+    if (!ServerMobLifeConfig.isMorphEnabled(morph)) {
       throw UNSUPPORTED_MORPH.create(BuiltInRegistries.ENTITY_TYPE.getKey(entityType));
     }
     ServerMorphManager.changeMorph(

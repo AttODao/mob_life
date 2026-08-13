@@ -1,7 +1,7 @@
 package cc.attodao.mob_life;
 
-import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfigReloadListener;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.server.MobLifeCommand;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -22,7 +22,7 @@ public final class MobLife implements ModInitializer {
 
   @Override
   public void onInitialize() {
-    MobLifeConfig.load();
+    ServerMobLifeConfig.load();
     DataResourceLoader.get()
         .registerReloadListener(id("morph_configs"), new MorphConfigReloadListener());
     MobLifeNetworking.registerPayloads();

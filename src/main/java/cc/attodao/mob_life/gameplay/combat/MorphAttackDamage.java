@@ -23,10 +23,10 @@ public final class MorphAttackDamage {
 
   public static boolean hasAttackAi(MorphType morph, LivingEntity livingMorph) {
     return switch (MorphConfigManager.get(morph).combat().attackMode()) {
-      case "always" -> true;
-      case "evil_rabbit" ->
+      case ALWAYS -> true;
+      case EVIL_RABBIT ->
           livingMorph instanceof Rabbit rabbit && rabbit.getVariant() == Rabbit.Variant.EVIL;
-      default -> false;
+      case NONE -> false;
     };
   }
 }

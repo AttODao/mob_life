@@ -1,10 +1,11 @@
 package cc.attodao.mob_life.client.mixin.render;
 
+import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
+import cc.attodao.mob_life.client.render.AwkwardnessColor;
 import cc.attodao.mob_life.client.render.MorphJumpBarRenderer;
 import cc.attodao.mob_life.client.render.SizedHotbarRenderer;
 import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
@@ -77,7 +78,12 @@ public abstract class GuiMixin {
       return;
     }
     if (ClientInstinctState.enabled()) {
-      SizedHotbarRenderer.renderLocked(graphics, deltaTracker, player, this::extractSlot);
+      SizedHotbarRenderer.renderLocked(
+          graphics,
+          deltaTracker,
+          player,
+          this::extractSlot,
+          ClientInstinctState.instinctLevelRatio());
       return;
     }
 
@@ -140,7 +146,7 @@ public abstract class GuiMixin {
     float awkwardness = ClientMorphState.awkwardness();
     mobLife$drawAwkwardnessIndicator(
         graphics, awkwardness, tickCount + deltaTracker.getGameTimeDeltaPartialTick(false));
-    if (!MobLifeConfig.showAwkwardnessDebug()) {
+    if (!ClientMobLifeConfig.showAwkwardnessDebug()) {
       return;
     }
 
@@ -156,16 +162,13 @@ public abstract class GuiMixin {
   private static void mobLife$drawAwkwardnessIndicator(
       GuiGraphicsExtractor graphics, float awkwardness, float age) {
     float ratio = Mth.clamp(awkwardness / 100.0F, 0.0F, 1.0F);
-    int red = ratio <= 0.5F ? Math.round(ratio * 2.0F * 255.0F) : 255;
-    int green = ratio <= 0.5F ? 255 : Math.round((1.0F - ratio) * 2.0F * 255.0F);
-    int blue = Math.round((1.0F - ratio) * 40.0F);
     float pulse = (Mth.sin(age / 2.0F) + 1.0F) * 0.5F;
     int alpha = 0xD0 + Math.round(pulse * 0x2F);
-    int color = mobLife$argb(alpha, red, green, blue);
+    int color = AwkwardnessColor.argb(awkwardness, alpha);
     int centerX = graphics.guiWidth() / 2;
     int left = centerX - AWKWARDNESS_ORB_SIZE / 2;
     int top = graphics.guiHeight() - 57;
-    int glow = mobLife$argb(0x26 + Math.round(pulse * 0x1A), red, green, blue);
+    int glow = AwkwardnessColor.argb(awkwardness, 0x26 + Math.round(pulse * 0x1A));
 
     graphics.fill(
         left + 3, top - 1, left + AWKWARDNESS_ORB_SIZE - 3, top + AWKWARDNESS_ORB_SIZE + 1, glow);
@@ -189,9 +192,5 @@ public abstract class GuiMixin {
         EXPERIENCE_ORB_TEXTURE_SIZE,
         EXPERIENCE_ORB_TEXTURE_SIZE,
         color);
-  }
-
-  private static int mobLife$argb(int alpha, int red, int green, int blue) {
-    return alpha << 24 | red << 16 | green << 8 | blue;
   }
 }

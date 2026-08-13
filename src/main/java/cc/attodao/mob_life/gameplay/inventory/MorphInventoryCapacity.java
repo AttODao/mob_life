@@ -1,8 +1,8 @@
 package cc.attodao.mob_life.gameplay.inventory;
 
-import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.world.entity.EntityTypes;
@@ -36,11 +36,11 @@ public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
     float capacityRatio =
         MorphBodyScale.relativeTo(morphHeight, morph.entityType().getDimensions().height());
     int hotbarSlots =
-        MobLifeConfig.hotbarLimitEnabled()
+        ServerMobLifeConfig.hotbarLimitEnabled()
             ? scaledSlots(config.hotbarSlots(), capacityRatio)
             : MAX_HOTBAR_SLOTS;
     int inventorySlots =
-        MobLifeConfig.inventorySlotLimitEnabled()
+        ServerMobLifeConfig.inventorySlotLimitEnabled()
             ? scaledSlots(
                 config.inventorySlots() + (hasChest ? config.chestBonusSlots() : 0), capacityRatio)
             : MAX_INVENTORY_SLOTS;
@@ -58,6 +58,11 @@ public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
 
   public static int inventorySlots(Player player) {
     return ((MorphInventoryCapacityHolder) player).mobLife$getInventorySlots();
+  }
+
+  public static boolean hasMobForm(Player player) {
+    MorphType morph = ((MorphInventoryCapacityHolder) player).mobLife$getMorph();
+    return morph != null && !morph.isPlayer();
   }
 
   public static boolean isActiveInventorySlot(Player player, int slot) {

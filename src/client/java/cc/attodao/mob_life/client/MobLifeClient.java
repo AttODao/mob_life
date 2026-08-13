@@ -1,10 +1,12 @@
 package cc.attodao.mob_life.client;
 
+import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
 import cc.attodao.mob_life.client.screen.MorphSelectionScreen;
 import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.client.state.ClientOutlineState;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -36,6 +38,13 @@ public final class MobLifeClient implements ClientModInitializer {
 
   @Override
   public void onInitializeClient() {
+    ClientMobLifeConfig.load();
+    ClientPlayNetworking.registerGlobalReceiver(
+        MobLifeNetworking.ServerConfigPayload.TYPE,
+        (payload, context) ->
+            context
+                .client()
+                .execute(() -> ServerMobLifeConfig.installSynchronized(payload.settings())));
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.WorldMorphSelectionPromptPayload.TYPE,
         (payload, context) ->
@@ -97,6 +106,7 @@ public final class MobLifeClient implements ClientModInitializer {
           ClientMorphState.clear();
           ClientInstinctState.clear();
           ClientOutlineState.clear();
+          ServerMobLifeConfig.clearSynchronized();
           client.gameRenderer.clearPostEffect();
         });
     ClientTickEvents.END_CLIENT_TICK.register(
@@ -115,8 +125,10 @@ public final class MobLifeClient implements ClientModInitializer {
               ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());
             }
           }
-          if (ClientInstinctState.shouldHoldRestForExit(client)) {
-            ClientPlayNetworking.send(new MobLifeNetworking.InstinctRestHoldPayload());
+          int escapeInputs = ClientInstinctState.consumeEscapeInputs(client);
+          if (escapeInputs != 0) {
+            ClientPlayNetworking.send(
+                new MobLifeNetworking.InstinctEscapeInputPayload(escapeInputs));
           }
           ClientInstinctState.Intervention intervention =
               ClientInstinctState.consumeInterventions();

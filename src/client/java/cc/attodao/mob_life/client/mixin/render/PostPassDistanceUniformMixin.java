@@ -57,6 +57,7 @@ public abstract class PostPassDistanceUniformMixin {
             ? 1.0F
             : 1.0F - Mth.clamp(client.level.getSkyDarken() / 15.0F, 0.0F, 1.0F);
     float interference = MorphAwkwardness.visionInterference(ClientMorphState.awkwardness());
+    float instinctLevel = ClientInstinctState.instinctLevelRatio();
     float distanceStart = Math.max(vision.effectStartDistance(), MIN_DISTANCE_EFFECT_START);
     float distanceOffset = distanceStart - vision.effectStartDistance();
     float fullBlurDistance =
@@ -107,7 +108,7 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.blueResponse().red(),
                   vision.blueResponse().green(),
                   vision.blueResponse().blue(),
-                  0.0F)
+                  instinctLevel)
               .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), tanHalfFov, 0.0F);
       var encoder = RenderSystem.getDevice().createCommandEncoder();
       encoder.writeToBuffer(distanceBlur.slice(), distanceBlurData.get());
