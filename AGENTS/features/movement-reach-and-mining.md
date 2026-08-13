@@ -1,5 +1,13 @@
 # Movement, Reach, and Mining Features
 
+- The `player` form uses vanilla player dimensions, collision, eye height,
+  movement, jump, mining, and reach behavior. Morph dimension hooks require an
+  actual mob form, and form refresh relies on vanilla `refreshDimensions`
+  without a second manual bounding-box placement. Switching back to this form
+  removes every Mob Life-owned player attribute modifier on both server and
+  client; the client also maintains this invariant each tick so a delayed old
+  form attribute packet cannot leave local step-height or movement prediction
+  active.
 - All non-rabbit mob forms share a 10-tick landing cooldown before the next
   jump. Most mob forms still use a horse-style charged jump: hold jump to
   charge and release to jump. Maximum charge has the same height as a normal
@@ -24,15 +32,26 @@
   collision. The native movement vector passed into the shadow mob's own
   `Entity.move` call is captured and injected as the player's velocity
   immediately before player travel, avoiding a second copy of AI acceleration,
-  friction, or gravity. Rabbit AI hops consequently retain their native low,
-  normal, and step-up jump heights. In REST and LOOK, holding forward retries a
-  chance-based, cooldown-limited request to begin a one- or two-leg local
-  wander toward the current camera yaw. Releasing forward does not stop an
-  accepted wander. While WANDER is active, forward steers a short-lived
-  direction intent toward the camera yaw without directly changing velocity or
-  turning the body. Left and right retry a chance-based intervention using the
-  same probability as forward wander start: during WANDER a success turns the
-  direction intent 15 through 45 degrees to that side, and during REST it
+  friction, or gravity. Normal player travel input is discarded while this AI
+  movement is active, so it cannot outrun the shadow's route or add speed on
+  top of it. WANDER uses the source mob's original `RandomStrollGoal` speed
+  modifier and live movement-speed attribute without scaling or capping it to
+  the normal player-controlled morph speed. Position synchronization retains
+  the shadow mob's own horizontal momentum between AI ticks instead of feeding
+  client/server player corrections back into an active path. Player horizontal
+  movement is imported only on controller initialization and damage response,
+  while vertical and grounded state remain synchronized every tick. Rabbit AI
+  hops consequently retain their native low, normal, and step-up jump heights.
+  Grounded horizontal movement is zeroed after native AI arbitration in REST
+  and LOOK so momentum from a completed route cannot leak into a resting state.
+  In REST and LOOK, holding forward retries a chance-based, cooldown-limited
+  request to begin a one- or two-leg local wander toward the current camera
+  yaw. Releasing forward does not stop an accepted wander. While WANDER is
+  active, forward steers a short-lived direction intent toward the camera yaw
+  without directly changing velocity or turning the body. Left and right retry
+  a chance-based intervention using the same probability as forward wander
+  start: during WANDER a success turns the direction intent 15 through 45
+  degrees to that side, and during REST it
   turns the body by the same range without beginning movement. Successful and
   failed lateral attempts use 20- and 10-tick base cooldowns respectively.
   A completed natural wander also starts the same forward-wander cooldown

@@ -1,7 +1,7 @@
 package cc.attodao.mob_life.world;
 
 import cc.attodao.mob_life.MobLife;
-import cc.attodao.mob_life.config.MobLifeConfig;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import com.mojang.serialization.Codec;
@@ -38,7 +38,9 @@ public final class WorldMorphData extends SavedData {
   public static final SavedDataType<WorldMorphData> TYPE =
       new SavedDataType<>(
           Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "world_morph"),
-          () -> new WorldMorphData(MorphDefinition.of(MobLifeConfig.defaultMorph()), false, false),
+          () ->
+              new WorldMorphData(
+                  MorphDefinition.of(ServerMobLifeConfig.defaultMorph()), false, false),
           CODEC,
           DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
 

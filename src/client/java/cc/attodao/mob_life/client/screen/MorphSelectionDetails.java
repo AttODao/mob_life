@@ -217,8 +217,8 @@ final class MorphSelectionDetails {
         value ? "mob_life.world_select.value.yes" : "mob_life.world_select.value.no");
   }
 
-  private static Component sleepScheduleLabel(String value) {
-    return Component.translatable("mob_life.world_select.sleep.schedule." + value);
+  private static Component sleepScheduleLabel(MorphConfig.SleepSchedule value) {
+    return Component.translatable("mob_life.world_select.sleep.schedule." + value.id());
   }
 
   private static String abilityKey(MorphConfig.Ability ability) {

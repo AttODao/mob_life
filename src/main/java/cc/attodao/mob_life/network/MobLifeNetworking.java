@@ -1,10 +1,12 @@
 package cc.attodao.mob_life.network;
 
 import cc.attodao.mob_life.MobLife;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
 import cc.attodao.mob_life.server.ServerMorphManager;
+import cc.attodao.mob_life.world.MorphVariantRequest;
 import java.util.ArrayList;
 import java.util.List;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -25,6 +27,8 @@ public final class MobLifeNetworking {
     PayloadTypeRegistry.clientboundPlay()
         .register(WorldMorphSelectionPromptPayload.TYPE, WorldMorphSelectionPromptPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
+        .register(ServerConfigPayload.TYPE, ServerConfigPayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
         .register(MorphSelectionPayload.TYPE, MorphSelectionPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
         .register(AwkwardnessPayload.TYPE, AwkwardnessPayload.CODEC);
@@ -42,7 +46,7 @@ public final class MobLifeNetworking {
     PayloadTypeRegistry.serverboundPlay()
         .register(WorldMorphSelectionSubmitPayload.TYPE, WorldMorphSelectionSubmitPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
-        .register(InstinctRestHoldPayload.TYPE, InstinctRestHoldPayload.CODEC);
+        .register(InstinctEscapeInputPayload.TYPE, InstinctEscapeInputPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(InstinctInterventionPayload.TYPE, InstinctInterventionPayload.CODEC);
     ServerPlayNetworking.registerGlobalReceiver(
@@ -88,12 +92,14 @@ public final class MobLifeNetworking {
           server.execute(
               () ->
                   ServerMorphManager.completeWorldSelection(
-                      server, payload.morphId(), payload.nbt()));
+                      server, context.player(), payload.morphId(), payload.variantRequest()));
         });
     ServerPlayNetworking.registerGlobalReceiver(
-        InstinctRestHoldPayload.TYPE,
+        InstinctEscapeInputPayload.TYPE,
         (payload, context) ->
-            context.server().execute(() -> InstinctManager.holdRestForExit(context.player())));
+            context
+                .server()
+                .execute(() -> InstinctManager.attemptEscape(context.player(), payload.flags())));
     ServerPlayNetworking.registerGlobalReceiver(
         InstinctInterventionPayload.TYPE,
         (payload, context) ->
@@ -140,6 +146,56 @@ public final class MobLifeNetworking {
 
   public record MorphConfigEntry(String morphId, String configJson) {}
 
+  /** Gameplay settings are sent only from the server and never accepted from clients. */
+  public record ServerConfigPayload(
+      boolean morphEnabled,
+      boolean playerMorphEnabled,
+      boolean hotbarLimitEnabled,
+      boolean inventorySlotLimitEnabled,
+      boolean offhandLimitEnabled,
+      boolean miningSpeedChangeEnabled,
+      boolean reachChangeEnabled)
+      implements CustomPacketPayload {
+    public static final Type<ServerConfigPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "server_config"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ServerConfigPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeBoolean(payload.morphEnabled());
+              buffer.writeBoolean(payload.playerMorphEnabled());
+              buffer.writeBoolean(payload.hotbarLimitEnabled());
+              buffer.writeBoolean(payload.inventorySlotLimitEnabled());
+              buffer.writeBoolean(payload.offhandLimitEnabled());
+              buffer.writeBoolean(payload.miningSpeedChangeEnabled());
+              buffer.writeBoolean(payload.reachChangeEnabled());
+            },
+            buffer ->
+                new ServerConfigPayload(
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean(),
+                    buffer.readBoolean()));
+
+    public ServerMobLifeConfig.Settings settings() {
+      return new ServerMobLifeConfig.Settings(
+          morphEnabled,
+          playerMorphEnabled,
+          hotbarLimitEnabled,
+          inventorySlotLimitEnabled,
+          offhandLimitEnabled,
+          miningSpeedChangeEnabled,
+          reachChangeEnabled);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
   public record MorphSelectionPayload(String morphId, CompoundTag nbt, String configJson)
       implements CustomPacketPayload {
     public static final Type<MorphSelectionPayload> TYPE =
@@ -173,36 +229,72 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record WorldMorphSelectionSubmitPayload(String morphId, CompoundTag nbt)
+  /**
+   * The initial world selection contains an ID plus a fixed cosmetic variant request. It never
+   * serializes a client-provided {@link CompoundTag}.
+   */
+  public record WorldMorphSelectionSubmitPayload(String morphId, MorphVariantRequest variantRequest)
       implements CustomPacketPayload {
+    private static final int MAX_MORPH_ID_LENGTH = 64;
+    private static final int MAX_VARIANT_IDENTIFIER_LENGTH = 128;
+
     public static final Type<WorldMorphSelectionSubmitPayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "world_morph_select"));
     public static final StreamCodec<RegistryFriendlyByteBuf, WorldMorphSelectionSubmitPayload>
         CODEC =
             StreamCodec.of(
                 (buffer, payload) -> {
-                  buffer.writeUtf(payload.morphId());
-                  buffer.writeNbt(payload.nbt());
+                  buffer.writeUtf(payload.morphId(), MAX_MORPH_ID_LENGTH);
+                  writeVariantRequest(buffer, payload.variantRequest());
                 },
-                buffer -> {
-                  String morphId = buffer.readUtf();
-                  CompoundTag nbt = buffer.readNbt();
-                  return new WorldMorphSelectionSubmitPayload(
-                      morphId, nbt != null ? nbt : new CompoundTag());
-                });
+                buffer ->
+                    new WorldMorphSelectionSubmitPayload(
+                        buffer.readUtf(MAX_MORPH_ID_LENGTH), readVariantRequest(buffer)));
 
     public WorldMorphSelectionSubmitPayload {
-      nbt = nbt.copy();
-    }
-
-    @Override
-    public CompoundTag nbt() {
-      return nbt.copy();
+      variantRequest = variantRequest != null ? variantRequest : MorphVariantRequest.empty();
     }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
       return TYPE;
+    }
+
+    private static void writeVariantRequest(
+        RegistryFriendlyByteBuf buffer, MorphVariantRequest request) {
+      writeOptionalIdentifier(buffer, request.variantId());
+      writeOptionalIdentifier(buffer, request.soundVariantId());
+      buffer.writeVarInt(request.rabbitType() + 1);
+      buffer.writeVarInt(request.sheepColor() + 1);
+      buffer.writeVarInt(request.horseVariant() + 1);
+      buffer.writeBoolean(request.baby());
+    }
+
+    private static MorphVariantRequest readVariantRequest(RegistryFriendlyByteBuf buffer) {
+      return new MorphVariantRequest(
+          readOptionalIdentifier(buffer),
+          readOptionalIdentifier(buffer),
+          readOptionalValue(buffer, 255),
+          readOptionalValue(buffer, 15),
+          readOptionalValue(buffer, 0xFFFF),
+          buffer.readBoolean());
+    }
+
+    private static void writeOptionalIdentifier(RegistryFriendlyByteBuf buffer, String value) {
+      boolean present = value != null && !value.isEmpty();
+      buffer.writeBoolean(present);
+      if (present) {
+        buffer.writeUtf(value, MAX_VARIANT_IDENTIFIER_LENGTH);
+      }
+    }
+
+    private static String readOptionalIdentifier(RegistryFriendlyByteBuf buffer) {
+      return buffer.readBoolean() ? buffer.readUtf(MAX_VARIANT_IDENTIFIER_LENGTH) : "";
+    }
+
+    private static int readOptionalValue(RegistryFriendlyByteBuf buffer, int maximum) {
+      int encoded = buffer.readVarInt();
+      return encoded >= 0 && encoded <= maximum + 1 ? encoded - 1 : MorphVariantRequest.UNSPECIFIED;
     }
   }
 
@@ -276,11 +368,13 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record InstinctRestHoldPayload() implements CustomPacketPayload {
-    public static final Type<InstinctRestHoldPayload> TYPE =
-        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_rest_hold"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctRestHoldPayload> CODEC =
-        StreamCodec.unit(new InstinctRestHoldPayload());
+  public record InstinctEscapeInputPayload(int flags) implements CustomPacketPayload {
+    public static final Type<InstinctEscapeInputPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_escape_input"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctEscapeInputPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> buffer.writeByte(payload.flags()),
+            buffer -> new InstinctEscapeInputPayload(buffer.readUnsignedByte()));
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
@@ -313,6 +407,7 @@ public final class MobLifeNetworking {
       float targetYaw,
       float targetPitch,
       int eatTicks,
+      float instinctLevel,
       float movementX,
       float movementY,
       float movementZ)
@@ -327,6 +422,7 @@ public final class MobLifeNetworking {
               buffer.writeFloat(payload.targetYaw());
               buffer.writeFloat(payload.targetPitch());
               buffer.writeVarInt(payload.eatTicks());
+              buffer.writeFloat(payload.instinctLevel());
               buffer.writeFloat(payload.movementX());
               buffer.writeFloat(payload.movementY());
               buffer.writeFloat(payload.movementZ());
@@ -338,6 +434,7 @@ public final class MobLifeNetworking {
                     buffer.readFloat(),
                     buffer.readFloat(),
                     buffer.readVarInt(),
+                    buffer.readFloat(),
                     buffer.readFloat(),
                     buffer.readFloat(),
                     buffer.readFloat()));

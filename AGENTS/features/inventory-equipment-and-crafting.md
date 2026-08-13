@@ -1,5 +1,9 @@
 # Inventory, Equipment, and Crafting Features
 
+- The `player` form bypasses morph inventory searches, slot limits, equipment
+  restrictions, and morph diet handling. Its animal body, saddle, and chest
+  slots remain inactive, while its ordinary inventory behavior is delegated to
+  vanilla.
 - Inventory capacity scales with the form's height:
   - Player: 9 hotbar + 27 inventory slots
   - Cow: 7 hotbar + 21 inventory slots
@@ -9,7 +13,8 @@
 - Instinct mode presents an empty hand without moving the selected stack,
   blocks inventory and container screens, prevents item use, and prevents item
   pickup. Its hotbar remains visible as a dimmed, locked row with no selected
-  slot, offhand item, or attack indicator.
+  slot, offhand item, or attack indicator. The lock icon interpolates from red
+  at instinct level 100 to gray at zero.
 - Disabled inventory, hotbar, armor, and form-specific equipment slots are
   fully hidden. The vanilla slot areas are cleared and only active slots are
   redrawn, preventing leftover borders from disabled slots.

@@ -1,12 +1,14 @@
 package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.MobLife;
-import cc.attodao.mob_life.config.MobLifeConfig;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardnessBehavior;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
+import cc.attodao.mob_life.gameplay.food.MorphEatingSound;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
@@ -16,7 +18,7 @@ import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
 import cc.attodao.mob_life.gameplay.targeting.MorphNearbyEntities;
 import cc.attodao.mob_life.gameplay.targeting.MorphOutlineManager;
-import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
+import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.mixin.sound.LivingEntitySoundAccessor;
 import cc.attodao.mob_life.mixin.sound.MobSoundAccessor;
 import cc.attodao.mob_life.morph.MorphDefinition;
@@ -26,6 +28,7 @@ import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.network.MobLifeNetworking.MorphConfigEntry;
 import cc.attodao.mob_life.network.MobLifeNetworking.WorldMorphSelectionPromptPayload;
 import cc.attodao.mob_life.world.MorphInitialSpawn;
+import cc.attodao.mob_life.world.MorphVariantRequest;
 import cc.attodao.mob_life.world.PendingWorldSelection;
 import cc.attodao.mob_life.world.WorldMorphData;
 import java.util.ArrayList;
@@ -63,13 +66,7 @@ import net.minecraft.world.phys.Vec3;
 
 public final class ServerMorphManager {
 
-  private static final Map<UUID, Long> JUMP_COOLDOWN_UNTIL_TICKS = new HashMap<>();
-  private static final Map<UUID, Boolean> LAST_JUMP_GROUNDED_STATES = new HashMap<>();
-  private static final Map<UUID, Integer> RABBIT_HOP_COOLDOWNS = new HashMap<>();
-  private static final Map<UUID, Integer> AMBIENT_SOUND_TIMES = new HashMap<>();
-  private static final Map<UUID, Integer> GRASS_EATING_TICKS = new HashMap<>();
-  private static final Map<UUID, Float> LAST_SYNCED_AWKWARDNESS = new HashMap<>();
-  private static final Map<UUID, Long> DAMAGE_AWKWARDNESS_COOLDOWN_UNTIL_TICKS = new HashMap<>();
+  private static final Map<UUID, PlayerMorphRuntimeState> RUNTIME_STATES = new HashMap<>();
 
   private static final float PASSIVE_DECAY_PER_SECOND = 0.2F;
   private static final float EMPTY_INVENTORY_DECAY_MULTIPLIER = 5.0F;
@@ -83,8 +80,12 @@ public final class ServerMorphManager {
   private static final float DAMAGE_AWKWARDNESS_MIN_GAIN = 20.0F;
   private static final float DAMAGE_AWKWARDNESS_MAX_GAIN = 50.0F;
   private static final int DAMAGE_AWKWARDNESS_COOLDOWN_TICKS = 20 * 6;
-  private static final int GRASS_EATING_DURATION_TICKS = 40;
+  private static final float BEDLESS_SLEEP_AWKWARDNESS_COST = 70.0F;
+  private static final float NORMAL_GRASS_EATING_MIN_PITCH = 30.0F;
+  private static final int NORMAL_GRASS_EATING_DURATION_TICKS = 40;
+  private static final int NORMAL_GRASS_EATING_COOLDOWN_TICKS = 20 * 60;
   private static final int GRASS_FOOD_RESTORE = 2;
+  private static final int INITIAL_SPAWN_RETRY_TICKS = 20 * 30;
 
   private static MorphDefinition activeDefinition;
   private static MorphConfig activeConfig;
@@ -106,10 +107,11 @@ public final class ServerMorphManager {
                 PendingWorldSelection.consumeSelection();
             if (pendingSelection.isPresent()) {
               PendingWorldSelection.PendingSelection selection = pendingSelection.get();
-              data.setDefinition(selection.definition());
+              data.setDefinition(
+                  selection.variantRequest().resolve(server.overworld(), selection.morph()));
               data.markSelectionChosen();
               if (!data.initialSpawnConfigured()) {
-                MorphInitialSpawn.configure(server.overworld(), data, selection.preRandomized());
+                MorphInitialSpawn.configure(server.overworld(), data);
               }
             } else {
               if (data.morph() == MorphType.PLAYER) {
@@ -139,7 +141,6 @@ public final class ServerMorphManager {
           MorphNearbyEntities.clear();
           resetActiveMorph();
           clearServerPlayerState();
-          LAST_SYNCED_AWKWARDNESS.clear();
         });
     ServerLifecycleEvents.END_DATA_PACK_RELOAD.register(
         (server, resourceManager, success) -> {
@@ -161,22 +162,22 @@ public final class ServerMorphManager {
           InstinctManager.remove(handler.getPlayer());
           MorphOutlineManager.remove(handler.getPlayer());
           MorphNearbyEntities.remove(handler.getPlayer());
-          DAMAGE_AWKWARDNESS_COOLDOWN_UNTIL_TICKS.remove(handler.getPlayer().getUUID());
+          RUNTIME_STATES.remove(handler.getPlayer().getUUID());
         });
     ServerPlayerEvents.AFTER_RESPAWN.register(
         (oldPlayer, newPlayer, alive) -> {
-          InstinctManager.disable(newPlayer);
-          InstinctManager.forget(newPlayer);
+          InstinctManager.resetAfterRespawn(oldPlayer, newPlayer);
           MorphOutlineManager.remove(oldPlayer);
           MorphNearbyEntities.remove(oldPlayer);
-          DAMAGE_AWKWARDNESS_COOLDOWN_UNTIL_TICKS.remove(newPlayer.getUUID());
+          RUNTIME_STATES.remove(newPlayer.getUUID());
           MorphAwkwardness.set(newPlayer, MorphAwkwardness.MINIMUM);
           MorphAbility.copy(oldPlayer, newPlayer);
-          initializePlayer(newPlayer);
+          initializePlayer(newPlayer, false);
         });
 
     ServerTickEvents.END_SERVER_TICK.register(
         server -> {
+          retryInitialSpawn(server);
           if (!hasMobForm()) {
             return;
           }
@@ -189,6 +190,26 @@ public final class ServerMorphManager {
 
   public static MorphType activeMorph() {
     return activeDefinition != null ? activeDefinition.type() : null;
+  }
+
+  private static void retryInitialSpawn(MinecraftServer server) {
+    WorldMorphData data = worldData(server);
+    if (!data.selectionChosen()
+        || data.initialSpawnConfigured()
+        || server.overworld().getGameTime() % INITIAL_SPAWN_RETRY_TICKS != 0) {
+      return;
+    }
+
+    MorphDefinition previousDefinition = data.definition();
+    MorphInitialSpawn.configure(server.overworld(), data);
+    if (data.definition().equals(previousDefinition) && activeDefinition != null) {
+      return;
+    }
+
+    setActiveDefinition(server, data.definition());
+    for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+      ServerPlayerMorphApplier.apply(player, data.definition(), true);
+    }
   }
 
   public static MorphDefinition activeDefinition() {
@@ -225,7 +246,7 @@ public final class ServerMorphManager {
       return false;
     }
 
-    AMBIENT_SOUND_TIMES.put(player.getUUID(), -soundMob.getAmbientSoundInterval());
+    runtimeState(player).ambientSoundTime = -soundMob.getAmbientSoundInterval();
     if (soundMob.isSilent()) {
       return true;
     }
@@ -294,11 +315,11 @@ public final class ServerMorphManager {
     }
 
     long gameTime = player.level().getGameTime();
-    if (gameTime < DAMAGE_AWKWARDNESS_COOLDOWN_UNTIL_TICKS.getOrDefault(player.getUUID(), 0L)) {
+    PlayerMorphRuntimeState runtimeState = runtimeState(player);
+    if (gameTime < runtimeState.damageAwkwardnessCooldownUntilTick) {
       return;
     }
-    DAMAGE_AWKWARDNESS_COOLDOWN_UNTIL_TICKS.put(
-        player.getUUID(), gameTime + DAMAGE_AWKWARDNESS_COOLDOWN_TICKS);
+    runtimeState.damageAwkwardnessCooldownUntilTick = gameTime + DAMAGE_AWKWARDNESS_COOLDOWN_TICKS;
 
     float damageRatio = Math.clamp(finalDamage / Math.max(1.0F, player.getMaxHealth()), 0.0F, 1.0F);
     float gain =
@@ -313,6 +334,22 @@ public final class ServerMorphManager {
     InstinctManager.forceEnableAtMaximum(player);
   }
 
+  public static void markBedlessSleepStarted(ServerPlayer player) {
+    runtimeState(player).bedlessSleepPending = true;
+  }
+
+  public static void completeBedlessSleep(ServerPlayer player) {
+    PlayerMorphRuntimeState state = RUNTIME_STATES.get(player.getUUID());
+    if (state == null || !state.bedlessSleepPending) {
+      return;
+    }
+
+    state.bedlessSleepPending = false;
+    if (hasMobForm()) {
+      setAwkwardness(player, MorphAwkwardness.get(player) + BEDLESS_SLEEP_AWKWARDNESS_COST);
+    }
+  }
+
   public static void setAwkwardness(ServerPlayer player, float value) {
     MorphAwkwardness.set(player, value);
     syncAwkwardness(player, true);
@@ -320,7 +357,7 @@ public final class ServerMorphManager {
   }
 
   public static void changeMorph(MinecraftServer server, MorphDefinition definition) {
-    if (!MobLifeConfig.isMorphEnabled(definition.type())) {
+    if (!ServerMobLifeConfig.isMorphEnabled(definition.type())) {
       MobLife.LOGGER.warn("Ignoring disabled morph selection {}", definition.type().id());
       return;
     }
@@ -345,18 +382,59 @@ public final class ServerMorphManager {
         data.definition().nbt());
   }
 
+  /**
+   * Completes the one-time world selection from a client-supplied ID and limited variant request.
+   */
   public static void completeWorldSelection(
-      MinecraftServer server, String morphId, net.minecraft.nbt.CompoundTag nbt) {
-    MorphType morph = MorphType.fromId(morphId);
-    if (!morph.id().equals(morphId)) {
-      MobLife.LOGGER.warn("Ignoring unknown world morph selection {}", morphId);
+      MinecraftServer server,
+      ServerPlayer submittingPlayer,
+      String morphId,
+      MorphVariantRequest variantRequest) {
+    WorldMorphData data = worldData(server);
+    if (data.selectionChosen()) {
+      MobLife.LOGGER.warn(
+          "Ignoring repeat world morph selection {} from {}",
+          morphId,
+          submittingPlayer.getGameProfile().name());
       return;
     }
 
-    changeMorph(server, new MorphDefinition(morph, nbt));
+    MorphType morph = MorphType.fromId(morphId);
+    if (!morph.id().equals(morphId) || !ServerMobLifeConfig.selectableMorphs().contains(morph)) {
+      MobLife.LOGGER.warn(
+          "Ignoring unavailable world morph selection {} from {}",
+          morphId,
+          submittingPlayer.getGameProfile().name());
+      return;
+    }
+
+    // The payload cannot carry a CompoundTag. Only registry-backed cosmetic values from the
+    // fixed request are retained; vanilla finalization generates every remaining spawn property.
+    data.setDefinition(
+        (variantRequest != null ? variantRequest : MorphVariantRequest.empty())
+            .resolve(server.overworld(), morph));
+    data.markSelectionChosen();
+    if (!data.initialSpawnConfigured()) {
+      MorphInitialSpawn.configure(server.overworld(), data);
+    }
+    setActiveDefinition(server, data.definition());
+    for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+      ServerPlayerMorphApplier.apply(player, data.definition(), true);
+    }
+
+    MobLife.LOGGER.info(
+        "World morph selected by {}: {} with server-generated NBT {}",
+        submittingPlayer.getGameProfile().name(),
+        data.definition().type().id(),
+        data.definition().nbt());
   }
 
   private static void initializePlayer(ServerPlayer player) {
+    initializePlayer(player, true);
+  }
+
+  private static void initializePlayer(ServerPlayer player, boolean resetInstinct) {
+    sendServerConfig(player);
     WorldMorphData data = worldData(player.level().getServer());
     if (!data.selectionChosen()) {
       sendWorldSelectionPrompt(player);
@@ -368,12 +446,25 @@ public final class ServerMorphManager {
       return;
     }
 
-    GRASS_EATING_TICKS.remove(player.getUUID());
-    boolean restoreInstinct = InstinctManager.shouldRestore(player);
-    InstinctManager.disable(player);
+    boolean mobForm = definition.hasMobForm();
+    if (mobForm) {
+      runtimeState(player).normalGrassEatingTicks = 0;
+    }
+    boolean restoreInstinct = mobForm && InstinctManager.shouldRestore(player);
+    if (resetInstinct) {
+      InstinctManager.disable(player);
+    }
+    if (!mobForm) {
+      InstinctManager.forget(player);
+    }
     MorphOutlineManager.remove(player);
     MorphNearbyEntities.remove(player);
     ServerPlayerMorphApplier.apply(player, definition, false);
+    if (!mobForm) {
+      InstinctManager.remove(player);
+      RUNTIME_STATES.remove(player.getUUID());
+      return;
+    }
     if (restoreInstinct) {
       InstinctManager.restore(player);
     }
@@ -384,12 +475,26 @@ public final class ServerMorphManager {
   }
 
   private static void sendWorldSelectionPrompt(ServerPlayer player) {
-    var morphs = MobLifeConfig.selectableMorphs();
+    var morphs = ServerMobLifeConfig.selectableMorphs();
     ArrayList<MorphConfigEntry> configs = new ArrayList<>(morphs.size());
     for (MorphType morph : morphs) {
       configs.add(new MorphConfigEntry(morph.id(), MorphConfigManager.encode(morph)));
     }
     ServerPlayNetworking.send(player, new WorldMorphSelectionPromptPayload(configs));
+  }
+
+  private static void sendServerConfig(ServerPlayer player) {
+    ServerMobLifeConfig.Settings settings = ServerMobLifeConfig.settings();
+    ServerPlayNetworking.send(
+        player,
+        new MobLifeNetworking.ServerConfigPayload(
+            settings.morphEnabled(),
+            settings.playerMorphEnabled(),
+            settings.hotbarLimitEnabled(),
+            settings.inventorySlotLimitEnabled(),
+            settings.offhandLimitEnabled(),
+            settings.miningSpeedChangeEnabled(),
+            settings.reachChangeEnabled()));
   }
 
   private static WorldMorphData worldData(MinecraftServer server) {
@@ -426,16 +531,11 @@ public final class ServerMorphManager {
   }
 
   private static void clearPerMorphEffectState() {
-    JUMP_COOLDOWN_UNTIL_TICKS.clear();
-    LAST_JUMP_GROUNDED_STATES.clear();
-    RABBIT_HOP_COOLDOWNS.clear();
-    AMBIENT_SOUND_TIMES.clear();
-    GRASS_EATING_TICKS.clear();
+    RUNTIME_STATES.clear();
   }
 
   private static void clearServerPlayerState() {
-    clearPerMorphEffectState();
-    DAMAGE_AWKWARDNESS_COOLDOWN_UNTIL_TICKS.clear();
+    RUNTIME_STATES.clear();
   }
 
   private static void applyActiveEntityProperties(MorphDefinition definition, Entity entity) {
@@ -460,7 +560,7 @@ public final class ServerMorphManager {
     InstinctManager.tick(player);
     boolean instinct = InstinctManager.isEnabled(player);
     MorphOutlineManager.tick(player, activeMorph(), activeMorphHasAttackAi());
-    tickGrassEating(player);
+    tickNormalGrassEating(player);
     addMovementExhaustion(player);
     tickAwkwardness(player);
     InstinctManager.forceEnableAtMaximum(player);
@@ -468,6 +568,10 @@ public final class ServerMorphManager {
     tickAmbientSound(player);
     if (player.tickCount % 20 == 0) {
       refreshChestedInventory(player);
+      if (activeDimensions != null) {
+        ServerPlayerMorphApplier.refreshGameplayModifiers(
+            player, activeMorph(), activeDimensions.height());
+      }
     }
     clearMorphNightVisionEffect(player);
 
@@ -480,9 +584,6 @@ public final class ServerMorphManager {
     } else {
       syncJumpCooldown(player);
     }
-    if (player.tickCount % 10 == 0) {
-      MorphPredation.acquirePredators(player, activeMorph());
-    }
   }
 
   private static void tickAmbientSound(ServerPlayer player) {
@@ -491,8 +592,8 @@ public final class ServerMorphManager {
       return;
     }
 
-    UUID uuid = player.getUUID();
-    int ambientSoundTime = AMBIENT_SOUND_TIMES.getOrDefault(uuid, 0);
+    PlayerMorphRuntimeState runtimeState = runtimeState(player);
+    int ambientSoundTime = runtimeState.ambientSoundTime;
     if (player.getRandom().nextInt(1000) < ambientSoundTime++) {
       SoundEvent sound = ((MobSoundAccessor) soundMob).mobLife$getAmbientSound();
       if (sound != null) {
@@ -504,7 +605,7 @@ public final class ServerMorphManager {
       }
       ambientSoundTime = -soundMob.getAmbientSoundInterval();
     }
-    AMBIENT_SOUND_TIMES.put(uuid, ambientSoundTime);
+    runtimeState.ambientSoundTime = ambientSoundTime;
   }
 
   private static void playMorphSound(
@@ -549,9 +650,9 @@ public final class ServerMorphManager {
   }
 
   private static void tickRabbitHop(ServerPlayer player) {
-    UUID uuid = player.getUUID();
+    PlayerMorphRuntimeState runtimeState = runtimeState(player);
     if (InstinctManager.isEnabled(player)) {
-      RABBIT_HOP_COOLDOWNS.remove(uuid);
+      runtimeState.rabbitHopCooldown = 0;
       if (InstinctManager.rabbitJumped(player)) {
         player
             .level()
@@ -560,12 +661,8 @@ public final class ServerMorphManager {
       return;
     }
 
-    int cooldown = Math.max(0, RABBIT_HOP_COOLDOWNS.getOrDefault(uuid, 0) - 1);
-    if (cooldown > 0) {
-      RABBIT_HOP_COOLDOWNS.put(uuid, cooldown);
-    } else {
-      RABBIT_HOP_COOLDOWNS.remove(uuid);
-    }
+    int cooldown = Math.max(0, runtimeState.rabbitHopCooldown - 1);
+    runtimeState.rabbitHopCooldown = cooldown;
 
     Input input = player.getLastClientInput();
     boolean moving = hasMovementInput(input);
@@ -580,26 +677,26 @@ public final class ServerMorphManager {
     }
 
     RabbitHopMovement.launch(player, input);
-    RABBIT_HOP_COOLDOWNS.put(uuid, RabbitHopMovement.cooldown(player, input));
+    runtimeState.rabbitHopCooldown = RabbitHopMovement.cooldown(player, input);
     player
         .level()
         .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
   }
 
   private static void syncJumpCooldown(ServerPlayer player) {
-    UUID uuid = player.getUUID();
+    PlayerMorphRuntimeState runtimeState = runtimeState(player);
     boolean grounded = isJumpGrounded(player);
-    boolean wasGrounded = LAST_JUMP_GROUNDED_STATES.getOrDefault(uuid, grounded);
+    boolean wasGrounded = runtimeState.jumpGroundedKnown ? runtimeState.jumpGrounded : grounded;
     if (grounded && !wasGrounded) {
-      JUMP_COOLDOWN_UNTIL_TICKS.put(
-          uuid, player.level().getGameTime() + MobChargedJump.COOLDOWN_TICKS);
+      runtimeState.jumpCooldownUntilTick =
+          player.level().getGameTime() + MobChargedJump.COOLDOWN_TICKS;
     }
-    LAST_JUMP_GROUNDED_STATES.put(uuid, grounded);
+    runtimeState.jumpGrounded = grounded;
+    runtimeState.jumpGroundedKnown = true;
   }
 
   private static boolean isJumpCoolingDown(ServerPlayer player) {
-    return player.level().getGameTime()
-        < JUMP_COOLDOWN_UNTIL_TICKS.getOrDefault(player.getUUID(), 0L);
+    return player.level().getGameTime() < runtimeState(player).jumpCooldownUntilTick;
   }
 
   private static boolean isJumpGrounded(ServerPlayer player) {
@@ -621,31 +718,35 @@ public final class ServerMorphManager {
     }
   }
 
-  private static void tickGrassEating(ServerPlayer player) {
-    UUID uuid = player.getUUID();
+  private static void tickNormalGrassEating(ServerPlayer player) {
+    PlayerMorphRuntimeState runtimeState = runtimeState(player);
     Input input = player.getLastClientInput();
     BlockPos grassPos = player.blockPosition().below();
+    long gameTime = player.level().getGameTime();
     boolean canEat =
         !InstinctManager.isEnabled(player)
             && activeConfig().traits().eatsGrass()
-            && input.shift()
+            && runtimeState.normalGrassEatingCooldownUntilTick <= gameTime
+            && player.isCrouching()
+            && player.getXRot() >= NORMAL_GRASS_EATING_MIN_PITCH
             && !hasMovementInput(input)
-            && player.getDeltaMovement().horizontalDistanceSqr() < 1.0E-4
             && player.onGround()
             && !player.isPassenger()
             && !player.getAbilities().flying
             && player.getFoodData().needsFood()
             && player.level().getBlockState(grassPos).is(Blocks.GRASS_BLOCK);
     if (!canEat) {
-      if (GRASS_EATING_TICKS.remove(uuid) != null) {
+      if (runtimeState.normalGrassEatingTicks > 0) {
+        runtimeState.normalGrassEatingTicks = 0;
         syncGrassEating(player, 0);
       }
       return;
     }
 
-    int elapsed = GRASS_EATING_TICKS.merge(uuid, 1, Integer::sum);
-    syncGrassEating(player, GRASS_EATING_DURATION_TICKS - elapsed + 1);
-    if (elapsed < GRASS_EATING_DURATION_TICKS) {
+    int elapsed = ++runtimeState.normalGrassEatingTicks;
+    MorphEatingSound.playContinuousTickForEater(player, elapsed - 1);
+    syncGrassEating(player, NORMAL_GRASS_EATING_DURATION_TICKS - elapsed + 1);
+    if (elapsed < NORMAL_GRASS_EATING_DURATION_TICKS) {
       return;
     }
 
@@ -653,8 +754,10 @@ public final class ServerMorphManager {
     if (player.level().setBlockAndUpdate(grassPos, Blocks.DIRT.defaultBlockState())) {
       player.level().levelEvent(player, 2001, grassPos, Block.getId(grassState));
       player.getFoodData().eat(GRASS_FOOD_RESTORE, 0.0F);
+      runtimeState.normalGrassEatingCooldownUntilTick =
+          gameTime + NORMAL_GRASS_EATING_COOLDOWN_TICKS;
     }
-    GRASS_EATING_TICKS.remove(uuid);
+    runtimeState.normalGrassEatingTicks = 0;
     syncGrassEating(player, 0);
   }
 
@@ -692,11 +795,16 @@ public final class ServerMorphManager {
       delta += NON_FORWARD_MOVEMENT_GAIN * NORMAL_AWKWARDNESS_GAIN_MULTIPLIER;
     }
 
-    if (instinct && !InstinctManager.pausesAwkwardnessDecay(player) && player.tickCount % 20 == 0) {
-      delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
-      if (hasNearbySameMob(player)) {
-        delta -= SAME_MOB_DECAY_PER_SECOND;
+    if (player.tickCount % 20 == 0) {
+      if (instinct && !InstinctManager.pausesAwkwardnessDecay(player)) {
+        delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
+        if (hasNearbySameMob(player)) {
+          delta -=
+              SAME_MOB_DECAY_PER_SECOND
+                  * MorphAwkwardnessBehavior.herdDecayMultiplier(activeMorph());
+        }
       }
+      delta += MorphAwkwardnessBehavior.threatGainPerSecond(player, activeMorph());
     }
 
     if (delta != 0.0F) {
@@ -754,18 +862,18 @@ public final class ServerMorphManager {
     }
 
     return MorphNearbyEntities.living(player, 6.0).stream()
-        .anyMatch(
-            entity -> entity.getType() == morph.entityType() || entity instanceof ServerPlayer);
+        .anyMatch(entity -> MorphRelations.isHerdMember(entity, morph));
   }
 
   private static void syncAwkwardness(ServerPlayer player, boolean force) {
     float value = MorphAwkwardness.get(player);
-    Float previous = LAST_SYNCED_AWKWARDNESS.get(player.getUUID());
+    PlayerMorphRuntimeState runtimeState = runtimeState(player);
+    Float previous = runtimeState.lastSyncedAwkwardness;
     if (!force && previous != null && Math.abs(previous - value) < 0.05F) {
       return;
     }
 
-    LAST_SYNCED_AWKWARDNESS.put(player.getUUID(), value);
+    runtimeState.lastSyncedAwkwardness = value;
     ServerPlayNetworking.send(player, new MobLifeNetworking.AwkwardnessPayload(value));
   }
 
@@ -775,5 +883,10 @@ public final class ServerMorphManager {
 
   private static boolean hasMovementInput(Input input) {
     return input.forward() || input.backward() || input.left() || input.right();
+  }
+
+  private static PlayerMorphRuntimeState runtimeState(ServerPlayer player) {
+    return RUNTIME_STATES.computeIfAbsent(
+        player.getUUID(), ignored -> new PlayerMorphRuntimeState());
   }
 }

@@ -4,6 +4,7 @@ import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
+import com.mojang.datafixers.util.Pair;
 import java.util.Optional;
 import java.util.function.Predicate;
 import net.minecraft.core.BlockPos;
@@ -28,6 +29,7 @@ import net.minecraft.world.level.biome.Biomes;
 import net.minecraft.world.level.biome.MobSpawnSettings;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.storage.LevelData;
 import net.minecraft.world.phys.AABB;
@@ -35,8 +37,12 @@ import net.minecraft.world.phys.Vec3;
 
 public final class MorphInitialSpawn {
 
-  private static final int LOCAL_SEARCH_RADIUS = 128;
-  private static final int LOCAL_SEARCH_STEP = 8;
+  private static final int PLACEMENT_SEARCH_RADIUS = 48;
+  private static final int PLACEMENT_SEARCH_STEP = 16;
+  private static final int MAX_NEW_CHUNKS_PER_SEARCH = 4;
+  private static final int BIOME_SEARCH_RADIUS = 8_192;
+  private static final int BIOME_SEARCH_HORIZONTAL_INTERVAL = 64;
+  private static final int BIOME_SEARCH_VERTICAL_INTERVAL = 32;
   private static final int NEARBY_MOB_RADIUS = 32;
   private static final int MAX_GROUP_SIZE = 4;
   private static final int SPAWN_ATTEMPTS_PER_MOB = 24;
@@ -44,11 +50,6 @@ public final class MorphInitialSpawn {
   private MorphInitialSpawn() {}
 
   public static void configure(ServerLevel level, WorldMorphData morphData) {
-    configure(level, morphData, false);
-  }
-
-  public static void configure(
-      ServerLevel level, WorldMorphData morphData, boolean definitionPreRandomized) {
     if (morphData.initialSpawnConfigured()) {
       return;
     }
@@ -66,16 +67,16 @@ public final class MorphInitialSpawn {
             morphData.definition(), () -> findSpawnPosition(level, morphData, entityType, origin));
 
     if (spawnPos == null) {
-      MobLife.LOGGER.warn("Could not find a valid initial spawn for {} form", morph.id());
-      morphData.markInitialSpawnConfigured();
+      // The biome lookup is deliberately generation-free and placement only opens a small,
+      // bounded number of chunks. Keep the state pending so a later retry can finish safely.
+      MobLife.LOGGER.warn(
+          "Could not find a valid initial spawn for {} form yet; it will be retried", morph.id());
       return;
     }
 
     level.setRespawnData(LevelData.RespawnData.of(level.dimension(), spawnPos, 0.0F, 0.0F));
     MorphDefinition randomizedDefinition =
-        definitionPreRandomized
-            ? morphData.definition()
-            : MorphEntityFactory.randomizeAt(morphData.definition(), level, spawnPos);
+        MorphEntityFactory.randomizeAt(morphData.definition(), level, spawnPos);
     morphData.setDefinition(randomizedDefinition);
     if (shouldSpawnNearbyGroup(morph)) {
       ensureNearbyGroup(level, spawnPos, randomizedDefinition, entityType);
@@ -101,27 +102,16 @@ public final class MorphInitialSpawn {
       EntityType<?> entityType,
       BlockPos origin,
       boolean allBlackCat) {
-    BlockPos spawnPos =
-        findInitialSpawn(
-            level,
-            origin,
-            entityType,
-            pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
-            LOCAL_SEARCH_RADIUS);
-    if (spawnPos != null) {
-      return spawnPos;
-    }
-
     BlockPos forcedStructureCenter =
         MorphInitialStructures.forcedStructureCenter(level, definition).orElse(null);
     if (forcedStructureCenter != null) {
-      spawnPos =
+      BlockPos spawnPos =
           findInitialSpawn(
               level,
               forcedStructureCenter,
               entityType,
               pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
-              LOCAL_SEARCH_RADIUS);
+              PLACEMENT_SEARCH_RADIUS);
       if (spawnPos != null) {
         return spawnPos;
       }
@@ -133,26 +123,48 @@ public final class MorphInitialSpawn {
             origin,
             16,
             false);
-    if (catStructure == null) {
+    if (catStructure != null) {
+      BlockPos spawnPos =
+          findInitialSpawn(
+              level,
+              catStructure,
+              entityType,
+              pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
+              PLACEMENT_SEARCH_RADIUS);
+      if (spawnPos != null) {
+        return spawnPos;
+      }
+    }
+
+    // A village around the existing spawn can satisfy the same vanilla condition without a
+    // structure search result, so retain it as a final local placement attempt.
+    return findInitialSpawn(
+        level,
+        origin,
+        entityType,
+        pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
+        PLACEMENT_SEARCH_RADIUS);
+  }
+
+  private static BlockPos findNaturalSpawnPosition(
+      ServerLevel level, MorphDefinition definition, EntityType<?> entityType, BlockPos origin) {
+    Pair<BlockPos, Holder<Biome>> biomeMatch =
+        level.findClosestBiome3d(
+            biome -> biomeSupportsInitialSpawn(biome, definition, entityType),
+            origin,
+            BIOME_SEARCH_RADIUS,
+            BIOME_SEARCH_HORIZONTAL_INTERVAL,
+            BIOME_SEARCH_VERTICAL_INTERVAL);
+    if (biomeMatch == null) {
       return null;
     }
 
     return findInitialSpawn(
         level,
-        catStructure,
-        entityType,
-        pos -> isCatSpawnPosition(level, definition, entityType, pos, allBlackCat),
-        LOCAL_SEARCH_RADIUS);
-  }
-
-  private static BlockPos findNaturalSpawnPosition(
-      ServerLevel level, MorphDefinition definition, EntityType<?> entityType, BlockPos origin) {
-    return findInitialSpawn(
-        level,
-        origin,
+        biomeMatch.getFirst(),
         entityType,
         pos -> isInitialSpawnPosition(level, definition, entityType, pos),
-        LOCAL_SEARCH_RADIUS);
+        PLACEMENT_SEARCH_RADIUS);
   }
 
   private static BlockPos findInitialSpawn(
@@ -161,21 +173,24 @@ public final class MorphInitialSpawn {
       EntityType<?> entityType,
       Predicate<BlockPos> spawnPredicate,
       int radius) {
-    BlockPos spawnPos = testInitialSpawn(level, spawnSuggestion, entityType, spawnPredicate);
+    int[] newChunkBudget = {MAX_NEW_CHUNKS_PER_SEARCH};
+    BlockPos spawnPos =
+        testInitialSpawn(level, spawnSuggestion, entityType, spawnPredicate, newChunkBudget);
     if (spawnPos != null) {
       return spawnPos;
     }
 
-    for (int currentRadius = LOCAL_SEARCH_STEP;
+    for (int currentRadius = PLACEMENT_SEARCH_STEP;
         currentRadius <= radius;
-        currentRadius += LOCAL_SEARCH_STEP) {
-      for (int deltaX = -currentRadius; deltaX <= currentRadius; deltaX += LOCAL_SEARCH_STEP) {
+        currentRadius += PLACEMENT_SEARCH_STEP) {
+      for (int deltaX = -currentRadius; deltaX <= currentRadius; deltaX += PLACEMENT_SEARCH_STEP) {
         spawnPos =
             testInitialSpawn(
                 level,
                 spawnSuggestion.offset(deltaX, 0, -currentRadius),
                 entityType,
-                spawnPredicate);
+                spawnPredicate,
+                newChunkBudget);
         if (spawnPos != null) {
           return spawnPos;
         }
@@ -184,21 +199,23 @@ public final class MorphInitialSpawn {
                 level,
                 spawnSuggestion.offset(deltaX, 0, currentRadius),
                 entityType,
-                spawnPredicate);
+                spawnPredicate,
+                newChunkBudget);
         if (spawnPos != null) {
           return spawnPos;
         }
       }
 
-      for (int deltaZ = -currentRadius + LOCAL_SEARCH_STEP;
-          deltaZ <= currentRadius - LOCAL_SEARCH_STEP;
-          deltaZ += LOCAL_SEARCH_STEP) {
+      for (int deltaZ = -currentRadius + PLACEMENT_SEARCH_STEP;
+          deltaZ <= currentRadius - PLACEMENT_SEARCH_STEP;
+          deltaZ += PLACEMENT_SEARCH_STEP) {
         spawnPos =
             testInitialSpawn(
                 level,
                 spawnSuggestion.offset(-currentRadius, 0, deltaZ),
                 entityType,
-                spawnPredicate);
+                spawnPredicate,
+                newChunkBudget);
         if (spawnPos != null) {
           return spawnPos;
         }
@@ -207,28 +224,39 @@ public final class MorphInitialSpawn {
                 level,
                 spawnSuggestion.offset(currentRadius, 0, deltaZ),
                 entityType,
-                spawnPredicate);
+                spawnPredicate,
+                newChunkBudget);
         if (spawnPos != null) {
           return spawnPos;
         }
       }
     }
 
-    BlockPos fallback = fixupSpawnHeight(level, spawnSuggestion);
-    fallback = SpawnPlacements.getPlacementType(entityType).adjustSpawnPosition(level, fallback);
-    return spawnPredicate.test(fallback) ? fallback : null;
+    return null;
   }
 
   private static BlockPos testInitialSpawn(
       ServerLevel level,
       BlockPos suggestion,
       EntityType<?> entityType,
-      Predicate<BlockPos> spawnPredicate) {
+      Predicate<BlockPos> spawnPredicate,
+      int[] newChunkBudget) {
     if (!level.getWorldBorder().isWithinBounds(suggestion)) {
       return null;
     }
 
-    BlockPos spawnPos = getOverworldRespawnPos(level, suggestion.getX(), suggestion.getZ());
+    int chunkX = SectionPos.blockToSectionCoord(suggestion.getX());
+    int chunkZ = SectionPos.blockToSectionCoord(suggestion.getZ());
+    LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+    if (chunk == null) {
+      if (newChunkBudget[0] <= 0) {
+        return null;
+      }
+      newChunkBudget[0]--;
+      chunk = level.getChunk(chunkX, chunkZ);
+    }
+
+    BlockPos spawnPos = getOverworldRespawnPos(level, suggestion.getX(), suggestion.getZ(), chunk);
     if (spawnPos == null) {
       return null;
     }
@@ -269,10 +297,8 @@ public final class MorphInitialSpawn {
   }
 
   private static BlockPos getOverworldRespawnPos(
-      final ServerLevel level, final int x, final int z) {
+      final ServerLevel level, final int x, final int z, final LevelChunk chunk) {
     boolean caveWorld = level.dimensionType().hasCeiling();
-    var chunk =
-        level.getChunk(SectionPos.blockToSectionCoord(x), SectionPos.blockToSectionCoord(z));
     int topY =
         caveWorld
             ? level.getChunkSource().getGenerator().getSpawnHeight(level)
@@ -300,23 +326,6 @@ public final class MorphInitialSpawn {
     }
 
     return null;
-  }
-
-  private static BlockPos fixupSpawnHeight(final CollisionGetter level, final BlockPos spawnPos) {
-    BlockPos.MutableBlockPos mutablePos = spawnPos.mutable();
-
-    while (!noCollisionNoLiquid(level, mutablePos) && mutablePos.getY() < level.getMaxY()) {
-      mutablePos.move(Direction.UP);
-    }
-
-    mutablePos.move(Direction.DOWN);
-
-    while (noCollisionNoLiquid(level, mutablePos) && mutablePos.getY() > level.getMinY()) {
-      mutablePos.move(Direction.DOWN);
-    }
-
-    mutablePos.move(Direction.UP);
-    return mutablePos.immutable();
   }
 
   private static boolean noCollisionNoLiquid(final CollisionGetter level, final BlockPos pos) {

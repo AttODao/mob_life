@@ -1,11 +1,11 @@
 package cc.attodao.mob_life.client.screen;
 
 import cc.attodao.mob_life.client.mixin.world.CreateWorldScreenInvoker;
-import cc.attodao.mob_life.config.MobLifeConfig;
+import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
-import cc.attodao.mob_life.world.InitialWorldVariantSelector;
+import cc.attodao.mob_life.world.MorphVariantRequest;
 import cc.attodao.mob_life.world.PendingWorldSelection;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import java.util.EnumMap;
@@ -49,7 +49,6 @@ public final class MorphSelectionScreen extends Screen {
   private static final int DETAIL_CLOSE_SIZE = 18;
   private static final int DETAIL_LINE_HEIGHT = 11;
   private static final int DETAIL_INPUT_HEIGHT = 20;
-  private static final int DETAIL_INPUT_GAP = 8;
   private static final int LIST_SCROLLBAR_WIDTH = 6;
   private static final int DETAIL_SCROLLBAR_WIDTH = 6;
   private static final int DETAIL_SCROLLBAR_GAP = 24;
@@ -69,7 +68,6 @@ public final class MorphSelectionScreen extends Screen {
   private final EnumMap<MorphType, LivingEntity> previewEntities = new EnumMap<>(MorphType.class);
   private final Screen returnScreen;
   private final MorphPreviewFactory previewFactory;
-
   private MorphType selectedMorph = MorphType.PLAYER;
   private MorphType focusedMorph = MorphType.PLAYER;
   private String nbtText = "";
@@ -105,7 +103,10 @@ public final class MorphSelectionScreen extends Screen {
   }
 
   public MorphSelectionScreen(Screen returnScreen) {
-    this(returnScreen, MobLifeConfig.selectableMorphs(), PendingWorldSelection.peekOrDefault());
+    this(
+        returnScreen,
+        ServerMobLifeConfig.selectableMorphs(),
+        PendingWorldSelection.peekOrDefault());
   }
 
   private MorphSelectionScreen(
@@ -379,13 +380,11 @@ public final class MorphSelectionScreen extends Screen {
   }
 
   private EditBox createNbtInput() {
-    int inputWidth = footerInputWidth();
-    int inputY = footerInputY();
     EditBox input =
         new MorphSelectionEditBox(
             footerInputX(),
-            inputY,
-            inputWidth,
+            footerInputY(),
+            footerInputWidth(),
             DETAIL_INPUT_HEIGHT,
             Component.translatable("mob_life.world_select.nbt"));
     input.setMaxLength(2048);
@@ -409,12 +408,11 @@ public final class MorphSelectionScreen extends Screen {
       if (editable) {
         parseNbt(nbtInput.getValue());
       } else {
-        nbtValid = true;
         parsedNbt = new CompoundTag();
+        nbtValid = true;
         nbtInput.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
       }
     }
-
     refreshSubmitState();
   }
 
@@ -570,12 +568,17 @@ public final class MorphSelectionScreen extends Screen {
     }
   }
 
+  private void refreshSubmitState() {
+    if (confirmButton != null) {
+      confirmButton.active = !helpOpen && nbtValid;
+    }
+  }
+
   private void parseNbt(String value) {
     nbtText = value;
     if (nbtInput == null) {
       return;
     }
-
     if (selectedMorph.isPlayer() || value.isBlank()) {
       parsedNbt = new CompoundTag();
       nbtValid = true;
@@ -585,20 +588,20 @@ public final class MorphSelectionScreen extends Screen {
     }
 
     try {
-      parsedNbt = TagParser.parseCompoundFully(value);
-      nbtValid = true;
-      nbtInput.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
+      CompoundTag parsed = TagParser.parseCompoundFully(value);
+      if (!MorphVariantRequest.isSupportedNbt(selectedMorph, parsed)) {
+        nbtValid = false;
+        nbtInput.setTextColor(0xFFFF6666);
+      } else {
+        parsedNbt = parsed;
+        nbtValid = true;
+        nbtInput.setTextColor(EditBox.DEFAULT_TEXT_COLOR);
+      }
     } catch (CommandSyntaxException exception) {
       nbtValid = false;
       nbtInput.setTextColor(0xFFFF6666);
     }
     refreshSubmitState();
-  }
-
-  private void refreshSubmitState() {
-    if (confirmButton != null) {
-      confirmButton.active = !helpOpen && (selectedMorph.isPlayer() || nbtValid);
-    }
   }
 
   @Override
@@ -636,28 +639,22 @@ public final class MorphSelectionScreen extends Screen {
   }
 
   private static MorphType initialMorph(List<MorphType> morphTypes) {
-    return morphTypes.isEmpty() ? MobLifeConfig.defaultMorph() : morphTypes.get(0);
+    return morphTypes.isEmpty() ? ServerMobLifeConfig.defaultMorph() : morphTypes.get(0);
   }
 
   private void submitSelection() {
-    if (!selectedMorph.isPlayer() && !nbtValid) {
+    if (!nbtValid) {
       if (nbtInput != null) {
         nbtInput.setFocused(true);
       }
       return;
     }
 
-    MorphDefinition selection =
-        new MorphDefinition(
-            selectedMorph, selectedMorph.isPlayer() ? new CompoundTag() : parsedNbt);
+    MorphVariantRequest variantRequest = MorphVariantRequest.fromNbt(selectedMorph, parsedNbt);
+    MorphDefinition selection = variantRequest.toPendingDefinition(selectedMorph);
     if (returnScreen != null) {
       MorphDefinition worldSelection = selection;
-      if (returnScreen instanceof CreateWorldScreen createWorldScreen) {
-        worldSelection =
-            InitialWorldVariantSelector.randomize(
-                createWorldScreen.getUiState().getSettings().worldgenLoadContext(), selection);
-      }
-      PendingWorldSelection.setForNextWorld(worldSelection, true);
+      PendingWorldSelection.setForNextWorld(selectedMorph, variantRequest);
       if (returnScreen instanceof CreateWorldScreen createWorldScreen
           && returnScreen instanceof CreateWorldScreenInvoker invoker) {
         createWorldRequested = true;
@@ -675,7 +672,7 @@ public final class MorphSelectionScreen extends Screen {
 
     ClientPlayNetworking.send(
         new MobLifeNetworking.WorldMorphSelectionSubmitPayload(
-            selection.type().id(), selection.nbt()));
+            selection.type().id(), variantRequest));
     if (minecraft != null) {
       minecraft.gui.setScreen(null);
     }
@@ -1401,7 +1398,6 @@ public final class MorphSelectionScreen extends Screen {
           default -> null;
         };
       }
-
       return super.nextFocusPath(event);
     }
   }

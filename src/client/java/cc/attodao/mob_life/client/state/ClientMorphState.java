@@ -4,6 +4,7 @@ import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
+import cc.attodao.mob_life.gameplay.movement.MorphAttributeModifiers;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
 import cc.attodao.mob_life.morph.MorphDefinition;
@@ -78,10 +79,11 @@ public final class ClientMorphState {
     for (Player player : client.level.players()) {
       MorphInventoryCapacity.apply(player, newMorph, morphHeight);
       MorphFoodCapacity.apply(player, newMorph, morphHeight);
+      if (newMorph.isPlayer()) {
+        MorphAttributeModifiers.removeAll(player);
+      }
       MorphMovementSpeed.refresh(player);
       player.refreshDimensions();
-      player.setBoundingBox(
-          player.getDimensions(player.getPose()).makeBoundingBox(player.position()));
     }
   }
 
@@ -170,6 +172,12 @@ public final class ClientMorphState {
       return;
     }
 
+    if (morph == null && client.player != null) {
+      // Attribute synchronization can arrive after the form payload. Keep local collision
+      // prediction free of stale Mob Life modifiers while the world uses the player form.
+      MorphAttributeModifiers.removeAll(client.player);
+    }
+
     MorphConfig.Movement movement = morph != null ? MorphConfigManager.get(morph).movement() : null;
     CHARGED_JUMP.tick(client, movement);
     refreshChestedInventory(client.player);
@@ -216,7 +224,7 @@ public final class ClientMorphState {
     GRASS_EATING_TICKS.clear();
     LocalPlayer player = Minecraft.getInstance().player;
     if (player != null) {
-      MorphMovementSpeed.refresh(player);
+      MorphAttributeModifiers.removeAll(player);
     }
     RENDER_ENTITIES.clear();
     CHARGED_JUMP.reset();

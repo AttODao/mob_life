@@ -44,7 +44,8 @@ public enum MorphType {
   }
 
   public boolean isNocturnal() {
-    return MorphConfigManager.get(this).sleep().schedule().equals("day");
+    return MorphConfigManager.get(this).sleep().schedule()
+        == cc.attodao.mob_life.config.MorphConfig.SleepSchedule.DAY;
   }
 
   public boolean canEquipSaddle() {
