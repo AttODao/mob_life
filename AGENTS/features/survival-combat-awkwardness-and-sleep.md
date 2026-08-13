@@ -8,6 +8,13 @@
   realistic split between meat, fish, grain, pasture feed, root vegetables,
   and fruit. Forms that already used wheat or seeds keep those foods in their
   diets.
+- Form-specific item meals, normal-control grass meals, and instinct feeding
+  or predation play vanilla's generic eating sound only for the player who
+  consumed the meal. Server-side consumption does not broadcast that sound to
+  other players. Normal grass eating repeats the sound every four ticks while
+  its crouched eating action remains valid. Instinct feeding repeats it at the
+  same interval only while the selected action is `EAT` and the player is
+  stationary for grazing or a consumed meal; higher-priority actions stop it.
 - Breaking and placing blocks, charged jumping, sprinting, and sneaking add extra exhaustion in mob form.
 - Mob forms cannot break or place blocks while airborne or sprinting. Other block interactions remain available.
 - Mob forms cannot interact with `Mob` entities, preventing riding animals,
@@ -28,21 +35,24 @@
   attack movement. Attacking a living target while grounded launches the
   player toward it with the form's original horizontal and vertical velocity.
 - With zero awkwardness, instinct mode enters automatically after 10 seconds
-  with no gameplay input. The server measures input, view rotation, and the
-  exit-hold duration; the client only sends the current exit-hold heartbeat.
+  with no gameplay input. The server measures input and view rotation, and owns
+  the instinct level used for exiting.
   The idle delay decreases to zero as awkwardness reaches 100, which forcibly
-  enters instinct mode at the maximum. Holding the mining button exits only
-  from a state that accepts view input; it takes 3 seconds at zero awkwardness,
-  grows without bound as awkwardness reaches 100, and pursuit, fleeing,
-  feeding, and other locked states cannot be exited. The hold follows
-  Minecraft's resolved attack action as well as its key mapping, so Controlify
-  uses the same exit heartbeat. Spectator and sleeping
+  enters instinct mode at the maximum. Instinct level starts at 100 and
+  regenerates by 10 per second up to 100. Each distinct attack, use, or jump
+  press reduces it by `10 * (1 - awkwardness / 100)` only during `REST` or
+  `WANDER`; reaching zero then exits. `LOOK`, forced entries, pursuit, fleeing,
+  feeding, and every other state are ineligible for exit. The client sends only
+  input-kind flags, and the server validates the exact state and eligibility, computes the
+  reduction from authoritative awkwardness, and accepts each input kind at most
+  once per player tick. Attack and use use Minecraft's resolved key mappings,
+  while jump uses the polled common `ClientInput`, so Controlify controller
+  bindings follow the same press-edge path without treating a held action as
+  repeated presses. At awkwardness 100 every press reduces zero. Spectator and sleeping
   players cannot enter instinct mode, and leave it if they become ineligible.
   A player already in instinct mode remains in it when forced into a boat,
   minecart, or another vehicle; only forced entries may start while riding.
-  While the button is held in an exit-eligible state, the shadow AI remains in
-  REST with zero horizontal movement, preventing a wander or rabbit hop from
-  interrupting the hold. A detached copy of the selected mob runs its complete native AI step
+  A detached copy of the selected mob runs its complete native AI step
   for rest, wandering, fleeing, hunting, melee attacks, grass eating, and
   rabbit garden raids, then transfers its native movement vector to the player.
   Only forward, lateral, and view input can intervene in the states that allow
@@ -54,10 +64,21 @@
   per-morph data packs can disable it or scale its intensity with
   `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`. It
   does not target blocks, and its first-person mob limb remains still.
+  The server-authoritative instinct level is included in the control sync.
+  As it falls from 100 to zero, the original instinct tint fades continuously
+  back to the form's normal vision color. The locked-hotbar icon changes from
+  red at 100 to gray at zero using the same synchronized level.
   The active-mode preference is saved with the player and restored after
-  reconnecting to the world; it is cleared by an explicit exit or respawn.
+  reconnecting to the world. Respawn removes the old controller and transition
+  meter and clears the persisted preference on both player instances before
+  initializing the new player, so instinct mode is never restored by respawn.
 - Feline hunting stores `instinct.hunting.feline_sprint_start_distance` per
   morph. Built-in cat and ocelot forms switch to their dash at 8 blocks.
+- Outside instinct mode, a hungry sheep-form player eats the grass block below
+  after remaining grounded and stationary for 40 ticks while crouching and
+  looking downward by at least 30 degrees. A successful meal restores 2 food
+  points and starts a separate 1200-tick (60-second) normal-control cooldown;
+  it neither reads nor changes the instinct feeding cooldown.
 - In instinct mode, sheep grass eating uses the adult vanilla goal's `1/1000`
   random trigger (or the baby goal's `1/50` trigger) during ordinary hunger.
   At or below 30% of maximum food, the random gate is bypassed and an edible
@@ -101,6 +122,15 @@
   configured sensing interval. Maximum awkwardness, hunger-prey, and
   hunger-feeding forced entries are tracked separately from ordinary/restored
   instinct mode, so reconnect persistence and exit eligibility remain correct.
+- A configured predator that acquires the transformed player with its existing
+  target goal forcibly enters the player into instinct mode and the shadow mob
+  runs its avoidance goal. Predator detection begins at awkwardness 30 with a
+  zero-block range, grows linearly, and reaches the predator's vanilla
+  `FOLLOW_RANGE` at awkwardness 70; it is capped at that native range above 70.
+  The compatibility target goal retains vanilla LOS, sensing, `canAttack`,
+  randomized acquisition interval, tame filtering, and target memory. The same
+  scaled range predicate gates the shadow's flee goal, while
+  `instinct.senses.predator_range` remains only the bounded candidate-scan cap.
 - Nearby living-entity scans are shared for up to 5 ticks by instinct sensing,
   forced hunting, outlines, predator acquisition, and nearby-same-mob decay.
 - Instinct mode is the sole ordinary way to reduce awkwardness. A valid forward
@@ -139,12 +169,22 @@
   awkwardness based on final damage relative to the player's current maximum
   health; maximum-health damage adds 50. It applies during instinct mode, while
   damage that the player fully blocks or otherwise negates adds none. This
-  increase has a 120-tick (6-second) cooldown; panic behavior still evaluates
-  every valid damage event.
-- When such damage matches a morph's native `PanicGoal` trigger, the player is
-  forced into instinct mode and follows that mob's panic behavior. This keeps
-  the native distinction between animals that panic from attacks and tamable
-  mobs that panic only from environmental damage such as fire.
+  increase has a 120-tick (6-second) cooldown; native damage responses still
+  evaluate every valid damage event.
+- Damage forces instinct mode only when the detached source mob would change AI
+  behavior. Its native `PanicGoal` decides panic damage, including the
+  distinction between animals that panic from attacks and wolves that panic
+  only from environmental damage such as fire. A native `HurtByTargetGoal`
+  decides retaliation with its normal `canAttack`, team, tame, universal-anger,
+  and ignored-attacker conditions. A wolf's native
+  `ResetUniversalAngerTargetGoal` also owns the universal-anger response. Damage
+  that starts none of these goals does not force instinct mode. Panic and flee
+  preempt retaliation; retaliation preempts feeding, ordinary hunting, herd
+  movement, and wandering. For panic caused by a living attacker, the panic
+  destination search uses a 16-block horizontal and 4-block vertical range and
+  is biased away from that attacker; environmental panic retains vanilla
+  random-position and fire water-search behavior. The source mob's target
+  selector owns retaliation continuation and termination.
 - Built-in hunting sensing ranges are 24 blocks for cats and ocelots, 32 for
   rabbits, and 32 for wolves. These ranges apply both to automatic hungry
   entry and to prey acquisition during instinct mode.
@@ -157,12 +197,13 @@
 - Successful block breaking and block placement each add 4 awkwardness outside
   instinct mode.
 - Awkwardness multiplies mob-form exhaustion up to `3x` at 100.
-- Hostile detection range scales with awkwardness: at 30 or below monsters
+- Hostile detection range scales with awkwardness: at 30 or below enemies
   cannot detect the player, from 30 to 100 their normal follow range is
   restored linearly, and at 100 it matches vanilla. Vision interference still
-  strengthens above 70. While in instinct mode, monsters cannot acquire the
-  transformed player as a new target regardless of awkwardness; a monster that
-  already targets that player keeps its existing target. At 90 and above,
+  strengthens above 70. While in instinct mode, enemies cannot acquire the
+  transformed player as a new target regardless of awkwardness; an enemy that
+  already targets that player through a goal or Brain memory keeps its existing
+  target. At 90 and above,
   breaking, placing, and block interaction are disabled.
 - An experience-orb-like awkwardness indicator is always shown above the
   centered experience-level number while transformed. Its tint changes
@@ -170,7 +211,7 @@
 - Skeleton ranged attacks aim at a transformed player's morph eye height
   instead of the vanilla player-sized target position.
 - Below 30 awkwardness, the configurable `V` key sleeps without a bed on
-  grass, wool, carpet, hay, moss, or beds. It does not consume food; beginning
-  the sleep adds 70 awkwardness instead. It still checks for nearby monsters
+  grass, wool, carpet, hay, moss, or beds. It does not consume food; completing
+  the sleep adds 70 awkwardness afterward. It still checks for nearby monsters
   and requires 200 ticks instead of 100. Its sleep timer cap is extended only
   for this soft-surface sleep.

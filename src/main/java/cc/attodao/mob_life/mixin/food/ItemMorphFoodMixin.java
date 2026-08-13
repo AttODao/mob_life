@@ -1,6 +1,8 @@
 package cc.attodao.mob_life.mixin.food;
 
 import cc.attodao.mob_life.gameplay.food.MorphDiet;
+import cc.attodao.mob_life.gameplay.food.MorphEatingSound;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -40,7 +42,13 @@ public abstract class ItemMorphFoodMixin {
     if (entity instanceof Player player && MorphDiet.isBreedingFood(player, stack)) {
       if (!level.isClientSide()) {
         player.getFoodData().eat(MorphDiet.foodProperties(player));
-        cir.setReturnValue(MOB_LIFE_CONSUMABLE.onConsume(level, player, stack));
+        if (player instanceof ServerPlayer serverPlayer) {
+          cir.setReturnValue(
+              MorphEatingSound.finishItemConsumption(
+                  serverPlayer, () -> MOB_LIFE_CONSUMABLE.onConsume(level, player, stack)));
+        } else {
+          cir.setReturnValue(MOB_LIFE_CONSUMABLE.onConsume(level, player, stack));
+        }
       } else {
         cir.setReturnValue(stack);
       }

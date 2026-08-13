@@ -4,6 +4,7 @@ import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
+import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
@@ -26,7 +27,6 @@ import net.minecraft.world.phys.Vec3;
 public final class MorphSleep {
   private static final long DAY_END_TICK = 12000L;
   private static final long DAY_LENGTH_TICKS = 24000L;
-  private static final float BEDLESS_SLEEP_AWKWARDNESS_COST = 70.0F;
 
   private MorphSleep() {}
 
@@ -45,15 +45,15 @@ public final class MorphSleep {
       return;
     }
 
-    if (config.schedule().equals("day") && !isDaytime(player)) {
+    if (config.schedule() == MorphConfig.SleepSchedule.DAY && !isDaytime(player)) {
       player.sendOverlayMessage(Component.translatable("mob_life.sleep.nocturnal_night"));
       return;
     }
-    if (config.schedule().equals("never")) {
+    if (config.schedule() == MorphConfig.SleepSchedule.NEVER) {
       player.sendOverlayMessage(Component.translatable("mob_life.sleep.not_possible"));
       return;
     }
-    if (config.schedule().equals("normal")) {
+    if (config.schedule() == MorphConfig.SleepSchedule.NORMAL) {
       var bedRule =
           player
               .level()
@@ -81,22 +81,22 @@ public final class MorphSleep {
     BlockState state = player.level().getBlockState(sleepPos);
     double surfaceHeight = state.getCollisionShape(player.level(), sleepPos).max(Direction.Axis.Y);
     player.startSleeping(sleepPos);
+    ServerMorphManager.markBedlessSleepStarted(player);
     player.setPos(
         sleepPos.getX() + 0.5, sleepPos.getY() + surfaceHeight + 0.1, sleepPos.getZ() + 0.5);
-    ServerMorphManager.setAwkwardness(
-        player, MorphAwkwardness.get(player) + BEDLESS_SLEEP_AWKWARDNESS_COST);
     player.level().updateSleepingPlayerList();
   }
 
   public static boolean isCustomSleep(Player player) {
-    return player
-        .getSleepingPos()
-        .map(
-            pos -> {
-              BlockState state = player.level().getBlockState(pos);
-              return !(state.getBlock() instanceof BedBlock) && isSoftSurface(state);
-            })
-        .orElse(false);
+    return MorphInventoryCapacity.hasMobForm(player)
+        && player
+            .getSleepingPos()
+            .map(
+                pos -> {
+                  BlockState state = player.level().getBlockState(pos);
+                  return !(state.getBlock() instanceof BedBlock) && isSoftSurface(state);
+                })
+            .orElse(false);
   }
 
   public static boolean isValidSleepingSurface(Player player) {
@@ -105,7 +105,8 @@ public final class MorphSleep {
         .map(
             pos -> {
               BlockState state = player.level().getBlockState(pos);
-              return state.getBlock() instanceof BedBlock || isSoftSurface(state);
+              return state.getBlock() instanceof BedBlock
+                  || MorphInventoryCapacity.hasMobForm(player) && isSoftSurface(state);
             })
         .orElse(false);
   }

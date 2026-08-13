@@ -13,10 +13,17 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ServerPlayer.class)
 public abstract class ServerPlayerSleepMixin {
+  @Inject(method = "stopSleepInBed", at = @At("TAIL"))
+  private void mobLife$completeBedlessSleep(
+      boolean wakeImmediately, boolean updateSleepingPlayers, CallbackInfo ci) {
+    ServerMorphManager.completeBedlessSleep((ServerPlayer) (Object) this);
+  }
+
   @Inject(
       method = "startSleepInBed",
       at =
