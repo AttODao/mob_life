@@ -10,6 +10,7 @@ import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -20,6 +21,13 @@ public abstract class PlayerInstinctActionsMixin {
     if ((Object) this instanceof ServerPlayer player && InstinctManager.isEnabled(player)) {
       player.setDeltaMovement(InstinctManager.nativeMovement(player));
     }
+  }
+
+  @ModifyVariable(method = "travel", at = @At("HEAD"), argsOnly = true)
+  private Vec3 mobLife$discardInstinctTravelInput(Vec3 input) {
+    return (Object) this instanceof ServerPlayer player && InstinctManager.isEnabled(player)
+        ? Vec3.ZERO
+        : input;
   }
 
   @Inject(method = "attack", at = @At("HEAD"), cancellable = true)

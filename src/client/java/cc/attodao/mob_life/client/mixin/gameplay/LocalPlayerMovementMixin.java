@@ -4,6 +4,7 @@ import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
@@ -102,6 +103,7 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
       return;
     }
 
+    ClientInstinctState.recordEscapeAction(InstinctManager.ESCAPE_JUMP, raw.jump(), false);
     ClientInstinctState.recordMovement(
         raw.forward() || movement.y > 1.0E-4F,
         raw.left() || movement.x > 1.0E-4F,

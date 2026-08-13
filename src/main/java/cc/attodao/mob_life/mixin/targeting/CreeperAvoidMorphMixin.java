@@ -29,7 +29,7 @@ public abstract class CreeperAvoidMorphMixin extends Monster {
             entity ->
                 entity.isAlive()
                     && !entity.isSpectator()
-                    && ServerMorphManager.activeMorph() != null
+                    && ServerMorphManager.hasMobForm()
                     && MorphConfigManager.get(ServerMorphManager.activeMorph())
                         .combat()
                         .avoidedBy()

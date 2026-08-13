@@ -3,6 +3,7 @@ package cc.attodao.mob_life.gameplay.instinct;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
+import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.morph.MorphType;
 import java.util.OptionalInt;
 import net.minecraft.core.registries.Registries;
@@ -18,12 +19,19 @@ public final class InstinctRelations {
   private InstinctRelations() {}
 
   public static boolean isPredator(Entity entity, MorphType morph) {
-    return entity instanceof net.minecraft.world.entity.Mob mob
+    return !MorphRelations.isSameSpecies(entity, morph)
+        && entity instanceof net.minecraft.world.entity.Mob mob
         && MorphPredation.isPredatorFor(mob, morph);
   }
 
   public static boolean isPrey(Entity entity, MorphType morph) {
-    return nutrition(entity, MorphConfigManager.get(morph)).isPresent();
+    return nutrition(entity, morph, MorphConfigManager.get(morph)).isPresent();
+  }
+
+  public static OptionalInt nutrition(Entity entity, MorphType morph, MorphConfig config) {
+    return MorphRelations.isSameSpecies(entity, morph)
+        ? OptionalInt.empty()
+        : nutrition(entity, config);
   }
 
   public static OptionalInt nutrition(Entity entity, MorphConfig config) {

@@ -32,6 +32,10 @@ public enum InstinctState {
     return locksView;
   }
 
+  public boolean allowsEscape() {
+    return this == REST || this == WANDER;
+  }
+
   public static InstinctState byOrdinal(int ordinal) {
     InstinctState[] values = values();
     return ordinal >= 0 && ordinal < values.length ? values[ordinal] : REST;

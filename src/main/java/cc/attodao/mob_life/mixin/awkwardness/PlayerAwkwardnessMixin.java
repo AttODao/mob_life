@@ -59,7 +59,7 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
 
   @Inject(method = "attack", at = @At("HEAD"))
   private void mobLife$recordAttack(Entity target, CallbackInfo ci) {
-    if ((Object) this instanceof ServerPlayer player) {
+    if ((Object) this instanceof ServerPlayer player && ServerMorphManager.hasMobForm()) {
       InstinctManager.recordActivity(player);
       MorphLeapAttack.tryLeap(player, target, ServerMorphManager.activeMorph());
       if (!ServerMorphManager.activeMorphHasAttackAi()) {
@@ -74,7 +74,7 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
       DamageSource damageSource,
       float damage,
       CallbackInfoReturnable<Boolean> cir) {
-    if ((Object) this instanceof ServerPlayer player) {
+    if ((Object) this instanceof ServerPlayer player && ServerMorphManager.hasMobForm()) {
       mobLife$healthBeforeDamage = player.getHealth();
       mobLife$absorptionBeforeDamage = player.getAbsorptionAmount();
       mobLife$capturingDamage = true;
@@ -89,12 +89,15 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
       CallbackInfoReturnable<Boolean> cir) {
     if ((Object) this instanceof ServerPlayer player && mobLife$capturingDamage) {
       mobLife$capturingDamage = false;
+      if (!ServerMorphManager.hasMobForm()) {
+        return;
+      }
       float finalDamage =
           Math.max(0.0F, mobLife$healthBeforeDamage - player.getHealth())
               + Math.max(0.0F, mobLife$absorptionBeforeDamage - player.getAbsorptionAmount());
       if (cir.getReturnValueZ() && finalDamage > 0.0F) {
         ServerMorphManager.increaseAwkwardnessFromDamage(player, finalDamage);
-        InstinctManager.forcePanicFromDamage(player, damageSource);
+        InstinctManager.respondToDamage(player, damageSource);
       }
     }
   }
@@ -105,7 +108,7 @@ public abstract class PlayerAwkwardnessMixin implements AwkwardnessHolder {
       InteractionHand hand,
       Vec3 location,
       CallbackInfoReturnable<InteractionResult> cir) {
-    if ((Object) this instanceof ServerPlayer player) {
+    if ((Object) this instanceof ServerPlayer player && ServerMorphManager.hasMobForm()) {
       InstinctManager.recordActivity(player);
       if (ServerMorphManager.hasMobForm() && entity instanceof Mob) {
         cir.setReturnValue(InteractionResult.FAIL);

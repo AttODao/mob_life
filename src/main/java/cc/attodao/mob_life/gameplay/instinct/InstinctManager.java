@@ -4,7 +4,6 @@ import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
-import cc.attodao.mob_life.gameplay.targeting.MorphNearbyEntities;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -27,8 +26,14 @@ public final class InstinctManager {
   public static final int INTERVENE_FORWARD = 1;
   public static final int INTERVENE_LEFT = 1 << 1;
   public static final int INTERVENE_RIGHT = 1 << 2;
+  public static final int ESCAPE_ATTACK = 1;
+  public static final int ESCAPE_USE = 1 << 1;
+  public static final int ESCAPE_JUMP = 1 << 2;
+  public static final int ESCAPE_ALL = ESCAPE_ATTACK | ESCAPE_USE | ESCAPE_JUMP;
+  public static final float MAXIMUM_LEVEL = 100.0F;
 
   private static final float ACTIVITY_ROTATION_EPSILON = 0.01F;
+  private static final float INSTINCT_REGENERATION_PER_TICK = 10.0F / 20.0F;
   private static final Map<UUID, InstinctController> CONTROLLERS = new HashMap<>();
   private static final Map<Mob, InstinctController> SHADOW_CONTROLLERS = new IdentityHashMap<>();
   private static final Map<UUID, EntryReason> ENTRY_REASONS = new HashMap<>();
@@ -51,20 +56,23 @@ public final class InstinctManager {
     return true;
   }
 
-  public static void forcePanicFromDamage(
+  public static void respondToDamage(
       ServerPlayer player, net.minecraft.world.damagesource.DamageSource source) {
+    if (!ServerMorphManager.hasMobForm()) {
+      return;
+    }
     InstinctController controller = CONTROLLERS.get(player.getUUID());
     if (controller == null) {
-      controller = createController(player, EntryReason.DAMAGE_PANIC);
-      if (controller == null || !controller.triggerPanic(source)) {
+      controller = createController(player, EntryReason.DAMAGE_RESPONSE);
+      if (controller == null || !controller.triggerDamageResponse(source)) {
         return;
       }
-      installController(player, controller, EntryReason.DAMAGE_PANIC);
+      installController(player, controller, EntryReason.DAMAGE_RESPONSE);
       return;
     }
 
-    if (controller.triggerPanic(source)) {
-      ENTRY_REASONS.put(player.getUUID(), EntryReason.DAMAGE_PANIC);
+    if (controller.triggerDamageResponse(source)) {
+      ENTRY_REASONS.put(player.getUUID(), EntryReason.DAMAGE_RESPONSE);
       ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(false);
     }
   }
@@ -129,14 +137,37 @@ public final class InstinctManager {
         extendCooldown(cooldowns.mobLife$getRaidGardenCooldownUntil(), player, ticks));
   }
 
-  public static void holdRestForExit(ServerPlayer player) {
-    if (isEnabled(player)) {
-      transition(player).recordExitHold(player.tickCount);
+  public static void attemptEscape(ServerPlayer player, int flags) {
+    if (!ServerMorphManager.hasMobForm()) {
+      return;
+    }
+    InstinctController controller = CONTROLLERS.get(player.getUUID());
+    if (controller == null) {
+      return;
+    }
+    EntryReason reason = ENTRY_REASONS.getOrDefault(player.getUUID(), EntryReason.IDLE);
+    if (reason.forcesControl() || !controller.allowsExit()) {
+      return;
+    }
+
+    TransitionState transition = transition(player);
+    int accepted = transition.acceptEscapeInputs(player.tickCount, flags & ESCAPE_ALL);
+    if (accepted == 0) {
+      return;
+    }
+    float reduction =
+        MorphAwkwardness.instinctEscapeReduction(MorphAwkwardness.get(player))
+            * Integer.bitCount(accepted);
+    if (transition.reduceInstinct(reduction) <= 0.0F) {
+      forget(player);
+      disable(player);
+    } else {
+      sync(controller);
     }
   }
 
   public static void forceEnableAtMaximum(ServerPlayer player) {
-    if (!MorphAwkwardness.isMaximum(player)) {
+    if (!ServerMorphManager.hasMobForm() || !MorphAwkwardness.isMaximum(player)) {
       return;
     }
     if (isEnabled(player)) {
@@ -147,7 +178,7 @@ public final class InstinctManager {
   }
 
   public static void recordActivity(ServerPlayer player) {
-    if (!isEnabled(player)) {
+    if (ServerMorphManager.hasMobForm() && !isEnabled(player)) {
       transition(player).recordActivity(player.tickCount);
     }
   }
@@ -184,11 +215,7 @@ public final class InstinctManager {
       updateEntryReason(player, controller, forcedReason);
     }
 
-    if (shouldExit(player, controller, transition)) {
-      forget(player);
-      disable(player);
-      return;
-    }
+    transition.regenerateInstinct();
 
     player.stopUsingItem();
     player.setSprinting(false);
@@ -201,6 +228,9 @@ public final class InstinctManager {
   }
 
   public static void intervene(ServerPlayer player, int flags, float viewYaw) {
+    if (!ServerMorphManager.hasMobForm()) {
+      return;
+    }
     InstinctController controller = CONTROLLERS.get(player.getUUID());
     if (controller == null) {
       return;
@@ -213,8 +243,14 @@ public final class InstinctManager {
     return controller != null && controller.pausesAwkwardnessDecay();
   }
 
+  public static boolean isThreatResponse(ServerPlayer player) {
+    InstinctController controller = CONTROLLERS.get(player.getUUID());
+    return controller != null && controller.isThreatResponse();
+  }
+
   public static boolean isEnabled(Player player) {
-    return player instanceof ServerPlayer serverPlayer
+    return ServerMorphManager.hasMobForm()
+        && player instanceof ServerPlayer serverPlayer
         && CONTROLLERS.containsKey(serverPlayer.getUUID());
   }
 
@@ -225,6 +261,11 @@ public final class InstinctManager {
 
   public static boolean isShadow(Mob mob) {
     return SHADOW_CONTROLLERS.containsKey(mob);
+  }
+
+  public static Vec3 panicEscapeSource(Mob mob) {
+    InstinctController controller = SHADOW_CONTROLLERS.get(mob);
+    return controller != null ? controller.panicEscapeSource() : null;
   }
 
   public static Vec3 nativeMovement(ServerPlayer player) {
@@ -283,9 +324,15 @@ public final class InstinctManager {
   }
 
   public static void disable(ServerPlayer player) {
+    TransitionState transition = transition(player);
+    float finalInstinctLevel = transition.instinctLevel();
     removeController(player);
     ENTRY_REASONS.remove(player.getUUID());
-    transition(player).resetForExit();
+    transition.resetForExit();
+    sendDisabled(player, finalInstinctLevel);
+  }
+
+  private static void sendDisabled(ServerPlayer player, float finalInstinctLevel) {
     ServerPlayNetworking.send(
         player,
         new MobLifeNetworking.InstinctControlPayload(
@@ -294,6 +341,7 @@ public final class InstinctManager {
             player.getYRot(),
             player.getXRot(),
             0,
+            finalInstinctLevel,
             0.0F,
             0.0F,
             0.0F));
@@ -303,6 +351,16 @@ public final class InstinctManager {
     removeController(player);
     ENTRY_REASONS.remove(player.getUUID());
     TRANSITIONS.remove(player.getUUID());
+  }
+
+  public static void resetAfterRespawn(ServerPlayer oldPlayer, ServerPlayer newPlayer) {
+    remove(oldPlayer);
+    if (!oldPlayer.getUUID().equals(newPlayer.getUUID())) {
+      remove(newPlayer);
+    }
+    forget(oldPlayer);
+    forget(newPlayer);
+    sendDisabled(newPlayer, MAXIMUM_LEVEL);
   }
 
   public static void clear() {
@@ -346,20 +404,24 @@ public final class InstinctManager {
       return EntryReason.MAXIMUM_AWKWARDNESS;
     }
     MorphConfig config = MorphConfigManager.get(definition.type());
+    int scanInterval = config.instinct().senses().scanIntervalTicks();
+    if ((player.tickCount + Math.floorMod(player.getId(), scanInterval)) % scanInterval == 0) {
+      transition.setPredatorNearby(
+          InstinctThreats.hasNearbyTargetingPredator(player, definition, config));
+    }
+    if (transition.predatorNearby()) {
+      return EntryReason.PREDATOR_NEARBY;
+    }
     if (!MorphFoodCapacity.isCriticallyHungry(player)) {
       return null;
     }
 
-    int scanInterval = config.instinct().senses().scanIntervalTicks();
     if ((player.tickCount + Math.floorMod(player.getId(), scanInterval)) % scanInterval == 0) {
-      double preyRange = config.instinct().senses().preyRange();
       transition.setPreyNearby(
           ServerMorphManager.activeMorphHasAttackAi()
               && !config.instinct().hunting().prey().isEmpty()
               && !isAbandonedHuntCooldownActive(player)
-              && preyRange > 0.0
-              && MorphNearbyEntities.living(player, preyRange).stream()
-                  .anyMatch(entity -> InstinctRelations.nutrition(entity, config).isPresent()));
+              && InstinctHunting.hasNearbyNativePrey(player, definition, config));
       transition.setFeedingNearby(InstinctController.hasNearbyFeedingTarget(player, config));
     }
 
@@ -377,8 +439,8 @@ public final class InstinctManager {
       return;
     }
 
-    if (controller.isPanicking()) {
-      ENTRY_REASONS.put(player.getUUID(), EntryReason.DAMAGE_PANIC);
+    if (controller.isRespondingToDamage()) {
+      ENTRY_REASONS.put(player.getUUID(), EntryReason.DAMAGE_RESPONSE);
       ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(false);
       return;
     }
@@ -388,18 +450,6 @@ public final class InstinctManager {
       ENTRY_REASONS.put(player.getUUID(), EntryReason.IDLE);
       ((InstinctPersistenceHolder) player).mobLife$setRestoreInstinct(true);
     }
-  }
-
-  private static boolean shouldExit(
-      ServerPlayer player, InstinctController controller, TransitionState transition) {
-    EntryReason reason = ENTRY_REASONS.getOrDefault(player.getUUID(), EntryReason.IDLE);
-    if (reason.forcesControl() || !controller.allowsExit() || !transition.isHoldingExit(player)) {
-      transition.resetExitHold();
-      return false;
-    }
-
-    controller.holdRestForExit();
-    return transition.advanceExitHold(player);
   }
 
   private static TransitionState transition(ServerPlayer player) {
@@ -439,6 +489,7 @@ public final class InstinctManager {
             control.targetYaw(),
             control.targetPitch(),
             control.eatTicks(),
+            transition(controller.player()).instinctLevel(),
             (float) control.nativeMovement().x,
             (float) control.nativeMovement().y,
             (float) control.nativeMovement().z));
@@ -448,9 +499,10 @@ public final class InstinctManager {
     IDLE(false, true),
     RESTORED(false, true),
     MAXIMUM_AWKWARDNESS(true, false),
+    PREDATOR_NEARBY(true, false),
     HUNGER_PREY(true, false),
     HUNGER_FEEDING(true, false),
-    DAMAGE_PANIC(true, false);
+    DAMAGE_RESPONSE(true, false);
 
     private final boolean forcesControl;
     private final boolean persistsAcrossReconnect;
@@ -471,8 +523,10 @@ public final class InstinctManager {
 
   private static final class TransitionState {
     private int idleTicks;
-    private int exitHoldTicks;
-    private int lastExitHoldTick = Integer.MIN_VALUE;
+    private float instinctLevel = MAXIMUM_LEVEL;
+    private int lastEscapeInputTick = Integer.MIN_VALUE;
+    private int acceptedEscapeInputs;
+    private boolean predatorNearby;
     private boolean preyNearby;
     private boolean feedingNearby;
     private boolean activityInitialized;
@@ -517,32 +571,51 @@ public final class InstinctManager {
       return idleTicks >= MorphAwkwardness.instinctEntryDelayTicks(MorphAwkwardness.get(player));
     }
 
-    void recordExitHold(int tick) {
-      lastExitHoldTick = tick;
+    int acceptEscapeInputs(int tick, int flags) {
+      if (lastEscapeInputTick != tick) {
+        lastEscapeInputTick = tick;
+        acceptedEscapeInputs = 0;
+      }
+      int accepted = flags & ~acceptedEscapeInputs;
+      acceptedEscapeInputs |= accepted;
+      return accepted;
     }
 
-    boolean isHoldingExit(ServerPlayer player) {
-      return lastExitHoldTick >= player.tickCount - 1;
+    float reduceInstinct(float amount) {
+      instinctLevel = Math.max(0.0F, instinctLevel - Math.max(0.0F, amount));
+      return instinctLevel;
     }
 
-    boolean advanceExitHold(ServerPlayer player) {
-      exitHoldTicks++;
-      return exitHoldTicks >= MorphAwkwardness.instinctExitHoldTicks(MorphAwkwardness.get(player));
+    void regenerateInstinct() {
+      instinctLevel = Math.min(MAXIMUM_LEVEL, instinctLevel + INSTINCT_REGENERATION_PER_TICK);
     }
 
-    void resetExitHold() {
-      exitHoldTicks = 0;
+    float instinctLevel() {
+      return instinctLevel;
     }
 
     void resetForEntry() {
       idleTicks = 0;
-      resetExitHold();
+      resetInstinctLevel();
     }
 
     void resetForExit() {
       idleTicks = 0;
-      resetExitHold();
-      lastExitHoldTick = Integer.MIN_VALUE;
+      resetInstinctLevel();
+    }
+
+    private void resetInstinctLevel() {
+      instinctLevel = MAXIMUM_LEVEL;
+      lastEscapeInputTick = Integer.MIN_VALUE;
+      acceptedEscapeInputs = 0;
+    }
+
+    boolean predatorNearby() {
+      return predatorNearby;
+    }
+
+    void setPredatorNearby(boolean predatorNearby) {
+      this.predatorNearby = predatorNearby;
     }
 
     boolean preyNearby() {

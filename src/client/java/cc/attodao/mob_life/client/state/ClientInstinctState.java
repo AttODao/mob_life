@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.client.state;
 
-import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -32,13 +31,15 @@ public final class ClientInstinctState {
   private static float viewYawOffset;
   private static float viewPitch;
   private static boolean viewInitialized;
-  private static boolean attackActionHeld;
+  private static int heldEscapeInputs;
+  private static int pendingEscapeInputs;
   private static int pendingInterventions;
   private static float pendingViewYawInput;
   private static float pendingViewPitchInput;
   private static int selectedSlot = -1;
   private static Vec3 nativeMovement = Vec3.ZERO;
   private static float visualBlend;
+  private static float instinctLevel = InstinctManager.MAXIMUM_LEVEL;
 
   private ClientInstinctState() {}
 
@@ -47,23 +48,36 @@ public final class ClientInstinctState {
     enabled = payload.enabled();
     InstinctState nextState = InstinctState.byOrdinal(payload.state());
     state = nextState;
+    if (!nextState.allowsEscape()) {
+      pendingEscapeInputs = 0;
+    }
     if (!nextState.acceptsView()) {
       pendingViewYawInput = 0.0F;
       pendingViewPitchInput = 0.0F;
     }
     desiredYaw = payload.targetYaw();
     desiredPitch = payload.targetPitch();
+    instinctLevel =
+        Float.isFinite(payload.instinctLevel())
+            ? Mth.clamp(payload.instinctLevel(), 0.0F, InstinctManager.MAXIMUM_LEVEL)
+            : InstinctManager.MAXIMUM_LEVEL;
     nativeMovement = new Vec3(payload.movementX(), payload.movementY(), payload.movementZ());
+    Minecraft client = Minecraft.getInstance();
+    if (enabled && !wasEnabled) {
+      heldEscapeInputs = currentHeldEscapeInputs(client);
+      pendingEscapeInputs = 0;
+    }
     if (!enabled) {
       pendingInterventions = 0;
       pendingViewYawInput = 0.0F;
       pendingViewPitchInput = 0.0F;
       viewInitialized = false;
-      attackActionHeld = false;
+      heldEscapeInputs = 0;
+      pendingEscapeInputs = 0;
       nativeMovement = Vec3.ZERO;
     }
 
-    LocalPlayer player = Minecraft.getInstance().player;
+    LocalPlayer player = client.player;
     if (player != null) {
       if (enabled && !wasEnabled) {
         selectedSlot = player.getInventory().getSelectedSlot();
@@ -102,18 +116,37 @@ public final class ClientInstinctState {
     return visualBlend;
   }
 
-  public static boolean shouldHoldRestForExit(Minecraft client) {
-    return enabled
-        && state.acceptsView()
-        && client.player != null
-        && !client.isPaused()
-        && client.gui.screen() == null
-        && (attackActionHeld || client.options.keyAttack.isDown())
-        && !MorphAwkwardness.isMaximum(ClientMorphState.awkwardness());
+  public static float instinctLevelRatio() {
+    return Mth.clamp(instinctLevel / InstinctManager.MAXIMUM_LEVEL, 0.0F, 1.0F);
   }
 
-  public static void recordAttackAction(boolean held) {
-    attackActionHeld = held;
+  public static void recordEscapeAction(int input, boolean held, boolean pressed) {
+    int validInput = input & InstinctManager.ESCAPE_ALL;
+    if (validInput == 0) {
+      return;
+    }
+    boolean wasHeld = (heldEscapeInputs & validInput) != 0;
+    if (held) {
+      heldEscapeInputs |= validInput;
+    } else {
+      heldEscapeInputs &= ~validInput;
+    }
+    if (enabled && state.allowsEscape() && (pressed || held && !wasHeld)) {
+      pendingEscapeInputs |= validInput;
+    }
+  }
+
+  public static int consumeEscapeInputs(Minecraft client) {
+    int inputs =
+        enabled
+                && state.allowsEscape()
+                && client.player != null
+                && !client.isPaused()
+                && client.gui.screen() == null
+            ? pendingEscapeInputs
+            : 0;
+    pendingEscapeInputs = 0;
+    return inputs;
   }
 
   public static void recordMovement(boolean forward, boolean left, boolean right) {
@@ -250,13 +283,15 @@ public final class ClientInstinctState {
     viewYawOffset = 0.0F;
     viewPitch = 0.0F;
     viewInitialized = false;
-    attackActionHeld = false;
+    heldEscapeInputs = 0;
+    pendingEscapeInputs = 0;
     pendingInterventions = 0;
     pendingViewYawInput = 0.0F;
     pendingViewPitchInput = 0.0F;
     selectedSlot = -1;
     nativeMovement = Vec3.ZERO;
     visualBlend = 0.0F;
+    instinctLevel = InstinctManager.MAXIMUM_LEVEL;
   }
 
   private static float perFrameResponse(float perTickResponse, float frameTicks) {
@@ -269,6 +304,20 @@ public final class ClientInstinctState {
       return currentYaw;
     }
     return Mth.wrapDegrees(currentYaw + Mth.clamp(difference, -maximumChange, maximumChange));
+  }
+
+  private static int currentHeldEscapeInputs(Minecraft client) {
+    int inputs = 0;
+    if (client.options.keyAttack.isDown()) {
+      inputs |= InstinctManager.ESCAPE_ATTACK;
+    }
+    if (client.options.keyUse.isDown()) {
+      inputs |= InstinctManager.ESCAPE_USE;
+    }
+    if (client.options.keyJump.isDown()) {
+      inputs |= InstinctManager.ESCAPE_JUMP;
+    }
+    return inputs;
   }
 
   public record Intervention(int flags, float viewYaw) {}

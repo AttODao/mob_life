@@ -3,16 +3,15 @@ package cc.attodao.mob_life.gameplay.instinct;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
+import cc.attodao.mob_life.gameplay.food.MorphEatingSound;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.targeting.MorphNearbyEntities;
-import cc.attodao.mob_life.mixin.instinct.EntityFluidInteractionInvoker;
 import cc.attodao.mob_life.mixin.instinct.MobGoalSelectorAccessor;
 import cc.attodao.mob_life.mixin.instinct.RabbitCarrotAccessor;
 import cc.attodao.mob_life.mixin.instinct.RandomStrollGoalAccessor;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import net.minecraft.core.BlockPos;
@@ -23,11 +22,10 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.PathfinderMob;
-import net.minecraft.world.entity.ai.goal.AvoidEntityGoal;
 import net.minecraft.world.entity.ai.goal.BegGoal;
 import net.minecraft.world.entity.ai.goal.BreedGoal;
 import net.minecraft.world.entity.ai.goal.EatBlockGoal;
@@ -44,10 +42,9 @@ import net.minecraft.world.entity.ai.goal.RandomStrollGoal;
 import net.minecraft.world.entity.ai.goal.SitWhenOrderedToGoal;
 import net.minecraft.world.entity.ai.goal.TemptGoal;
 import net.minecraft.world.entity.ai.goal.WrappedGoal;
-import net.minecraft.world.entity.ai.util.LandRandomPos;
+import net.minecraft.world.entity.ai.goal.target.HurtByTargetGoal;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.entity.animal.sheep.Sheep;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -59,12 +56,10 @@ import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
 
 final class InstinctController {
-  private static final double IMMEDIATE_FLEE_RANGE = 16.0;
   private static final double FELINE_NATIVE_CHASE_RANGE_SQR = 225.0;
   private static final int GARDEN_EAT_DURATION_TICKS = 20;
   private static final int PROMPTED_WANDER_MIN_LEGS = 1;
   private static final int PROMPTED_WANDER_MAX_LEGS = 2;
-  private static final int WANDER_CANDIDATE_COUNT = 12;
   private static final int MINIMUM_FAILED_WANDER_COOLDOWN_TICKS = 10;
   private static final int LATERAL_INTERFERENCE_COOLDOWN_TICKS = 20;
   private static final int LATERAL_INTERFERENCE_FAILURE_COOLDOWN_TICKS = 10;
@@ -72,16 +67,13 @@ final class InstinctController {
   private static final int DIRECTION_INTENT_HOLD_TICKS = 20;
   private static final int DIRECTION_INTENT_FADE_TICKS = 40;
   private static final int DIRECTION_REPLAN_INTERVAL_TICKS = 20;
-  private static final int EXIT_REST_HOLD_TICKS = 4;
-  private static final int DAMAGE_PANIC_MEMORY_TICKS = 40;
+  private static final int DAMAGE_RESPONSE_START_GRACE_TICKS = 3;
+  private static final int DAMAGE_PANIC_SOURCE_MEMORY_TICKS = 40;
   private static final int GARDEN_SEARCH_RANGE = 16;
   private static final float LATERAL_INTERFERENCE_MIN_TURN_DEGREES = 15.0F;
   private static final float LATERAL_INTERFERENCE_MAX_TURN_DEGREES = 45.0F;
   private static final float MAX_DIRECTION_INTENT_TURN_DEGREES = 3.0F;
   private static final float MIN_DIRECTION_REPLAN_DEGREES = 15.0F;
-  private static final float DIRECTION_INTENT_WEIGHT = 0.7F;
-  private static final float DIRECTION_INTENT_PRIMARY_CONE_DEGREES = 15.0F;
-  private static final float DIRECTION_INTENT_FALLBACK_CONE_DEGREES = 45.0F;
   private static final float MAX_CLIENT_VIEW_YAW_OFFSET = 30.0F;
   private static final double MINIMUM_HORIZONTAL_MOVEMENT_SQR = 1.0E-4;
 
@@ -92,6 +84,9 @@ final class InstinctController {
   private final List<FeedingGoal> feedingGoals = new ArrayList<>();
   private boolean hunting;
   private LivingEntity huntedTarget;
+  private LivingEntity retaliationTarget;
+  private int retaliationStartTicks;
+  private boolean damageAngerResponse;
   private boolean fleeing;
   private int huntPursuitTicks;
   private int meleeAttackCooldown;
@@ -100,14 +95,16 @@ final class InstinctController {
   private int gardenEatingTicks;
   private int pendingMealTicks;
   private int pendingMealNutrition;
+  private int eatingSoundTicks;
   private int scentMemoryTicks;
   private Vec3 lastPreyPosition;
   private Vec3 nativeMovement = Vec3.ZERO;
   private Vec3 capturedMovement = Vec3.ZERO;
   private float bodyYaw;
-  private double wanderSpeedModifier = 1.0;
+  private double nativeWanderSpeedModifier = 1.0;
   private boolean shadowJumped;
   private boolean rabbitJumped;
+  private boolean shadowMovementInitialized;
   private int forwardWanderCooldown;
   private int promptedWanderTicks;
   private int promptedWanderLegs;
@@ -117,20 +114,20 @@ final class InstinctController {
   private int interferencePauseTicks;
   private int directionIntentTicks;
   private int directionReplanCooldown;
-  private int exitRestHoldTicks;
-  private int damagePanicTicks;
+  private int panicStartTicks;
+  private int panicEscapeSourceTicks;
+  private LivingEntity panicAttacker;
+  private Vec3 panicAttackerPosition;
   private float directionIntentYaw;
   private float lastPathIntentYaw;
   private Vec3 promptedWanderAnchor;
-  private Vec3 panicSourcePosition;
   private float promptedWanderYaw;
-  private Vec3 herdCenter;
+  private final InstinctSocialController socialController;
   private PromptedWanderGoal promptedWanderGoal;
   private boolean promptedWanderWasActive;
-  private boolean hasFelineAttackGoal;
   private InstinctState state = InstinctState.REST;
+  private InstinctAction action = InstinctAction.REST;
   private Control control;
-  private LivingEntity sensedPredator;
   private BlockPos feedingBlockPos;
   private BlockState feedingBlockBefore;
   private BlockState feedingBlockBelowBefore;
@@ -141,6 +138,8 @@ final class InstinctController {
     this.definition = definition;
     this.config = config;
     this.shadow = shadow;
+    this.socialController =
+        new InstinctSocialController(player, definition, config.instinct().social());
     this.bodyYaw = player.getYRot();
     this.directionIntentYaw = bodyYaw;
     this.lastPathIntentYaw = bodyYaw;
@@ -179,15 +178,9 @@ final class InstinctController {
   }
 
   boolean allowsTarget(LivingEntity target) {
-    if (target == player || fleeing) {
-      return false;
-    }
-    if (hunting) {
-      return huntedTarget == null
-          ? InstinctRelations.nutrition(target, config).isPresent()
-          : target == huntedTarget;
-    }
-    return InstinctRelations.nutrition(target, config).isEmpty() || hunting && !fleeing;
+    // Native target and avoid goals must be allowed to perform their own sensing and conditions.
+    // Configured prey filtering happens after target selection, before any redirected attack.
+    return target != player && target.isAlive();
   }
 
   Control control() {
@@ -195,40 +188,66 @@ final class InstinctController {
   }
 
   boolean allowsExit() {
-    return control.state().acceptsView();
+    return control.state().allowsEscape();
   }
 
-  boolean triggerPanic(DamageSource source) {
-    prepareShadow();
-    shadow.setInvulnerable(false);
-    try {
-      shadow.hurtServer((ServerLevel) player.level(), source, 0.0F);
-    } finally {
-      shadow.setInvulnerable(true);
+  boolean triggerDamageResponse(DamageSource source) {
+    prepareShadow(true);
+    InstinctDamageResponse.Result response =
+        InstinctDamageResponse.evaluate(shadow, source, player.level().getGameTime());
+    if (response.panicking()) {
+      panicStartTicks = DAMAGE_RESPONSE_START_GRACE_TICKS;
+      rememberPanicAttacker(source);
+    } else {
+      clearPanicAttacker();
     }
+    if (response.retaliationTarget() != null) {
+      retaliationTarget = response.retaliationTarget();
+      retaliationStartTicks = DAMAGE_RESPONSE_START_GRACE_TICKS;
+    }
+    if (response.resettingUniversalAnger()) {
+      damageAngerResponse = true;
+      retaliationStartTicks = DAMAGE_RESPONSE_START_GRACE_TICKS;
+    }
+    return response.changesBehavior();
+  }
 
-    boolean canPanic =
-        ((MobGoalSelectorAccessor) shadow)
-            .mobLife$getGoalSelector().getAvailableGoals().stream()
-                .map(WrappedGoal::getGoal)
-                .filter(PanicGoal.class::isInstance)
-                .map(PanicGoal.class::cast)
-                .anyMatch(PanicGoal::canUse);
-    if (canPanic) {
-      damagePanicTicks = DAMAGE_PANIC_MEMORY_TICKS;
-      panicSourcePosition = source.getSourcePosition();
+  Vec3 panicEscapeSource() {
+    if (panicEscapeSourceTicks <= 0) {
+      return null;
     }
-    return canPanic;
+    if (panicAttacker != null && panicAttacker.isAlive() && !panicAttacker.isRemoved()) {
+      return panicAttacker.position();
+    }
+    return panicAttackerPosition;
+  }
+
+  private void rememberPanicAttacker(DamageSource source) {
+    if (!(source.getEntity() instanceof LivingEntity attacker) || attacker == player) {
+      clearPanicAttacker();
+      return;
+    }
+    panicAttacker = attacker;
+    panicAttackerPosition = attacker.position();
+    panicEscapeSourceTicks = DAMAGE_PANIC_SOURCE_MEMORY_TICKS;
+  }
+
+  private void clearPanicAttacker() {
+    panicAttacker = null;
+    panicAttackerPosition = null;
+    panicEscapeSourceTicks = 0;
   }
 
   boolean isPanicking() {
-    return damagePanicTicks > 0 || isRunningGoal(PanicGoal.class);
+    return panicStartTicks > 0 || isRunningGoal(PanicGoal.class);
   }
 
-  void holdRestForExit() {
-    if (allowsExit()) {
-      exitRestHoldTicks = EXIT_REST_HOLD_TICKS;
-    }
+  boolean isRespondingToDamage() {
+    return isPanicking() || isRetaliating() || isAngryFromDamage();
+  }
+
+  boolean isThreatResponse() {
+    return action.isThreatResponse() || InstinctThreats.isFleeing(shadow, isPanicking());
   }
 
   boolean pausesAwkwardnessDecay() {
@@ -280,7 +299,7 @@ final class InstinctController {
   }
 
   private boolean tryRestLateralInterference(boolean left) {
-    if (state != InstinctState.REST || fleeing || hunting || shadow.getTarget() != null) {
+    if (!InstinctPlayerIntervention.canTurnAtRest(state, action)) {
       return false;
     }
     lateralInterferenceHeldTicks = LATERAL_INTERFERENCE_HOLD_TICKS;
@@ -324,31 +343,20 @@ final class InstinctController {
   }
 
   private boolean canRequestPromptedWander() {
-    return (state == InstinctState.REST || state == InstinctState.LOOK)
-        && !fleeing
-        && !hunting
-        && shadow.getTarget() == null
-        && eatStateTicks <= 0
-        && promptedWanderTicks <= 0
-        && !canFollowHerd();
+    return InstinctPlayerIntervention.canRequestWander(
+        state, action, promptedWanderTicks, canFollowHerd());
   }
 
   private boolean canUsePromptedWander() {
     return promptedWanderTicks > 0
-        && !fleeing
-        && !hunting
-        && shadow.getTarget() == null
-        && eatStateTicks <= 0
-        && !canFollowHerd();
+        && InstinctPlayerIntervention.canContinueWander(
+            state, action, promptedWanderTicks, canFollowHerd());
   }
 
   private boolean canInterfereWithWander() {
     return state == InstinctState.WANDER
-        && !fleeing
-        && !hunting
-        && shadow.getTarget() == null
-        && eatStateTicks <= 0
-        && !canFollowHerd();
+        && InstinctPlayerIntervention.canContinueWander(
+            state, action, promptedWanderTicks, canFollowHerd());
   }
 
   private void startPromptedWander(float headingYaw) {
@@ -372,7 +380,7 @@ final class InstinctController {
     if (promptedWanderTicks <= 0) {
       return;
     }
-    if (fleeing || hunting || shadow.getTarget() != null || eatStateTicks > 0 || canFollowHerd()) {
+    if (InstinctPlayerIntervention.isOverridden(action)) {
       clearPromptedWander();
     }
   }
@@ -502,50 +510,61 @@ final class InstinctController {
       stopMoving();
       return;
     }
-    if (exitRestHoldTicks > 0) {
-      tickExitRestHold();
-      return;
-    }
-
     attackPerformedThisTick = false;
     nativeMovement = Vec3.ZERO;
     capturedMovement = Vec3.ZERO;
     shadowJumped = false;
     rabbitJumped = false;
     prepareShadow();
-    updateHuntingState();
+    updateRetaliationState();
     int scanInterval = config.instinct().senses().scanIntervalTicks();
     if ((player.tickCount + Math.floorMod(player.getId(), scanInterval)) % scanInterval == 0) {
       scanSenses();
     }
     updateFleeingState();
-    validatePreyTarget();
-    applyScentTarget();
+    updateHuntingState();
+    selectAction();
+    enforceActionBeforeAi();
     cancelPromptedWanderIfOverridden();
     syncFeedingGoals();
     captureFeedingBlocks();
     int carrotTicksBefore = rabbitCarrotTicks();
     shadow.tickCount++;
     shadow.aiStep();
+    updateRetaliationState();
     nativeMovement = capturedMovement;
     bodyYaw = movementYaw();
     player.setYBodyRot(bodyYaw);
     rabbitJumped = shadow instanceof Rabbit && shadowJumped;
     updateFleeingState();
-    validatePreyTarget();
+    updateHuntingState();
+    selectAction();
+    enforceActionAfterAi();
+    selectAction();
+    settleRestMovement();
+    recordNativePreyTarget();
     performImmediateMeleeAttack();
     detectGardenEating(carrotTicksBefore);
     trackHuntPursuit();
     updateStateAndControl();
+    tickEatingSound();
     replanDirectionIntent();
   }
 
   boolean attack(ServerLevel level, Entity target) {
-    if (!(target instanceof LivingEntity living)
-        || target == player
+    if (!(target instanceof LivingEntity living)) {
+      return false;
+    }
+    boolean retaliation = action == InstinctAction.RETALIATE && isActiveRetaliationTarget(living);
+    int nutrition = InstinctRelations.nutrition(target, definition.type(), config).orElse(-1);
+    boolean prey = action == InstinctAction.HUNT && hunting && nutrition >= 0;
+    if (target == player
         || !living.isAlive()
         || !player.isAlive()
-        || meleeAttackCooldown > 0) {
+        || action.isThreatResponse()
+        || isFleeingThreat()
+        || (!retaliation && !prey)
+        || (prey && meleeAttackCooldown > 0)) {
       return false;
     }
 
@@ -555,10 +574,10 @@ final class InstinctController {
     }
 
     attackPerformedThisTick = true;
-    meleeAttackCooldown = config.instinct().hunting().attackCooldownTicks();
+    if (prey) {
+      meleeAttackCooldown = config.instinct().hunting().attackCooldownTicks();
+    }
 
-    int nutrition = InstinctRelations.nutrition(target, config).orElse(-1);
-    boolean prey = nutrition >= 0;
     boolean wasAlive = living.isAlive();
     InstinctManager.beginInstinctAttack(player, living, prey && !(living instanceof ServerPlayer));
     boolean hurt;
@@ -595,12 +614,7 @@ final class InstinctController {
   }
 
   private void configureShadow() {
-    shadow.setInvulnerable(true);
-    shadow.setSilent(true);
-    shadow.setNoGravity(false);
-    shadow.setCanPickUpLoot(false);
-    shadow.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-    shadow.setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
+    InstinctShadowMob.initialize(shadow);
     MobGoalSelectorAccessor selectors = (MobGoalSelectorAccessor) shadow;
     selectors
         .mobLife$getGoalSelector()
@@ -608,8 +622,11 @@ final class InstinctController {
     selectors
         .mobLife$getTargetSelector()
         .removeAllGoals(InstinctController::isPlayerIncompatibleGoal);
+    // Use vanilla AvoidEntityGoal rather than a player-specific distance scan. Its targeting
+    // conditions supply LOS/sensing and its pathing supplies the mob's normal flee movement.
+    InstinctThreats.installAvoidance(shadow, player, definition, config);
     int strollPriority = Integer.MAX_VALUE;
-    double strollSpeed = 1.0;
+    double nativeStrollSpeed = 1.0;
     for (WrappedGoal wrapped :
         List.copyOf(selectors.mobLife$getGoalSelector().getAvailableGoals())) {
       Goal goal = wrapped.getGoal();
@@ -636,13 +653,12 @@ final class InstinctController {
                 wrapped.getPriority(),
                 new FelineAttackGoal(
                     shadow, config.instinct().hunting().felineSprintStartDistance()));
-        hasFelineAttackGoal = true;
         continue;
       }
       if (goal instanceof RandomStrollGoal strollGoal) {
         if (wrapped.getPriority() < strollPriority) {
           strollPriority = wrapped.getPriority();
-          strollSpeed = ((RandomStrollGoalAccessor) strollGoal).mobLife$getSpeedModifier();
+          nativeStrollSpeed = ((RandomStrollGoalAccessor) strollGoal).mobLife$getSpeedModifier();
         }
         selectors.mobLife$getGoalSelector().removeGoal(goal);
       }
@@ -650,15 +666,16 @@ final class InstinctController {
     if (strollPriority == Integer.MAX_VALUE) {
       strollPriority = 7;
     }
-    wanderSpeedModifier = strollSpeed;
-    promptedWanderGoal = new PromptedWanderGoal(shadow, strollSpeed);
+    nativeWanderSpeedModifier = nativeStrollSpeed;
+    promptedWanderGoal = new PromptedWanderGoal(shadow, nativeStrollSpeed);
     selectors
         .mobLife$getGoalSelector()
         .addGoal(Math.max(1, strollPriority - 1), promptedWanderGoal);
     if (config.instinct().social().enabled()) {
       selectors
           .mobLife$getGoalSelector()
-          .addGoal(Math.max(1, strollPriority - 2), new HerdCohesionGoal(shadow, strollSpeed));
+          .addGoal(
+              Math.max(1, strollPriority - 2), new HerdCohesionGoal(shadow, nativeStrollSpeed));
     }
     selectors
         .mobLife$getGoalSelector()
@@ -669,105 +686,107 @@ final class InstinctController {
                 this::wanderDirectionYaw,
                 this::directionIntentStrength,
                 config.instinct().wander(),
-                strollSpeed));
+                nativeStrollSpeed));
   }
 
   private void prepareShadow() {
-    shadow.setNoActionTime(0);
-    shadow.setHealth(shadow.getMaxHealth());
-    shadow.snapTo(player.position(), bodyYaw, 0.0F);
-    shadow.setYHeadRot(bodyYaw);
-    shadow.setYBodyRot(bodyYaw);
-    shadow.setOnGround(player.onGround());
-    shadow.setDeltaMovement(player.getDeltaMovement());
-    shadow.setRemainingFireTicks(player.getRemainingFireTicks());
-    ((EntityFluidInteractionInvoker) shadow).mobLife$invokeUpdateFluidInteraction();
+    prepareShadow(!shadowMovementInitialized);
+  }
+
+  private void prepareShadow(boolean synchronizeHorizontalMovement) {
+    InstinctShadowMob.prepare(shadow, player, bodyYaw, synchronizeHorizontalMovement);
+    shadowMovementInitialized = true;
+  }
+
+  private void updateRetaliationState() {
+    if (retaliationTarget != null
+        && (!retaliationTarget.isAlive()
+            || retaliationTarget.isRemoved()
+            || retaliationTarget == player)) {
+      retaliationTarget = null;
+      retaliationStartTicks = 0;
+      return;
+    }
+
+    if (damageAngerResponse) {
+      if (shadow instanceof NeutralMob neutralMob && neutralMob.isAngry()) {
+        LivingEntity target = shadow.getTarget();
+        retaliationTarget =
+            target instanceof net.minecraft.world.entity.player.Player
+                    && target.isAlive()
+                    && !target.isRemoved()
+                    && target != player
+                ? target
+                : null;
+        return;
+      }
+      if (retaliationStartTicks <= 0) {
+        damageAngerResponse = false;
+      }
+    }
+
+    if (isRunningTargetGoal(HurtByTargetGoal.class)) {
+      LivingEntity target = shadow.getTarget();
+      if (target != null && target.isAlive() && !target.isRemoved() && target != player) {
+        retaliationTarget = target;
+        return;
+      }
+    }
+
+    if (retaliationStartTicks <= 0) {
+      LivingEntity expiredTarget = retaliationTarget;
+      retaliationTarget = null;
+      if (expiredTarget != null && shadow.getTarget() == expiredTarget) {
+        shadow.setTarget(null);
+        shadow.getNavigation().stop();
+      }
+    }
+  }
+
+  private boolean isRetaliating() {
+    return retaliationTarget != null
+        && retaliationTarget.isAlive()
+        && !retaliationTarget.isRemoved()
+        && (retaliationStartTicks > 0
+            || isRunningTargetGoal(HurtByTargetGoal.class)
+            || isAngryFromDamage());
+  }
+
+  private boolean isAngryFromDamage() {
+    return damageAngerResponse
+        && (retaliationStartTicks > 0
+            || shadow instanceof NeutralMob neutralMob && neutralMob.isAngry());
+  }
+
+  private boolean isActiveRetaliationTarget(LivingEntity target) {
+    return target == retaliationTarget && isRetaliating();
   }
 
   private void updateHuntingState() {
-    if (config.instinct().hunting().prey().isEmpty() || isEatingMeal()) {
+    if (config.instinct().hunting().prey().isEmpty()
+        || isEatingMeal()
+        || fleeing
+        || isPanicking()
+        || isRetaliating()) {
       hunting = false;
-      huntedTarget = null;
-      shadow.setTarget(null);
+      clearHuntTarget(false);
       return;
     }
     hunting = InstinctManager.canHunt(player);
     if (!hunting) {
-      huntedTarget = null;
-      shadow.setTarget(null);
+      clearHuntTarget(false);
     }
   }
 
   private void scanSenses() {
     MorphConfig.Senses senses = config.instinct().senses();
     List<LivingEntity> nearby =
-        nearbyLiving(
-            Math.max(
-                Math.max(senses.preyRange(), senses.predatorRange()),
-                config.instinct().social().searchRange()));
-    updateHerdCenter(nearby);
-    sensedPredator =
-        nearby.stream()
-            .filter(
-                entity ->
-                    entity.distanceToSqr(player) <= senses.predatorRange() * senses.predatorRange())
-            .filter(entity -> InstinctRelations.isPredator(entity, definition.type()))
-            .min(Comparator.comparingDouble(player::distanceToSqr))
-            .orElse(null);
-    if (!hunting
-        || isFleeingThreat()
-        || !MorphAttackDamage.hasAttackAi(definition.type(), shadow)) {
-      return;
-    }
-    if (huntedTarget == null && shadow.getTarget() == null) {
-      nearby.stream()
-          .filter(entity -> entity != player)
-          .filter(entity -> entity.distanceToSqr(player) <= senses.preyRange() * senses.preyRange())
-          .filter(entity -> InstinctRelations.isPrey(entity, definition.type()))
-          .min(Comparator.comparingDouble(player::distanceToSqr))
-          .ifPresent(
-              target -> {
-                huntedTarget = target;
-                shadow.setTarget(target);
-                huntPursuitTicks = 0;
-              });
-    }
-  }
-
-  private void updateHerdCenter(List<LivingEntity> nearby) {
-    MorphConfig.Social social = config.instinct().social();
-    if (!social.enabled()) {
-      herdCenter = null;
-      return;
-    }
-
-    Vec3 sum = Vec3.ZERO;
-    int members = 0;
-    for (LivingEntity entity : nearby) {
-      if (entity.getType() != definition.type().entityType()
-          || entity.distanceToSqr(player) > social.searchRange() * social.searchRange()) {
-        continue;
-      }
-      sum = sum.add(entity.position());
-      members++;
-    }
-    herdCenter =
-        members >= social.minimumGroupSize()
-            ? new Vec3(sum.x / members, player.getY(), sum.z / members)
-            : null;
+        nearbyLiving(Math.max(senses.predatorRange(), config.instinct().social().searchRange()));
+    socialController.update(nearby);
   }
 
   private boolean canFollowHerd() {
-    if (herdCenter == null
-        || fleeing
-        || hunting
-        || shadow.getTarget() != null
-        || eatStateTicks > 0) {
-      return false;
-    }
-    Vec3 delta = herdCenter.subtract(player.position()).multiply(1.0, 0.0, 1.0);
-    double preferredRange = config.instinct().social().preferredRange();
-    return delta.lengthSqr() > preferredRange * preferredRange;
+    return socialController.canFollow(fleeing, hasActiveNativeHuntTarget(), eatStateTicks > 0);
   }
 
   private List<LivingEntity> nearbyLiving(double range) {
@@ -776,110 +795,119 @@ final class InstinctController {
         .toList();
   }
 
-  private void applyScentTarget() {
+  private void selectAction() {
+    // This is the cross-system order. When two native goals themselves conflict, GoalSelector
+    // still resolves them using the source mob's vanilla priority.
+    boolean eating =
+        InstinctFeeding.isEating(
+            isEatingMeal(), isRunningGoal(EatBlockGoal.class), isRunningRabbitGardenGoal());
+    boolean huntingTarget = hunting && hasActiveNativeHuntTarget();
+    boolean wandering =
+        shadow.getNavigation().isInProgress() || isRunningGoal(RandomStrollGoal.class);
+    action =
+        InstinctActionArbiter.select(
+            isPanicking(),
+            fleeing,
+            isRetaliating(),
+            eating,
+            huntingTarget,
+            canFollowHerd(),
+            wandering);
+  }
+
+  private void enforceActionBeforeAi() {
+    if (action.isThreatResponse() || action == InstinctAction.RETALIATE) {
+      // Clear a prior prey route before a higher-priority native response gets its movement tick.
+      clearHuntTarget(true);
+    } else if (action == InstinctAction.EAT) {
+      clearHuntTarget(false);
+    }
+  }
+
+  private void enforceActionAfterAi() {
+    if (action.isThreatResponse() || action == InstinctAction.RETALIATE) {
+      // A target selector may have run this tick; retain only a native retaliation target.
+      clearHuntTarget(false);
+      return;
+    }
+    if (action == InstinctAction.EAT) {
+      clearHuntTarget(false);
+      return;
+    }
+    acceptNativePreyTarget();
+  }
+
+  private void settleRestMovement() {
+    if (action != InstinctAction.REST || !shadow.onGround()) {
+      return;
+    }
+    Vec3 shadowMovement = shadow.getDeltaMovement();
+    shadow.setDeltaMovement(0.0, shadowMovement.y, 0.0);
+    nativeMovement = new Vec3(0.0, nativeMovement.y, 0.0);
+  }
+
+  private void acceptNativePreyTarget() {
     LivingEntity target = shadow.getTarget();
-    if (target != null
+    if (target != null && isActiveRetaliationTarget(target)) {
+      huntedTarget = null;
+      huntPursuitTicks = 0;
+      return;
+    }
+    if (!hunting) {
+      if (target != null || huntedTarget != null) {
+        clearHuntTarget(true);
+      }
+      return;
+    }
+    if (target == null) {
+      huntedTarget = null;
+      return;
+    }
+    if (target == player
+        || !target.isAlive()
+        || target.isRemoved()
+        || InstinctRelations.nutrition(target, definition.type(), config).isEmpty()) {
+      clearHuntTarget(true);
+      return;
+    }
+    if (target != huntedTarget) {
+      huntPursuitTicks = 0;
+    }
+    huntedTarget = target;
+  }
+
+  private void recordNativePreyTarget() {
+    LivingEntity target = shadow.getTarget();
+    if (action == InstinctAction.HUNT
+        && target != null
         && target.isAlive()
         && !target.isRemoved()
-        && InstinctRelations.nutrition(target, config).isPresent()) {
+        && InstinctRelations.nutrition(target, definition.type(), config).isPresent()) {
       lastPreyPosition = target.position();
       scentMemoryTicks = config.instinct().senses().memoryTicks();
     }
-
-    updateFleeingState();
-    applyInstinctNavigation();
   }
 
-  private void applyInstinctNavigation() {
-    if (isPanicking()) {
-      if (shadow.getTarget() != null) {
-        shadow.setTarget(null);
-      }
-      if (!isRunningGoal(PanicGoal.class) && !shadow.getNavigation().isInProgress()) {
-        Vec3 destination =
-            panicSourcePosition != null
-                ? LandRandomPos.getPosAway(shadow, 5, 4, panicSourcePosition)
-                : LandRandomPos.getPos(shadow, 5, 4);
-        if (destination != null) {
-          shadow.getNavigation().moveTo(destination.x, destination.y, destination.z, 1.4);
-        }
-      }
-      return;
-    }
-    if (fleeing) {
-      LivingEntity currentTarget = shadow.getTarget();
-      if (currentTarget != null) {
-        shadow.setTarget(null);
-      }
-      if (shadow.getNavigation().isInProgress()
-          && (isRunningGoal(AvoidEntityGoal.class) || isRunningGoal(PanicGoal.class))) {
-        return;
-      }
-      if (sensedPredator == null) {
-        return;
-      }
-      Vec3 away =
-          player.position().subtract(sensedPredator.position()).multiply(1.0, 0.0, 1.0).normalize();
-      if (away.lengthSqr() > 1.0E-4) {
-        Vec3 destination = player.position().add(away.scale(16.0));
-        shadow.getNavigation().moveTo(destination.x, destination.y, destination.z, 1.5);
-      }
-      return;
-    }
+  private boolean hasActiveNativeHuntTarget() {
     LivingEntity target = shadow.getTarget();
-    if (hunting
-        && hasFelineAttackGoal
-        && target != null
+    return target != null
+        && !isActiveRetaliationTarget(target)
         && target.isAlive()
-        && shadow.distanceToSqr(target) > FELINE_NATIVE_CHASE_RANGE_SQR) {
-      double sprintRange = config.instinct().hunting().felineSprintStartDistance();
-      double speed = shadow.distanceToSqr(target) <= sprintRange * sprintRange ? 1.33 : 1.0;
-      shadow.getNavigation().moveTo(target, speed);
-      return;
-    }
-    if (hunting
-        && scentMemoryTicks > 0
-        && lastPreyPosition != null
-        && shadow.getTarget() == null
-        && !isRunningGoal(EatBlockGoal.class)
-        && !isRunningRabbitGardenGoal()) {
-      shadow
-          .getNavigation()
-          .moveTo(lastPreyPosition.x, lastPreyPosition.y, lastPreyPosition.z, 1.0);
-    }
+        && !target.isRemoved()
+        && InstinctRelations.nutrition(target, definition.type(), config).isPresent();
   }
 
-  private void validatePreyTarget() {
-    LivingEntity target = shadow.getTarget();
-    if (fleeing) {
-      if (target != null) {
-        shadow.setTarget(null);
-      }
-      return;
-    }
-    if (hunting && huntedTarget != null) {
-      if (huntedTarget.isAlive()
-          && !huntedTarget.isRemoved()
-          && InstinctRelations.nutrition(huntedTarget, config).isPresent()) {
-        if (target != huntedTarget) {
-          shadow.setTarget(huntedTarget);
-        }
-        return;
-      }
-      huntedTarget = null;
+  private void clearHuntTarget(boolean stopNavigation) {
+    LivingEntity currentTarget = shadow.getTarget();
+    boolean clearCurrentTarget = currentTarget != null && !isActiveRetaliationTarget(currentTarget);
+    boolean hadTarget = huntedTarget != null || clearCurrentTarget;
+    huntedTarget = null;
+    if (clearCurrentTarget) {
       shadow.setTarget(null);
-      return;
     }
-    if (target == player || target != null && (!target.isAlive() || target.isRemoved())) {
-      shadow.setTarget(null);
-      return;
-    }
-    if (hunting && target != null && InstinctRelations.nutrition(target, config).isPresent()) {
-      huntedTarget = target;
-      return;
-    }
-    if (target != null && InstinctRelations.nutrition(target, config).isPresent() && !hunting) {
-      shadow.setTarget(null);
+    scentMemoryTicks = 0;
+    lastPreyPosition = null;
+    if (stopNavigation && hadTarget) {
       shadow.getNavigation().stop();
     }
   }
@@ -887,13 +915,18 @@ final class InstinctController {
   private void syncFeedingGoals() {
     var selector = ((MobGoalSelectorAccessor) shadow).mobLife$getGoalSelector();
     for (FeedingGoal entry : feedingGoals) {
-      MorphConfig.FeedingAction action = feedingAction(entry.goal());
+      MorphConfig.FeedingAction feedingAction = feedingAction(entry.goal());
       boolean coolingDown =
           entry.goal() instanceof EatBlockGoal
               ? InstinctManager.isEatBlockCooldownActive(player)
               : InstinctManager.isRaidGardenCooldownActive(player);
       boolean shouldBeAdded =
-          action.enabled() && !coolingDown && !isEatingMeal() && player.getFoodData().needsFood();
+          InstinctFeeding.shouldEnable(
+              feedingAction,
+              coolingDown,
+              isEatingMeal(),
+              this.action,
+              player.getFoodData().needsFood());
       if (shouldBeAdded == entry.added()) {
         continue;
       }
@@ -996,7 +1029,7 @@ final class InstinctController {
     Vec3 next = wanderDestination(directionIntentYaw, directionIntentStrength(), anchor);
     Path path = next == null ? null : shadow.getNavigation().createPath(next.x, next.y, next.z, 1);
     if (path != null) {
-      shadow.getNavigation().moveTo(path, wanderSpeedModifier);
+      shadow.getNavigation().moveTo(path, nativeWanderSpeedModifier);
       lastPathIntentYaw = directionIntentYaw;
     }
     directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
@@ -1011,18 +1044,10 @@ final class InstinctController {
   }
 
   private InstinctState determineState() {
-    if (isPanicking()) {
+    if (action.isThreatResponse()) {
       return InstinctState.FLEE;
     }
-    if (sensedPredator != null
-        && sensedPredator.isAlive()
-        && sensedPredator.distanceToSqr(player) <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE) {
-      return InstinctState.FLEE;
-    }
-    if (isRunningGoal(PanicGoal.class) || isRunningGoal(AvoidEntityGoal.class)) {
-      return InstinctState.FLEE;
-    }
-    if (eatStateTicks > 0) {
+    if (action == InstinctAction.EAT || eatStateTicks > 0) {
       return InstinctState.EAT;
     }
     if (isRunningGoal(EatBlockGoal.class)) {
@@ -1031,7 +1056,7 @@ final class InstinctController {
     if (isRunningRabbitGardenGoal() && shadow.getNavigation().isInProgress()) {
       return InstinctState.SCENT;
     }
-    LivingEntity target = shadow.getTarget();
+    LivingEntity target = combatTarget();
     if (target != null && target.isAlive()) {
       if (shadow.isWithinMeleeAttackRange(target)) {
         return InstinctState.ATTACK;
@@ -1042,7 +1067,8 @@ final class InstinctController {
       }
       return distance > 8.0 ? InstinctState.STALK : InstinctState.CHASE;
     }
-    if (isRunningGoal(HerdCohesionGoal.class)
+    if (action == InstinctAction.HERD
+        || isRunningGoal(HerdCohesionGoal.class)
         || isRunningGoal(FollowParentGoal.class)
         || isRunningGoal(FollowOwnerGoal.class)) {
       return InstinctState.FOLLOW;
@@ -1052,7 +1078,9 @@ final class InstinctController {
         || isRunningGoal(LeapAtTargetGoal.class)) {
       return InstinctState.CHASE;
     }
-    if (shadow.getNavigation().isInProgress() || isRunningGoal(RandomStrollGoal.class)) {
+    if (action == InstinctAction.WANDER
+        || shadow.getNavigation().isInProgress()
+        || isRunningGoal(RandomStrollGoal.class)) {
       if (scentMemoryTicks > 0 && lastPreyPosition != null) {
         return InstinctState.SCENT;
       }
@@ -1065,7 +1093,7 @@ final class InstinctController {
   }
 
   private Vec3 lookTarget() {
-    LivingEntity target = shadow.getTarget();
+    LivingEntity target = combatTarget();
     if (target != null && target.isAlive()) {
       return target.getEyePosition();
     }
@@ -1075,6 +1103,13 @@ final class InstinctController {
     return null;
   }
 
+  private LivingEntity combatTarget() {
+    if (action == InstinctAction.RETALIATE && isRetaliating()) {
+      return retaliationTarget;
+    }
+    return shadow.getTarget();
+  }
+
   private boolean isRunningGoal(Class<? extends Goal> goalClass) {
     return runningGoals().stream().anyMatch(goal -> goalClass.isInstance(goal));
   }
@@ -1082,6 +1117,14 @@ final class InstinctController {
   private boolean isRunningGoalNamed(String simpleName) {
     return runningGoals().stream()
         .anyMatch(goal -> goal.getClass().getSimpleName().equals(simpleName));
+  }
+
+  private boolean isRunningTargetGoal(Class<? extends Goal> goalClass) {
+    return ((MobGoalSelectorAccessor) shadow)
+        .mobLife$getTargetSelector().getAvailableGoals().stream()
+            .filter(WrappedGoal::isRunning)
+            .map(WrappedGoal::getGoal)
+            .anyMatch(goalClass::isInstance);
   }
 
   private List<Goal> runningGoals() {
@@ -1111,24 +1154,9 @@ final class InstinctController {
     shadow.getNavigation().stop();
     clearPromptedWander();
     clearDirectionIntent();
-    exitRestHoldTicks = 0;
     state = InstinctState.REST;
+    action = InstinctAction.REST;
     control = new Control(state, bodyYaw, player.getXRot(), 0, Vec3.ZERO, false);
-  }
-
-  private void tickExitRestHold() {
-    Vec3 playerMovement = player.getDeltaMovement();
-    nativeMovement = new Vec3(0.0, playerMovement.y, 0.0);
-    capturedMovement = Vec3.ZERO;
-    shadowJumped = false;
-    rabbitJumped = false;
-    shadow.getNavigation().stop();
-    clearPromptedWander();
-    clearDirectionIntent();
-    player.setDeltaMovement(nativeMovement);
-    player.setYBodyRot(bodyYaw);
-    state = InstinctState.REST;
-    control = new Control(state, bodyYaw, player.getXRot(), 0, nativeMovement, false);
   }
 
   private void tickCooldowns() {
@@ -1148,13 +1176,15 @@ final class InstinctController {
     interferencePauseTicks = Math.max(0, interferencePauseTicks - 1);
     directionIntentTicks = Math.max(0, directionIntentTicks - 1);
     directionReplanCooldown = Math.max(0, directionReplanCooldown - 1);
-    exitRestHoldTicks = Math.max(0, exitRestHoldTicks - 1);
-    damagePanicTicks = Math.max(0, damagePanicTicks - 1);
+    panicStartTicks = Math.max(0, panicStartTicks - 1);
+    panicEscapeSourceTicks = Math.max(0, panicEscapeSourceTicks - 1);
+    retaliationStartTicks = Math.max(0, retaliationStartTicks - 1);
+    if (panicEscapeSourceTicks == 0) {
+      panicAttacker = null;
+      panicAttackerPosition = null;
+    }
     if (scentMemoryTicks == 0 && shadow.getTarget() == null) {
       lastPreyPosition = null;
-    }
-    if (damagePanicTicks == 0) {
-      panicSourcePosition = null;
     }
   }
 
@@ -1174,6 +1204,7 @@ final class InstinctController {
     }
     if (durationTicks <= 0) {
       feed(nutrition);
+      MorphEatingSound.playForEater(player);
       return;
     }
 
@@ -1182,9 +1213,21 @@ final class InstinctController {
     eatStateTicks = Math.max(eatStateTicks, durationTicks);
   }
 
+  private void tickEatingSound() {
+    boolean stationaryEating =
+        action == InstinctAction.EAT && (isEatingMeal() || isRunningGoal(EatBlockGoal.class));
+    if (!stationaryEating) {
+      eatingSoundTicks = 0;
+      return;
+    }
+    MorphEatingSound.playContinuousTickForEater(player, eatingSoundTicks++);
+  }
+
   private void trackHuntPursuit() {
     LivingEntity target = shadow.getTarget();
-    if (!hunting || target == null || InstinctRelations.nutrition(target, config).isEmpty()) {
+    if (!hunting
+        || target == null
+        || InstinctRelations.nutrition(target, definition.type(), config).isEmpty()) {
       huntPursuitTicks = 0;
       return;
     }
@@ -1197,12 +1240,8 @@ final class InstinctController {
     InstinctManager.startAbandonedHuntCooldown(
         player, config.instinct().hunting().abandonedHuntCooldownTicks());
     hunting = false;
-    huntedTarget = null;
     huntPursuitTicks = 0;
-    shadow.setTarget(null);
-    shadow.getNavigation().stop();
-    scentMemoryTicks = 0;
-    lastPreyPosition = null;
+    clearHuntTarget(true);
   }
 
   private void updateFleeingState() {
@@ -1210,11 +1249,7 @@ final class InstinctController {
   }
 
   private boolean isFleeingThreat() {
-    return isPanicking()
-        || isRunningGoal(AvoidEntityGoal.class)
-        || sensedPredator != null
-            && sensedPredator.isAlive()
-            && sensedPredator.distanceToSqr(player) <= IMMEDIATE_FLEE_RANGE * IMMEDIATE_FLEE_RANGE;
+    return InstinctThreats.isFleeing(shadow, isPanicking());
   }
 
   private void performImmediateMeleeAttack() {
@@ -1222,6 +1257,7 @@ final class InstinctController {
         || meleeAttackCooldown > 0
         || !hunting
         || fleeing
+        || action != InstinctAction.HUNT
         || !MorphAttackDamage.hasAttackAi(definition.type(), shadow)) {
       return;
     }
@@ -1229,7 +1265,7 @@ final class InstinctController {
     if (target == null
         || !target.isAlive()
         || target.isRemoved()
-        || !InstinctRelations.nutrition(target, config).isPresent()
+        || InstinctRelations.nutrition(target, definition.type(), config).isEmpty()
         || !shadow.isWithinMeleeAttackRange(target)) {
       return;
     }
@@ -1368,66 +1404,8 @@ final class InstinctController {
   }
 
   private Vec3 wanderDestination(float headingYaw, float intentStrength, Vec3 anchor) {
-    MorphConfig.Wander wander = config.instinct().wander();
-    Vec3 direction = directionFromYaw(headingYaw);
-    float directionWeight = Mth.lerp(intentStrength, wander.gazeWeight(), DIRECTION_INTENT_WEIGHT);
-    float primaryConeDegrees =
-        Mth.lerp(intentStrength, 180.0F, DIRECTION_INTENT_PRIMARY_CONE_DEGREES);
-    float fallbackConeDegrees =
-        Mth.lerp(intentStrength, 180.0F, DIRECTION_INTENT_FALLBACK_CONE_DEGREES);
-    Vec3 primary = null;
-    Vec3 fallback = null;
-    Vec3 unrestricted = null;
-    double primaryScore = Double.NEGATIVE_INFINITY;
-    double fallbackScore = Double.NEGATIVE_INFINITY;
-    double unrestrictedScore = Double.NEGATIVE_INFINITY;
-    for (int index = 0; index < WANDER_CANDIDATE_COUNT; index++) {
-      Vec3 candidate =
-          index == 0
-              ? LandRandomPos.getPosTowards(
-                  shadow,
-                  wander.horizontalRange(),
-                  wander.verticalRange(),
-                  shadow.position().add(direction.scale(wander.horizontalRange())))
-              : LandRandomPos.getPos(shadow, wander.horizontalRange(), wander.verticalRange());
-      if (candidate == null) {
-        continue;
-      }
-      Vec3 fromAnchor =
-          anchor == null ? Vec3.ZERO : candidate.subtract(anchor).multiply(1.0, 0.0, 1.0);
-      if (anchor != null
-          && fromAnchor.lengthSqr() > wander.horizontalRange() * wander.horizontalRange()) {
-        continue;
-      }
-      Vec3 towardCandidate = candidate.subtract(shadow.position()).multiply(1.0, 0.0, 1.0);
-      if (towardCandidate.lengthSqr() < MINIMUM_HORIZONTAL_MOVEMENT_SQR) {
-        continue;
-      }
-      double alignment = direction.dot(towardCandidate.normalize());
-      double distanceScore =
-          1.0 - Math.min(1.0, towardCandidate.length() / Math.max(1.0, wander.horizontalRange()));
-      double score =
-          directionWeight * ((alignment + 1.0) * 0.5) + (1.0F - directionWeight) * distanceScore;
-      if (score > unrestrictedScore) {
-        unrestrictedScore = score;
-        unrestricted = candidate;
-      }
-      double angle = Math.acos(Math.clamp(alignment, -1.0, 1.0)) * Mth.RAD_TO_DEG;
-      if (angle <= fallbackConeDegrees && score > fallbackScore) {
-        fallbackScore = score;
-        fallback = candidate;
-      }
-      if (angle <= primaryConeDegrees && score > primaryScore) {
-        primaryScore = score;
-        primary = candidate;
-      }
-    }
-    return primary != null ? primary : fallback != null ? fallback : unrestricted;
-  }
-
-  private static Vec3 directionFromYaw(float yaw) {
-    float radians = yaw * Mth.DEG_TO_RAD;
-    return new Vec3(-Mth.sin(radians), 0.0, Mth.cos(radians));
+    return InstinctWandering.destination(
+        shadow, config.instinct().wander(), headingYaw, intentStrength, anchor);
   }
 
   private final class HerdCohesionGoal extends Goal {
@@ -1458,7 +1436,9 @@ final class InstinctController {
 
     @Override
     public void tick() {
-      if (destination == null || destination.distanceToSqr(herdCenter) > 2.25) {
+      Vec3 herdCenter = socialController.herdCenter();
+      if (herdCenter != null
+          && (destination == null || destination.distanceToSqr(herdCenter) > 2.25)) {
         updateDestination();
       }
     }
@@ -1470,6 +1450,10 @@ final class InstinctController {
     }
 
     private void updateDestination() {
+      Vec3 herdCenter = socialController.herdCenter();
+      if (herdCenter == null) {
+        return;
+      }
       destination = herdCenter;
       mob.getNavigation().moveTo(destination.x, destination.y, destination.z, speedModifier);
     }

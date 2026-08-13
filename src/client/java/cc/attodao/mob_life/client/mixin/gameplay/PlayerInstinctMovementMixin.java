@@ -7,6 +7,7 @@ import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Player.class)
@@ -16,5 +17,12 @@ public abstract class PlayerInstinctMovementMixin {
     if ((Object) this instanceof LocalPlayer player && ClientInstinctState.enabled()) {
       ClientInstinctState.applyNativeMovement(player);
     }
+  }
+
+  @ModifyVariable(method = "travel", at = @At("HEAD"), argsOnly = true)
+  private Vec3 mobLife$discardInstinctTravelInput(Vec3 input) {
+    return (Object) this instanceof LocalPlayer && ClientInstinctState.enabled()
+        ? Vec3.ZERO
+        : input;
   }
 }

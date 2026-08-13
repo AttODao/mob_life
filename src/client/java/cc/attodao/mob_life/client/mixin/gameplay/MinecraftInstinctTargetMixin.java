@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
 import cc.attodao.mob_life.client.state.ClientInstinctState;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
@@ -25,8 +26,18 @@ public abstract class MinecraftInstinctTargetMixin {
             blockHit.getLocation(), blockHit.getDirection(), blockHit.getBlockPos());
   }
 
-  @Inject(method = "continueAttack", at = @At("HEAD"))
-  private void mobLife$recordAttackAction(boolean held, CallbackInfo ci) {
-    ClientInstinctState.recordAttackAction(held);
+  @Inject(method = "continueAttack", at = @At("HEAD"), cancellable = true)
+  private void mobLife$handleInstinctAttackAction(boolean held, CallbackInfo ci) {
+    ClientInstinctState.recordEscapeAction(InstinctManager.ESCAPE_ATTACK, held, false);
+    if (ClientInstinctState.enabled()) {
+      ci.cancel();
+    }
+  }
+
+  @Inject(method = "startUseItem", at = @At("HEAD"), cancellable = true)
+  private void mobLife$preventHeldInstinctUse(CallbackInfo ci) {
+    if (ClientInstinctState.enabled()) {
+      ci.cancel();
+    }
   }
 }
