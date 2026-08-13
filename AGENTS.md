@@ -22,5 +22,9 @@ This file is intentionally short to reduce prompt/token load. Open only the deta
 ## Shader Resources
 - Detail: `AGENTS/shader-resources.md`
 
+## Wiki Maintenance
+- `moblife.wiki/` is an independently versioned Forgejo Wiki repository and must not be committed to this mod repository.
+- When code, datapack schemas, config behavior, or gameplay specifications change, update the relevant Japanese Wiki pages in `moblife.wiki/` as part of the same work. Keep `Home.md` and `_Sidebar.md` synchronized when pages are added, renamed, or removed.
+
 ## Repository State
 - Detail: `AGENTS/repository-state.md`

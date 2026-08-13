@@ -32,6 +32,10 @@ bin/
 
 run/
 
+# independently versioned Forgejo wiki
+
+moblife.wiki/
+
 # java
 
 hs_err_*.log
