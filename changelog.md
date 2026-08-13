@@ -2,6 +2,33 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-14 - v1.2.8
+
+- World morph selection now validates the selected morph and supported variant or
+  child settings on the server. Initial spawn searches for a compatible biome
+  or structure and retries later when no suitable location is found.
+- Client-only visual and debug settings are separated from server gameplay
+  settings. Server settings are authoritative and synchronized to connected
+  clients.
+- Reworked instinct mode around native mob behavior with explicit priority for
+  panic, fleeing, eating, hunting, herding, and wandering. Damage and relevant
+  environmental reactions now follow the selected mob's AI more closely, and
+  rest and wander movement use native AI speeds.
+- Attack-triggered panic searches up to 16 blocks horizontally for an escape
+  route. Ordinary hostile mobs cannot newly target a player during instinct
+  mode, while existing targets and configured predators remain active.
+- Instinct mode now exits through attack, use, or jump presses during rest or
+  wandering. The instinct meter starts at 100, regenerates by 10 per second,
+  and each press reduces it by up to 10 based on awkwardness. The vision tint
+  and inventory lock icon fade as the meter decreases.
+- Mob meals and instinct meals play the vanilla eating sound only for the
+  player who ate. Sheep can eat grass outside instinct while crouching and
+  looking down, with a separate 60-second cooldown. Bedless sleep adds 70
+  awkwardness after sleep ends.
+- Normal players no longer receive morph-only movement, inventory, or gameplay
+  restrictions, and disabling server modifiers removes previously applied
+  effects.
+
 ## 2026-08-13 - v1.2.7
 
 - Fixed rabbit instinct feeding so mature carrots are raided and nutrition is
