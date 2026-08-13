@@ -32,6 +32,7 @@ public final class ClientInstinctState {
   private static float viewYawOffset;
   private static float viewPitch;
   private static boolean viewInitialized;
+  private static boolean attackActionHeld;
   private static int pendingInterventions;
   private static float pendingViewYawInput;
   private static float pendingViewPitchInput;
@@ -58,6 +59,7 @@ public final class ClientInstinctState {
       pendingViewYawInput = 0.0F;
       pendingViewPitchInput = 0.0F;
       viewInitialized = false;
+      attackActionHeld = false;
       nativeMovement = Vec3.ZERO;
     }
 
@@ -106,8 +108,12 @@ public final class ClientInstinctState {
         && client.player != null
         && !client.isPaused()
         && client.gui.screen() == null
-        && client.options.keyAttack.isDown()
+        && (attackActionHeld || client.options.keyAttack.isDown())
         && !MorphAwkwardness.isMaximum(ClientMorphState.awkwardness());
+  }
+
+  public static void recordAttackAction(boolean held) {
+    attackActionHeld = held;
   }
 
   public static void recordMovement(boolean forward, boolean left, boolean right) {
@@ -244,6 +250,7 @@ public final class ClientInstinctState {
     viewYawOffset = 0.0F;
     viewPitch = 0.0F;
     viewInitialized = false;
+    attackActionHeld = false;
     pendingInterventions = 0;
     pendingViewYawInput = 0.0F;
     pendingViewPitchInput = 0.0F;

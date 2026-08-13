@@ -6,7 +6,6 @@
 		"gameplay.ClientInputAccessor",
 		"gameplay.ClientChargedJumpMixin",
 		"gameplay.EntityInstinctViewMixin",
-		"gameplay.KeyboardInputQuadrupedMixin",
 		"gameplay.LocalPlayerMovementMixin",
 		"gameplay.LocalPlayerMorphFluidMovementMixin",
 		"gameplay.MinecraftInstinctTargetMixin",

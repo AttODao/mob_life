@@ -24,4 +24,9 @@ public abstract class MinecraftInstinctTargetMixin {
         BlockHitResult.miss(
             blockHit.getLocation(), blockHit.getDirection(), blockHit.getBlockPos());
   }
+
+  @Inject(method = "continueAttack", at = @At("HEAD"))
+  private void mobLife$recordAttackAction(boolean held, CallbackInfo ci) {
+    ClientInstinctState.recordAttackAction(held);
+  }
 }

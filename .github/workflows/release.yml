@@ -72,7 +72,7 @@ jobs:
             --notes "Release notes are tracked in [changelog.md](${{ github.server_url }}/${{ github.repository }}/blob/${{ github.event.repository.default_branch }}/changelog.md)." \
             --target "${{ github.sha }}" \
             --latest
-      - name: update release assets
+      - name: update and publish existing release
         if: steps.release_exists.outputs.exists == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -83,3 +83,4 @@ jobs:
             "build/libs/mob_life-${version}-fabric-mc${minecraft_version}.jar" \
             "build/libs/mob_life-${version}-sources.jar" \
             --clobber
+          gh release edit "v${version}" --draft=false --latest

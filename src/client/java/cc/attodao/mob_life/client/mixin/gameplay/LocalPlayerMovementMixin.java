@@ -6,6 +6,7 @@ import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
@@ -35,6 +36,7 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
               shift = At.Shift.AFTER))
   private void mobLife$restrictVehicleInputAfterPolling(CallbackInfo ci) {
     mobLife$processInstinctInput();
+    mobLife$applyQuadrupedInput();
     mobLife$keepOnlyDismountInput();
   }
 
@@ -108,6 +110,35 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
     input.keyPresses = Input.EMPTY;
     ((ClientInputAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
     setSprinting(false);
+  }
+
+  private void mobLife$applyQuadrupedInput() {
+    ClientMorphState.setQuadrupedTurnInput(0.0F);
+    if (ClientInstinctState.enabled() || ClientMorphState.morph() == null || isPassenger()) {
+      return;
+    }
+
+    MorphConfig.Movement movement = MorphConfigManager.get(ClientMorphState.morph()).movement();
+    if (!movement.quadrupedTurning()) {
+      return;
+    }
+
+    Input raw = input.keyPresses;
+    Vec2 moveVector = input.getMoveVector();
+    float turnInput = moveVector.x;
+    if (Math.abs(turnInput) <= 1.0E-4F && raw.left() != raw.right()) {
+      turnInput = raw.left() ? 1.0F : -1.0F;
+    }
+    if (Math.abs(turnInput) <= 1.0E-4F) {
+      return;
+    }
+
+    ClientMorphState.setQuadrupedTurnInput(turnInput);
+    float forwardInput = Mth.clamp(Math.max(moveVector.y, Math.abs(turnInput)), 0.0F, 1.0F);
+    input.keyPresses =
+        new Input(
+            forwardInput > 1.0E-4F, false, false, false, raw.jump(), raw.shift(), raw.sprint());
+    ((ClientInputAccessor) input).mobLife$setMoveVector(new Vec2(0.0F, forwardInput));
   }
 
   private boolean mobLife$isRestrictedVehicle() {

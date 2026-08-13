@@ -2,6 +2,20 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-13 - v1.2.7
+
+- Fixed rabbit instinct feeding so mature carrots are raided and nutrition is
+  restored correctly. Rabbits keep their normal random garden-raid interval,
+  while hunger at or below 30% forces feeding; sheep use the same normal versus
+  critical-hunger behavior for grass eating.
+- Prevented hostile mobs from acquiring a transformed player as a new target
+  while instinct mode is active, while preserving targets that were already
+  tracking the player.
+- Unified instinct movement, turning, and exit actions with resolved player
+  input so controller bindings, including Controllify, work consistently.
+- Made the GitHub release workflow publish an existing draft release after
+  updating its assets.
+
 ## 2026-08-12 - v1.2.6
 
 - Made panic and flee behavior take priority over instinct hunting, preventing

@@ -47,8 +47,8 @@
   movement clear direction intent and take priority.
 - Instinct camera targets interpolate every rendered frame. Body turns use a
   dead zone and bounded angular speed, so rapidly changing AI headings cannot
-  snap the camera. During unlocked REST, LOOK, and WANDER states, mouse
-  movement changes only the head and camera at one-quarter sensitivity. The
+  snap the camera. During unlocked REST, LOOK, and WANDER states, mouse or
+  controller look input changes only the head and camera at one-quarter sensitivity. The
   camera-to-body yaw offset is retained while the body turns, then smoothly
   recenters while mouse yaw input is idle; horizontal and vertical camera
   offsets are each clamped to `-30` through `30` degrees.
@@ -63,6 +63,9 @@
   converting sideways input into forward movement. It is configured as an
   independent feature with `movement.quadruped_turning` and
   `movement.quadruped_turn_speed`; instinct input takes precedence while active.
+  The conversion reads the polled common `ClientInput`, so remapped keyboard
+  controls and Controlify analog movement use the same path. Analog sideways
+  input proportionally scales both the turn rate and converted forward input.
 - Horse, donkey, and mule forms use the mounted-horse direction factors:
   forward `1.0x`, sideways `0.5x`, and backward `0.25x`.
 - Movement speeds are tracked as `generic.movement_speed` values in sneak,

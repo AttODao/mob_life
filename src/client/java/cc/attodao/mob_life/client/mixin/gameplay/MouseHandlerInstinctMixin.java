@@ -72,10 +72,8 @@ public abstract class MouseHandlerInstinctMixin {
       return;
     }
 
-    Minecraft client = Minecraft.getInstance();
-    boolean turnLeft = client.options.keyLeft.isDown();
-    boolean turnRight = client.options.keyRight.isDown();
-    if (turnLeft == turnRight) {
+    float turnInput = ClientMorphState.quadrupedTurnInput();
+    if (Math.abs(turnInput) <= 1.0E-4F) {
       return;
     }
 
@@ -84,15 +82,13 @@ public abstract class MouseHandlerInstinctMixin {
       return;
     }
 
-    LocalPlayer player = client.player;
+    LocalPlayer player = Minecraft.getInstance().player;
     if (player == null || player.isPassenger()) {
       return;
     }
 
     // Match the configured degrees per game tick while updating with each rendered frame.
-    float turn =
-        (turnLeft ? -movement.quadrupedTurnSpeed() : movement.quadrupedTurnSpeed())
-            * (float) (frameTime * 20.0);
+    float turn = -turnInput * movement.quadrupedTurnSpeed() * (float) (frameTime * 20.0);
     float yaw = player.getYRot() + turn;
     player.setYRot(yaw);
     player.setYHeadRot(yaw);

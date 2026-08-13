@@ -8,4 +8,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 public interface RabbitCarrotAccessor {
   @Accessor("moreCarrotTicks")
   int mobLife$getMoreCarrotTicks();
+
+  @Accessor("moreCarrotTicks")
+  void mobLife$setMoreCarrotTicks(int ticks);
 }

@@ -2,6 +2,7 @@ package cc.attodao.mob_life.mixin.targeting;
 
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
@@ -23,6 +24,12 @@ public abstract class MobTargetingMixin {
         && target instanceof ServerPlayer player
         && ServerMorphManager.hasMobForm()) {
       Mob mob = (Mob) (Object) this;
+      if (InstinctManager.isEnabled(player)) {
+        if (mob.getTarget() != player) {
+          cir.setReturnValue(false);
+        }
+        return;
+      }
       if (MorphConfigManager.get(ServerMorphManager.activeMorph())
           .combat()
           .avoidedBy()

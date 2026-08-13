@@ -3,6 +3,7 @@ package cc.attodao.mob_life.gameplay.instinct;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
+import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.targeting.MorphNearbyEntities;
 import cc.attodao.mob_life.mixin.instinct.EntityFluidInteractionInvoker;
 import cc.attodao.mob_life.mixin.instinct.MobGoalSelectorAccessor;
@@ -47,9 +48,12 @@ import net.minecraft.world.entity.ai.util.LandRandomPos;
 import net.minecraft.world.entity.animal.rabbit.Rabbit;
 import net.minecraft.world.entity.animal.sheep.Sheep;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CarrotBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.phys.Vec3;
@@ -610,9 +614,15 @@ final class InstinctController {
         List.copyOf(selectors.mobLife$getGoalSelector().getAvailableGoals())) {
       Goal goal = wrapped.getGoal();
       if (goal instanceof EatBlockGoal) {
-        HungerAwareEatBlockGoal eatBlockGoal = new HungerAwareEatBlockGoal(shadow);
+        HungerAwareEatBlockGoal eatBlockGoal = new HungerAwareEatBlockGoal(shadow, player);
         selectors.mobLife$getGoalSelector().removeGoal(goal);
         feedingGoals.add(new FeedingGoal(eatBlockGoal, wrapped.getPriority(), false));
+        continue;
+      }
+      if (isNativeRabbitGardenGoal(goal) && shadow instanceof Rabbit rabbit) {
+        HungerAwareRabbitGardenGoal gardenGoal = new HungerAwareRabbitGardenGoal(rabbit);
+        selectors.mobLife$getGoalSelector().removeGoal(goal);
+        feedingGoals.add(new FeedingGoal(gardenGoal, wrapped.getPriority(), false));
         continue;
       }
       if (isFeedingGoal(goal)) {
@@ -832,7 +842,7 @@ final class InstinctController {
         && lastPreyPosition != null
         && shadow.getTarget() == null
         && !isRunningGoal(EatBlockGoal.class)
-        && !isRunningGoalNamed("RaidGardenGoal")) {
+        && !isRunningRabbitGardenGoal()) {
       shadow
           .getNavigation()
           .moveTo(lastPreyPosition.x, lastPreyPosition.y, lastPreyPosition.z, 1.0);
@@ -1018,7 +1028,7 @@ final class InstinctController {
     if (isRunningGoal(EatBlockGoal.class)) {
       return InstinctState.EAT;
     }
-    if (isRunningGoalNamed("RaidGardenGoal") && shadow.getNavigation().isInProgress()) {
+    if (isRunningRabbitGardenGoal() && shadow.getNavigation().isInProgress()) {
       return InstinctState.SCENT;
     }
     LivingEntity target = shadow.getTarget();
@@ -1243,7 +1253,17 @@ final class InstinctController {
   }
 
   private static boolean isFeedingGoal(Goal goal) {
-    return goal instanceof EatBlockGoal || goal.getClass().getSimpleName().equals("RaidGardenGoal");
+    return goal instanceof EatBlockGoal || isNativeRabbitGardenGoal(goal);
+  }
+
+  private static boolean isNativeRabbitGardenGoal(Goal goal) {
+    return goal.getClass().getSimpleName().equals("RaidGardenGoal");
+  }
+
+  private boolean isRunningRabbitGardenGoal() {
+    return runningGoals().stream()
+        .anyMatch(
+            goal -> isNativeRabbitGardenGoal(goal) || goal instanceof HungerAwareRabbitGardenGoal);
   }
 
   private static boolean isEdibleForSheep(ServerPlayer player, BlockPos position) {
@@ -1517,17 +1537,107 @@ final class InstinctController {
 
   private static final class HungerAwareEatBlockGoal extends EatBlockGoal {
     private final Mob mob;
+    private final ServerPlayer player;
 
-    private HungerAwareEatBlockGoal(Mob mob) {
+    private HungerAwareEatBlockGoal(Mob mob, ServerPlayer player) {
       super(mob);
       this.mob = mob;
+      this.player = player;
     }
 
     @Override
     public boolean canUse() {
       BlockPos position = mob.blockPosition();
+      if (!MorphFoodCapacity.isCriticallyHungry(player)
+          && mob.getRandom().nextInt(adjustedTickDelay(mob.isBaby() ? 50 : 1000)) != 0) {
+        return false;
+      }
       return mob.level().getBlockState(position).is(BlockTags.EDIBLE_FOR_SHEEP)
           || mob.level().getBlockState(position.below()).is(Blocks.GRASS_BLOCK);
+    }
+  }
+
+  private final class HungerAwareRabbitGardenGoal
+      extends net.minecraft.world.entity.ai.goal.MoveToBlockGoal {
+    private final Rabbit rabbit;
+    private boolean wantsToRaid;
+    private boolean canRaid;
+
+    private HungerAwareRabbitGardenGoal(Rabbit rabbit) {
+      super(rabbit, 0.7, GARDEN_SEARCH_RANGE);
+      this.rabbit = rabbit;
+    }
+
+    @Override
+    public boolean canUse() {
+      if (!(rabbit.level() instanceof ServerLevel level)
+          || !level.getGameRules().get(GameRules.MOB_GRIEFING)) {
+        return false;
+      }
+      boolean forced = MorphFoodCapacity.isCriticallyHungry(player);
+      if (!forced && nextStartTick > 0) {
+        nextStartTick--;
+        return false;
+      }
+      nextStartTick = forced ? 0 : nextStartTick(rabbit);
+      canRaid = false;
+      wantsToRaid = rabbitCarrotTicks() <= 0;
+      return findNearestBlock();
+    }
+
+    @Override
+    public boolean canContinueToUse() {
+      return canRaid && super.canContinueToUse();
+    }
+
+    @Override
+    public void tick() {
+      super.tick();
+      BlockPos target = blockPos.above();
+      rabbit
+          .getLookControl()
+          .setLookAt(
+              target.getX() + 0.5,
+              target.getY() + 1.0,
+              target.getZ() + 0.5,
+              10.0F,
+              rabbit.getMaxHeadXRot());
+      if (!isReachedTarget()) {
+        return;
+      }
+
+      BlockState state = rabbit.level().getBlockState(target);
+      if (!canRaid || !(state.getBlock() instanceof CarrotBlock carrot)) {
+        return;
+      }
+      int age = state.getValue(CarrotBlock.AGE);
+      if (age == 0) {
+        rabbit.level().setBlock(target, Blocks.AIR.defaultBlockState(), 2);
+        rabbit.level().destroyBlock(target, true, rabbit);
+      } else {
+        rabbit.level().setBlock(target, state.setValue(CarrotBlock.AGE, age - 1), 2);
+        rabbit.level().gameEvent(GameEvent.BLOCK_CHANGE, target, GameEvent.Context.of(rabbit));
+        rabbit.level().levelEvent(2001, target, Block.getId(state));
+      }
+      ((RabbitCarrotAccessor) rabbit).mobLife$setMoreCarrotTicks(40);
+      canRaid = false;
+      nextStartTick = 10;
+    }
+
+    @Override
+    protected boolean isValidTarget(LevelReader level, BlockPos position) {
+      if (!wantsToRaid) {
+        return false;
+      }
+      BlockState support = level.getBlockState(position);
+      BlockState crop = level.getBlockState(position.above());
+      if (!support.is(BlockTags.SUPPORTS_CROPS)
+          || !(crop.getBlock() instanceof CarrotBlock carrot)
+          || !carrot.isMaxAge(crop)) {
+        return false;
+      }
+      canRaid = true;
+      return true;
     }
   }
 

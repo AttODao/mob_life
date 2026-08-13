@@ -34,7 +34,9 @@
   enters instinct mode at the maximum. Holding the mining button exits only
   from a state that accepts view input; it takes 3 seconds at zero awkwardness,
   grows without bound as awkwardness reaches 100, and pursuit, fleeing,
-  feeding, and other locked states cannot be exited. Spectator and sleeping
+  feeding, and other locked states cannot be exited. The hold follows
+  Minecraft's resolved attack action as well as its key mapping, so Controlify
+  uses the same exit heartbeat. Spectator and sleeping
   players cannot enter instinct mode, and leave it if they become ineligible.
   A player already in instinct mode remains in it when forced into a boat,
   minecart, or another vehicle; only forced entries may start while riding.
@@ -56,14 +58,17 @@
   reconnecting to the world; it is cleared by an explicit exit or respawn.
 - Feline hunting stores `instinct.hunting.feline_sprint_start_distance` per
   morph. Built-in cat and ocelot forms switch to their dash at 8 blocks.
-- In instinct mode, the sheep's hungry grass-eating goal starts immediately
-  when it stands on an edible block or grass block, rather than waiting for
-  the adult vanilla goal's `1/1000` random trigger. Its eating animation and
-  block conversion remain vanilla behavior. The locked instinct view also
-  pitches down toward the grass while this goal is active. It likewise lowers
-  while a rabbit consumes a carrot, but not while it is navigating to a crop.
-  After a successful meal, the sheep configuration applies a 1200-tick
-  (60-second) cooldown.
+- In instinct mode, sheep grass eating uses the adult vanilla goal's `1/1000`
+  random trigger (or the baby goal's `1/50` trigger) during ordinary hunger.
+  At or below 30% of maximum food, the random gate is bypassed and an edible
+  grass block starts the goal immediately. Its eating animation and block
+  conversion remain vanilla behavior. Rabbits use the native garden-raid
+  interval of 200-399 ticks during ordinary hunger and bypass that interval
+  at or below 30% when a mature carrot is available. The locked instinct view
+  pitches down toward grass or a carrot while the corresponding eating
+  animation is active, but not while a rabbit is navigating to a crop. After
+  a successful meal, the sheep configuration applies a 1200-tick (60-second)
+  cooldown.
 - Instinct kills consume configured prey directly and suppress non-player mob
   loot and experience. Their configured nutrition is restored when the eating
   animation completes. While in instinct mode, a hunt-capable form pursues
@@ -155,8 +160,10 @@
 - Hostile detection range scales with awkwardness: at 30 or below monsters
   cannot detect the player, from 30 to 100 their normal follow range is
   restored linearly, and at 100 it matches vanilla. Vision interference still
-  strengthens above 70. At 90 and above, breaking, placing, and block
-  interaction are disabled.
+  strengthens above 70. While in instinct mode, monsters cannot acquire the
+  transformed player as a new target regardless of awkwardness; a monster that
+  already targets that player keeps its existing target. At 90 and above,
+  breaking, placing, and block interaction are disabled.
 - An experience-orb-like awkwardness indicator is always shown above the
   centered experience-level number while transformed. Its tint changes
   continuously from green at 0 through yellow to red at 100.

@@ -34,6 +34,7 @@ public final class ClientMorphState {
   private static EntityDimensions dimensions;
   private static float eyeHeight;
   private static float waterMovementInputScale = 1.0F;
+  private static float quadrupedTurnInput;
   private static float awkwardness;
   private static int rabbitHopCooldown;
   private static boolean nightVision;
@@ -50,6 +51,7 @@ public final class ClientMorphState {
     dimensions = null;
     eyeHeight = 0.0F;
     waterMovementInputScale = 1.0F;
+    quadrupedTurnInput = 0.0F;
     RENDER_ENTITIES.clear();
     GRASS_EATING_TICKS.clear();
     CHARGED_JUMP.reset();
@@ -137,6 +139,14 @@ public final class ClientMorphState {
         : waterMovementInputScale * MorphConfigManager.get(morph).movement().waterInputMultiplier();
   }
 
+  public static float quadrupedTurnInput() {
+    return quadrupedTurnInput;
+  }
+
+  public static void setQuadrupedTurnInput(float value) {
+    quadrupedTurnInput = Math.clamp(value, -1.0F, 1.0F);
+  }
+
   public static Entity renderEntity(Player player) {
     if (morph == null) {
       return null;
@@ -200,6 +210,7 @@ public final class ClientMorphState {
     dimensions = null;
     eyeHeight = 0.0F;
     waterMovementInputScale = 1.0F;
+    quadrupedTurnInput = 0.0F;
     awkwardness = 0.0F;
     nightVision = false;
     GRASS_EATING_TICKS.clear();
