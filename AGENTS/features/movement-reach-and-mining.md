@@ -20,9 +20,10 @@
   obey the same 10-tick landing cooldown.
 - Rabbit form instead hops automatically while movement input is held. It uses
   `0.2` sneak and walking jump velocity and `0.3` sprinting jump velocity, with
-  10-tick, 10-tick, and 3-tick cooldowns respectively. Hop launch also supplies
-  explicit horizontal velocity of `0.15`, `0.2`, and `0.35` for sneak, walking,
-  and sprinting hops.
+  10-tick, 10-tick, and 3-tick landing cooldowns respectively. The cooldown
+  begins after landing, matching native Rabbit's normal and fast hop delays.
+  Hop launch also supplies explicit horizontal velocity of `0.15`, `0.2`, and
+  `0.35` for sneak, walking, and sprinting hops.
 - Rabbit form retains horizontal momentum while grounded between hops. Holding
   space together with movement input changes the next hop to the player's
   normal jump height while retaining the rabbit hop cooldown. Standing still
@@ -34,36 +35,40 @@
   immediately before player travel, avoiding a second copy of AI acceleration,
   friction, or gravity. Normal player travel input is discarded while this AI
   movement is active, so it cannot outrun the shadow's route or add speed on
-  top of it. WANDER uses the source mob's original `RandomStrollGoal` speed
-  modifier and live movement-speed attribute without scaling or capping it to
-  the normal player-controlled morph speed. Position synchronization retains
+  top of it. WANDER preserves the source mob's original `RandomStrollGoal` (or
+  subtype), including its priority, position generator, speed modifier, and
+  live movement-speed attribute, without scaling or capping it to the normal
+  player-controlled morph speed. Position synchronization retains
   the shadow mob's own horizontal momentum between AI ticks instead of feeding
   client/server player corrections back into an active path. Player horizontal
   movement is imported only on controller initialization and damage response,
   while vertical and grounded state remain synchronized every tick. Rabbit AI
   hops consequently retain their native low, normal, and step-up jump heights.
-  Grounded horizontal movement is zeroed after native AI arbitration in REST
-  and LOOK so momentum from a completed route cannot leak into a resting state.
-  In REST and LOOK, holding forward retries a chance-based, cooldown-limited
-  request to begin a one- or two-leg local wander toward the current camera
-  yaw. Releasing forward does not stop an accepted wander. While WANDER is
-  active, forward steers a short-lived direction intent toward the camera yaw
-  without directly changing velocity or turning the body. Left and right retry
-  a chance-based intervention using the same probability as forward wander
-  start: during WANDER a success turns the direction intent 15 through 45
-  degrees to that side, and during REST it
-  turns the body by the same range without beginning movement. Successful and
-  failed lateral attempts use 20- and 10-tick base cooldowns respectively.
-  A completed natural wander also starts the same forward-wander cooldown
-  before another player-requested wander can begin.
-- Direction intent is held for 20 ticks and fades over the following 40 ticks.
-  It biases both prompted and natural wander candidates 70% toward the intent,
-  preferring a 15-degree cone and falling back to 45 degrees or ordinary AI
-  candidates where terrain requires it. Twelve candidates are evaluated so a
-  narrow intent cone remains usable. An existing route is reconsidered only
-  after at least 20 ticks and a 15-degree intent change; a missing replacement
-  path leaves the current route active. Hunting, fleeing, feeding, and social
-  movement clear direction intent and take priority.
+  Horizontal movement is zeroed after native AI arbitration in REST and LOOK
+  while either the player or shadow is still grounded, so route momentum cannot
+  leak into rest without truncating an airborne rabbit hop.
+  In REST and LOOK, holding forward retries the existing chance-based,
+  cooldown-limited request to begin a one- or two-leg local wander. Its first
+  destination is selected within 30 degrees of the constrained camera yaw, and
+  releasing forward does not stop an accepted wander. REST lateral input turns
+  the body immediately by the form's normal `quadruped_turn_speed` each tick,
+  with no chance roll or cooldown. The server accepts at most one lateral turn
+  per game tick to enforce that speed. During WANDER, mouse input remains
+  camera-only. Holding forward continues the wander by requesting a path re-search;
+  lateral input rotates a separate search yaw at that same speed with no chance
+  roll or cooldown. Keyboard and Controllify controller input both flow through
+  the same resolved `ClientInput` movement vector.
+- A player-directed search yaw does not create a path on input. At most once every 20 ticks
+  while forward or lateral input remains held, the shadow evaluates one new
+  destination within 30 degrees of that search yaw from its current position.
+  Each candidate comes from the same native stroll goal's position generator,
+  with no length cap or near-distance scoring added by Mob Life. A time-limited
+  prompted wander renews its timer on forward input.
+  With no forward or lateral input, no re-search occurs and the native path may
+  finish normally. Entering REST after WANDER applies a one-second
+  cooldown before either a native or prompted WANDER can start. Hunting,
+  fleeing, feeding, and social movement override and clear this player-directed
+  search.
 - Instinct camera targets interpolate every rendered frame. Body turns use a
   dead zone and bounded angular speed, so rapidly changing AI headings cannot
   snap the camera. During unlocked REST, LOOK, and WANDER states, mouse or
@@ -71,6 +76,9 @@
   camera-to-body yaw offset is retained while the body turns, then smoothly
   recenters while mouse yaw input is idle; horizontal and vertical camera
   offsets are each clamped to `-30` through `30` degrees.
+  Rabbit forms use a bounded camera turn rate while an instinct action locks
+  the view, so rapid native hop direction changes remain visually gradual
+  without making the camera slow to respond.
 - Cow, sheep, chicken, rabbit, wolf, pig, horse, donkey, and mule forms give
   nearby groups of at least two natural mobs of the same type priority over
   random and player-requested wandering. The group target is its local center;

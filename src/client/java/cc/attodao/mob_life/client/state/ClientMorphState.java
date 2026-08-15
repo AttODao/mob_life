@@ -38,6 +38,8 @@ public final class ClientMorphState {
   private static float quadrupedTurnInput;
   private static float awkwardness;
   private static int rabbitHopCooldown;
+  private static boolean rabbitHopGrounded;
+  private static boolean rabbitHopGroundedKnown;
   private static boolean nightVision;
 
   private ClientMorphState() {}
@@ -57,6 +59,7 @@ public final class ClientMorphState {
     GRASS_EATING_TICKS.clear();
     CHARGED_JUMP.reset();
     rabbitHopCooldown = 0;
+    rabbitHopGroundedKnown = false;
 
     Minecraft client = Minecraft.getInstance();
     if (client.level == null) {
@@ -189,6 +192,8 @@ public final class ClientMorphState {
       tickChickenWings(client);
     }
     if (instinct) {
+      rabbitHopCooldown = 0;
+      rabbitHopGroundedKnown = false;
       return;
     }
     if (movement != null && movement.rabbitHop().enabled()) {
@@ -229,6 +234,7 @@ public final class ClientMorphState {
     RENDER_ENTITIES.clear();
     CHARGED_JUMP.reset();
     rabbitHopCooldown = 0;
+    rabbitHopGroundedKnown = false;
   }
 
   private static void slowChickenFall(LocalPlayer player) {
@@ -267,14 +273,18 @@ public final class ClientMorphState {
     if (player == null) {
       return;
     }
-    if (rabbitHopCooldown > 0) {
-      rabbitHopCooldown--;
-    }
-
     var keys = player.input.keyPresses;
     boolean moving = keys.forward() || keys.backward() || keys.left() || keys.right();
     boolean jumping = keys.jump();
     boolean groundedOnLand = player.onGround() && !player.isInWater() && !player.isInLava();
+    boolean wasGrounded = rabbitHopGroundedKnown ? rabbitHopGrounded : groundedOnLand;
+    if (groundedOnLand && !wasGrounded) {
+      rabbitHopCooldown = RabbitHopMovement.landingCooldown(player, keys);
+    } else if (rabbitHopCooldown > 0) {
+      rabbitHopCooldown--;
+    }
+    rabbitHopGrounded = groundedOnLand;
+    rabbitHopGroundedKnown = true;
     if ((!moving && !jumping)
         || rabbitHopCooldown > 0
         || !groundedOnLand
@@ -284,6 +294,5 @@ public final class ClientMorphState {
     }
 
     RabbitHopMovement.launch(player, keys);
-    rabbitHopCooldown = RabbitHopMovement.cooldown(player, keys);
   }
 }

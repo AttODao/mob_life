@@ -61,19 +61,16 @@ final class InstinctController {
   private static final int PROMPTED_WANDER_MIN_LEGS = 1;
   private static final int PROMPTED_WANDER_MAX_LEGS = 2;
   private static final int MINIMUM_FAILED_WANDER_COOLDOWN_TICKS = 10;
-  private static final int LATERAL_INTERFERENCE_COOLDOWN_TICKS = 20;
-  private static final int LATERAL_INTERFERENCE_FAILURE_COOLDOWN_TICKS = 10;
   private static final int LATERAL_INTERFERENCE_HOLD_TICKS = 3;
-  private static final int DIRECTION_INTENT_HOLD_TICKS = 20;
-  private static final int DIRECTION_INTENT_FADE_TICKS = 40;
-  private static final int DIRECTION_REPLAN_INTERVAL_TICKS = 20;
-  private static final int DAMAGE_RESPONSE_START_GRACE_TICKS = 3;
+  private static final int REST_WANDER_COOLDOWN_TICKS = 20;
+  private static final int WANDER_INPUT_MEMORY_TICKS = 2;
+  private static final int WANDER_RESEARCH_INTERVAL_TICKS = 20;
+  private static final int RETALIATION_START_GRACE_TICKS = 3;
   private static final int DAMAGE_PANIC_SOURCE_MEMORY_TICKS = 40;
   private static final int GARDEN_SEARCH_RANGE = 16;
-  private static final float LATERAL_INTERFERENCE_MIN_TURN_DEGREES = 15.0F;
-  private static final float LATERAL_INTERFERENCE_MAX_TURN_DEGREES = 45.0F;
-  private static final float MAX_DIRECTION_INTENT_TURN_DEGREES = 3.0F;
-  private static final float MIN_DIRECTION_REPLAN_DEGREES = 15.0F;
+  private static final int NATIVE_STROLL_HORIZONTAL_RANGE = 10;
+  private static final int NATIVE_STROLL_VERTICAL_RANGE = 7;
+  private static final float WANDER_SEARCH_CONE_DEGREES = 30.0F;
   private static final float MAX_CLIENT_VIEW_YAW_OFFSET = 30.0F;
   private static final double MINIMUM_HORIZONTAL_MOVEMENT_SQR = 1.0E-4;
 
@@ -101,25 +98,29 @@ final class InstinctController {
   private Vec3 nativeMovement = Vec3.ZERO;
   private Vec3 capturedMovement = Vec3.ZERO;
   private float bodyYaw;
-  private double nativeWanderSpeedModifier = 1.0;
   private boolean shadowJumped;
   private boolean rabbitJumped;
   private boolean shadowMovementInitialized;
   private int forwardWanderCooldown;
+  private int restWanderCooldown;
   private int promptedWanderTicks;
+  private int promptedWanderDurationTicks;
   private int promptedWanderLegs;
-  private int lateralInterferenceCooldown;
   private int lateralInterferenceHeldTicks;
   private int directionInterferenceHeldTicks;
   private int interferencePauseTicks;
-  private int directionIntentTicks;
-  private int directionReplanCooldown;
-  private int panicStartTicks;
+  private int wanderResearchTicks;
   private int panicEscapeSourceTicks;
+  private long lastLateralTurnTick = Long.MIN_VALUE;
+  private long lastForwardWanderInputTick = Long.MIN_VALUE;
+  private long lastLateralWanderInputTick = Long.MIN_VALUE;
   private LivingEntity panicAttacker;
   private Vec3 panicAttackerPosition;
-  private float directionIntentYaw;
-  private float lastPathIntentYaw;
+  private float nativeNavigationYaw = Float.NaN;
+  private float wanderSearchYaw = Float.NaN;
+  private boolean wanderSearchActive;
+  private double nativeWanderSpeedModifier = 1.0;
+  private RandomStrollGoal nativeStrollGoal;
   private Vec3 promptedWanderAnchor;
   private float promptedWanderYaw;
   private final InstinctSocialController socialController;
@@ -141,9 +142,7 @@ final class InstinctController {
     this.socialController =
         new InstinctSocialController(player, definition, config.instinct().social());
     this.bodyYaw = player.getYRot();
-    this.directionIntentYaw = bodyYaw;
-    this.lastPathIntentYaw = bodyYaw;
-    this.control = new Control(state, bodyYaw, player.getXRot(), 0, Vec3.ZERO, false);
+    this.control = new Control(state, bodyYaw, player.getXRot(), 0, Vec3.ZERO, false, true);
     configureShadow();
   }
 
@@ -196,18 +195,17 @@ final class InstinctController {
     InstinctDamageResponse.Result response =
         InstinctDamageResponse.evaluate(shadow, source, player.level().getGameTime());
     if (response.panicking()) {
-      panicStartTicks = DAMAGE_RESPONSE_START_GRACE_TICKS;
       rememberPanicAttacker(source);
     } else {
       clearPanicAttacker();
     }
     if (response.retaliationTarget() != null) {
       retaliationTarget = response.retaliationTarget();
-      retaliationStartTicks = DAMAGE_RESPONSE_START_GRACE_TICKS;
+      retaliationStartTicks = RETALIATION_START_GRACE_TICKS;
     }
     if (response.resettingUniversalAnger()) {
       damageAngerResponse = true;
-      retaliationStartTicks = DAMAGE_RESPONSE_START_GRACE_TICKS;
+      retaliationStartTicks = RETALIATION_START_GRACE_TICKS;
     }
     return response.changesBehavior();
   }
@@ -239,7 +237,7 @@ final class InstinctController {
   }
 
   boolean isPanicking() {
-    return panicStartTicks > 0 || isRunningGoal(PanicGoal.class);
+    return isRunningGoal(PanicGoal.class);
   }
 
   boolean isRespondingToDamage() {
@@ -247,7 +245,7 @@ final class InstinctController {
   }
 
   boolean isThreatResponse() {
-    return action.isThreatResponse() || InstinctThreats.isFleeing(shadow, isPanicking());
+    return action.isThreatResponse() || InstinctThreats.isFleeing(shadow);
   }
 
   boolean pausesAwkwardnessDecay() {
@@ -260,10 +258,7 @@ final class InstinctController {
     int accepted = 0;
     float requestedViewYaw = constrainedViewYaw(viewYaw);
     if ((flags & InstinctManager.INTERVENE_FORWARD) != 0) {
-      if (canInterfereWithWander()) {
-        steerDirectionIntent(requestedViewYaw);
-        accepted |= InstinctManager.INTERVENE_FORWARD;
-      } else if (tryStartPromptedWander(requestedViewYaw)) {
+      if (tryStartPromptedWander(requestedViewYaw) || tryContinueWander()) {
         accepted |= InstinctManager.INTERVENE_FORWARD;
       }
     }
@@ -277,6 +272,12 @@ final class InstinctController {
     return accepted;
   }
 
+  boolean canPlayerIntervene() {
+    return canInterfereWithWander()
+        || canRequestPromptedWander()
+        || InstinctPlayerIntervention.canTurnAtRest(state, action);
+  }
+
   private boolean tryStartPromptedWander(float viewYaw) {
     if (!canRequestPromptedWander()) {
       return false;
@@ -285,7 +286,6 @@ final class InstinctController {
     if (forwardWanderCooldown > 0) {
       return true;
     }
-    setDirectionIntent(viewYaw);
     registerInterference();
     if (shadow.getRandom().nextFloat()
         >= adjustedControlChance(config.instinct().intervention().forwardWanderChance())) {
@@ -294,57 +294,57 @@ final class InstinctController {
       return true;
     }
     forwardWanderCooldown = adjustedForwardWanderCooldown();
-    startPromptedWander(directionIntentYaw);
+    startPromptedWander(viewYaw);
     return true;
   }
 
   private boolean tryRestLateralInterference(boolean left) {
-    if (!InstinctPlayerIntervention.canTurnAtRest(state, action)) {
+    if (!InstinctPlayerIntervention.canTurnAtRest(state, action) || !canApplyLateralTurn()) {
       return false;
     }
     lateralInterferenceHeldTicks = LATERAL_INTERFERENCE_HOLD_TICKS;
-    if (lateralInterferenceCooldown > 0) {
-      return true;
-    }
-    if (shadow.getRandom().nextFloat()
-        >= adjustedControlChance(config.instinct().intervention().forwardWanderChance())) {
-      lateralInterferenceCooldown = adjustedLateralInterferenceFailureCooldown();
-      return true;
-    }
-
-    float turnDegrees = randomLateralTurnDegrees();
+    float turnDegrees = lateralTurnSpeed();
     bodyYaw = Mth.wrapDegrees(bodyYaw + (left ? -turnDegrees : turnDegrees));
     shadow.setYRot(bodyYaw);
     shadow.setYHeadRot(bodyYaw);
     shadow.setYBodyRot(bodyYaw);
     player.setYBodyRot(bodyYaw);
-    setDirectionIntent(bodyYaw);
-    lateralInterferenceCooldown = adjustedLateralInterferenceCooldown();
     return true;
   }
 
   private boolean tryLateralWanderInterference(boolean left) {
-    if (!canInterfereWithWander()) {
+    if (!canInterfereWithWander() || !canApplyLateralTurn()) {
       return false;
     }
     lateralInterferenceHeldTicks = LATERAL_INTERFERENCE_HOLD_TICKS;
-    if (lateralInterferenceCooldown > 0) {
-      return true;
-    }
-    if (shadow.getRandom().nextFloat()
-        >= adjustedControlChance(config.instinct().intervention().forwardWanderChance())) {
-      lateralInterferenceCooldown = adjustedLateralInterferenceFailureCooldown();
-      return true;
-    }
-
-    rotateDirectionIntent(left, randomLateralTurnDegrees());
-    lateralInterferenceCooldown = adjustedLateralInterferenceCooldown();
+    lastLateralWanderInputTick = player.level().getGameTime();
+    beginWanderSearch();
+    wanderSearchYaw =
+        Mth.wrapDegrees(wanderSearchYaw + (left ? -lateralTurnSpeed() : lateralTurnSpeed()));
     return true;
   }
 
   private boolean canRequestPromptedWander() {
     return InstinctPlayerIntervention.canRequestWander(
-        state, action, promptedWanderTicks, canFollowHerd());
+            state, action, promptedWanderTicks, canFollowHerd())
+        && restWanderCooldown <= 0;
+  }
+
+  private boolean tryContinueWander() {
+    if (!canInterfereWithWander()) {
+      return false;
+    }
+    directionInterferenceHeldTicks = LATERAL_INTERFERENCE_HOLD_TICKS;
+    registerInterference();
+    lastForwardWanderInputTick = player.level().getGameTime();
+    if (promptedWanderTicks > 0) {
+      // This custom, prompted goal has a duration; forward input renews it instead of
+      // introducing a second forced REST rule over the native path-completion behavior.
+      promptedWanderTicks = promptedWanderDurationTicks;
+      promptedWanderLegs = Math.max(1, promptedWanderLegs);
+    }
+    beginWanderSearch();
+    return true;
   }
 
   private boolean canUsePromptedWander() {
@@ -365,15 +365,14 @@ final class InstinctController {
         intervention.forwardWanderDurationMaxTicks()
             - intervention.forwardWanderDurationMinTicks()
             + 1;
-    promptedWanderTicks =
+    promptedWanderDurationTicks =
         intervention.forwardWanderDurationMinTicks() + shadow.getRandom().nextInt(durationRange);
+    promptedWanderTicks = promptedWanderDurationTicks;
     promptedWanderLegs =
         PROMPTED_WANDER_MIN_LEGS
             + shadow.getRandom().nextInt(PROMPTED_WANDER_MAX_LEGS - PROMPTED_WANDER_MIN_LEGS + 1);
     promptedWanderAnchor = player.position();
     promptedWanderYaw = Mth.wrapDegrees(headingYaw);
-    lastPathIntentYaw = promptedWanderYaw;
-    directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
   }
 
   private void cancelPromptedWanderIfOverridden() {
@@ -387,8 +386,10 @@ final class InstinctController {
 
   private void clearPromptedWander() {
     promptedWanderTicks = 0;
+    promptedWanderDurationTicks = 0;
     promptedWanderLegs = 0;
     promptedWanderAnchor = null;
+    clearWanderSearch();
     if (promptedWanderGoal != null) {
       promptedWanderGoal.clearDestination();
     }
@@ -403,66 +404,93 @@ final class InstinctController {
         bodyYaw + Mth.clamp(offset, -MAX_CLIENT_VIEW_YAW_OFFSET, MAX_CLIENT_VIEW_YAW_OFFSET));
   }
 
-  private void setDirectionIntent(float yaw) {
-    boolean wasInactive = !hasDirectionIntent();
-    directionIntentYaw = Mth.wrapDegrees(yaw);
-    directionIntentTicks = DIRECTION_INTENT_HOLD_TICKS + DIRECTION_INTENT_FADE_TICKS;
-    if (wasInactive) {
-      directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
+  private float lateralTurnSpeed() {
+    return config.movement().quadrupedTurnSpeed();
+  }
+
+  /** Keeps packet bursts from turning faster than normal held lateral input. */
+  private boolean canApplyLateralTurn() {
+    long gameTime = player.level().getGameTime();
+    if (lastLateralTurnTick == gameTime) {
+      return false;
+    }
+    lastLateralTurnTick = gameTime;
+    return true;
+  }
+
+  private void beginWanderSearch() {
+    if (!hasWanderSearchDirection()) {
+      beginWanderSearch(Float.isFinite(nativeNavigationYaw) ? nativeNavigationYaw : bodyYaw);
     }
   }
 
-  private void steerDirectionIntent(float targetYaw) {
-    if (!hasDirectionIntent()) {
-      directionIntentYaw = bodyYaw;
-      directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
+  private void beginWanderSearch(float headingYaw) {
+    wanderSearchYaw = Mth.wrapDegrees(headingYaw);
+    wanderSearchActive = true;
+    wanderResearchTicks = WANDER_RESEARCH_INTERVAL_TICKS;
+  }
+
+  private void clearWanderSearch() {
+    wanderSearchYaw = Float.NaN;
+    wanderSearchActive = false;
+    wanderResearchTicks = 0;
+  }
+
+  private boolean hasWanderSearchDirection() {
+    return wanderSearchActive && Float.isFinite(wanderSearchYaw);
+  }
+
+  private void tickWanderResearch() {
+    if (!hasWanderSearchDirection() || !canInterfereWithWander() || !hasRecentWanderInput()) {
+      return;
     }
-    directionIntentYaw =
-        approachYaw(directionIntentYaw, targetYaw, MAX_DIRECTION_INTENT_TURN_DEGREES);
-    directionIntentTicks = DIRECTION_INTENT_HOLD_TICKS + DIRECTION_INTENT_FADE_TICKS;
-  }
-
-  private void rotateDirectionIntent(boolean left, float turnDegrees) {
-    if (!hasDirectionIntent()) {
-      directionIntentYaw = bodyYaw;
-      directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
+    Path currentPath = shadow.getNavigation().getPath();
+    if (currentPath == null || currentPath.isDone()) {
+      continueWanderAfterPathEnd();
+      return;
     }
-    directionIntentYaw = Mth.wrapDegrees(directionIntentYaw + (left ? -turnDegrees : turnDegrees));
-    directionIntentTicks = DIRECTION_INTENT_HOLD_TICKS + DIRECTION_INTENT_FADE_TICKS;
-  }
-
-  private boolean hasDirectionIntent() {
-    return directionIntentTicks > 0;
-  }
-
-  private float directionIntentStrength() {
-    if (directionIntentTicks <= DIRECTION_INTENT_FADE_TICKS) {
-      return directionIntentTicks / (float) DIRECTION_INTENT_FADE_TICKS;
+    if (wanderResearchTicks > 0) {
+      return;
     }
-    return 1.0F;
+    wanderResearchTicks = WANDER_RESEARCH_INTERVAL_TICKS;
+
+    Vec3 destination = directedWanderDestination(wanderSearchYaw, null);
+    if (destination == null) {
+      return;
+    }
+    Path candidatePath =
+        shadow.getNavigation().createPath(destination.x, destination.y, destination.z, 1);
+    if (candidatePath == null || candidatePath.isDone() || !candidatePath.canReach()) {
+      return;
+    }
+    shadow.getNavigation().moveTo(candidatePath, nativeWanderSpeedModifier);
   }
 
-  private float wanderDirectionYaw() {
-    return hasDirectionIntent() ? directionIntentYaw : bodyYaw;
+  /** A path-completion-based native stroll needs a fresh normal-range route to continue. */
+  private void continueWanderAfterPathEnd() {
+    Vec3 destination = directedWanderDestination(wanderSearchYaw, null);
+    if (destination == null) {
+      clearWanderSearch();
+      return;
+    }
+    Path nextPath =
+        shadow.getNavigation().createPath(destination.x, destination.y, destination.z, 1);
+    if (nextPath == null || nextPath.isDone() || !nextPath.canReach()) {
+      clearWanderSearch();
+      return;
+    }
+    shadow.getNavigation().moveTo(nextPath, nativeWanderSpeedModifier);
+    wanderResearchTicks = WANDER_RESEARCH_INTERVAL_TICKS;
   }
 
-  private void clearDirectionIntent() {
-    directionIntentTicks = 0;
-    directionIntentYaw = bodyYaw;
-    lastPathIntentYaw = bodyYaw;
-  }
-
-  private static float approachYaw(float currentYaw, float targetYaw, float maximumChange) {
-    return Mth.wrapDegrees(
-        currentYaw
-            + Mth.clamp(Mth.wrapDegrees(targetYaw - currentYaw), -maximumChange, maximumChange));
-  }
-
-  private float randomLateralTurnDegrees() {
-    return Mth.lerp(
-        shadow.getRandom().nextFloat(),
-        LATERAL_INTERFERENCE_MIN_TURN_DEGREES,
-        LATERAL_INTERFERENCE_MAX_TURN_DEGREES);
+  private boolean hasRecentWanderInput() {
+    if (lastForwardWanderInputTick == Long.MIN_VALUE
+        && lastLateralWanderInputTick == Long.MIN_VALUE) {
+      return false;
+    }
+    long gameTime = player.level().getGameTime();
+    return gameTime - Math.max(lastForwardWanderInputTick, lastLateralWanderInputTick)
+        <= WANDER_INPUT_MEMORY_TICKS;
   }
 
   private float adjustedControlChance(float chance) {
@@ -474,20 +502,6 @@ final class InstinctController {
     float awkwardness = MorphAwkwardness.get(player) / MorphAwkwardness.MAXIMUM;
     return Math.round(
         config.instinct().intervention().forwardWanderCooldownTicks()
-            * Mth.lerp(Math.clamp(awkwardness, 0.0F, 1.0F), 1.0F, 1.6F));
-  }
-
-  private int adjustedLateralInterferenceCooldown() {
-    float awkwardness = MorphAwkwardness.get(player) / MorphAwkwardness.MAXIMUM;
-    return Math.round(
-        LATERAL_INTERFERENCE_COOLDOWN_TICKS
-            * Mth.lerp(Math.clamp(awkwardness, 0.0F, 1.0F), 1.0F, 1.6F));
-  }
-
-  private int adjustedLateralInterferenceFailureCooldown() {
-    float awkwardness = MorphAwkwardness.get(player) / MorphAwkwardness.MAXIMUM;
-    return Math.round(
-        LATERAL_INTERFERENCE_FAILURE_COOLDOWN_TICKS
             * Mth.lerp(Math.clamp(awkwardness, 0.0F, 1.0F), 1.0F, 1.6F));
   }
 
@@ -524,6 +538,9 @@ final class InstinctController {
     updateFleeingState();
     updateHuntingState();
     selectAction();
+    refreshNativePreyTargetWhileWandering();
+    updateHuntingState();
+    selectAction();
     enforceActionBeforeAi();
     cancelPromptedWanderIfOverridden();
     syncFeedingGoals();
@@ -533,8 +550,7 @@ final class InstinctController {
     shadow.aiStep();
     updateRetaliationState();
     nativeMovement = capturedMovement;
-    bodyYaw = movementYaw();
-    player.setYBodyRot(bodyYaw);
+    nativeNavigationYaw = resolveNativeNavigationYaw();
     rabbitJumped = shadow instanceof Rabbit && shadowJumped;
     updateFleeingState();
     updateHuntingState();
@@ -546,9 +562,12 @@ final class InstinctController {
     performImmediateMeleeAttack();
     detectGardenEating(carrotTicksBefore);
     trackHuntPursuit();
-    updateStateAndControl();
+    tickWanderResearch();
+    updateState();
+    bodyYaw = movementYaw();
+    player.setYBodyRot(bodyYaw);
+    updateControl();
     tickEatingSound();
-    replanDirectionIntent();
   }
 
   boolean attack(ServerLevel level, Entity target) {
@@ -622,9 +641,6 @@ final class InstinctController {
     selectors
         .mobLife$getTargetSelector()
         .removeAllGoals(InstinctController::isPlayerIncompatibleGoal);
-    // Use vanilla AvoidEntityGoal rather than a player-specific distance scan. Its targeting
-    // conditions supply LOS/sensing and its pathing supplies the mob's normal flee movement.
-    InstinctThreats.installAvoidance(shadow, player, definition, config);
     int strollPriority = Integer.MAX_VALUE;
     double nativeStrollSpeed = 1.0;
     for (WrappedGoal wrapped :
@@ -659,14 +675,20 @@ final class InstinctController {
         if (wrapped.getPriority() < strollPriority) {
           strollPriority = wrapped.getPriority();
           nativeStrollSpeed = ((RandomStrollGoalAccessor) strollGoal).mobLife$getSpeedModifier();
+          nativeStrollGoal = strollGoal;
         }
-        selectors.mobLife$getGoalSelector().removeGoal(goal);
       }
     }
     if (strollPriority == Integer.MAX_VALUE) {
       strollPriority = 7;
     }
     nativeWanderSpeedModifier = nativeStrollSpeed;
+    selectors
+        .mobLife$getGoalSelector()
+        .addGoal(
+            Math.max(1, strollPriority - 1),
+            new WanderRestCooldownGoal(
+                () -> restWanderCooldown > 0 && action == InstinctAction.REST));
     promptedWanderGoal = new PromptedWanderGoal(shadow, nativeStrollSpeed);
     selectors
         .mobLife$getGoalSelector()
@@ -677,16 +699,6 @@ final class InstinctController {
           .addGoal(
               Math.max(1, strollPriority - 2), new HerdCohesionGoal(shadow, nativeStrollSpeed));
     }
-    selectors
-        .mobLife$getGoalSelector()
-        .addGoal(
-            strollPriority,
-            new GazeBiasedStrollGoal(
-                shadow,
-                this::wanderDirectionYaw,
-                this::directionIntentStrength,
-                config.instinct().wander(),
-                nativeStrollSpeed));
   }
 
   private void prepareShadow() {
@@ -778,6 +790,21 @@ final class InstinctController {
     }
   }
 
+  /**
+   * Lets a native prey target preempt a running stroll before the movement goal receives this tick.
+   * This is intentionally limited to WANDER with no target: target class, range, line of sight,
+   * taming checks, and all other admission rules remain those of the source mob's selector.
+   */
+  private void refreshNativePreyTargetWhileWandering() {
+    if (state != InstinctState.WANDER
+        || action != InstinctAction.WANDER
+        || !hunting
+        || shadow.getTarget() != null) {
+      return;
+    }
+    ((MobGoalSelectorAccessor) shadow).mobLife$getTargetSelector().tick();
+  }
+
   private void scanSenses() {
     MorphConfig.Senses senses = config.instinct().senses();
     List<LivingEntity> nearby =
@@ -838,7 +865,8 @@ final class InstinctController {
   }
 
   private void settleRestMovement() {
-    if (action != InstinctAction.REST || !shadow.onGround()) {
+    boolean groundedTransition = player.onGround() || shadow.onGround();
+    if (action != InstinctAction.REST || !groundedTransition) {
       return;
     }
     Vec3 shadowMovement = shadow.getDeltaMovement();
@@ -974,21 +1002,25 @@ final class InstinctController {
         : 0;
   }
 
-  private void updateStateAndControl() {
+  private void updateState() {
     InstinctState previousState = state;
     boolean previousPromptedWander = promptedWanderWasActive;
     state = determineState();
+    if (previousState == InstinctState.WANDER && state == InstinctState.REST) {
+      restWanderCooldown = REST_WANDER_COOLDOWN_TICKS;
+    }
     if (previousState == InstinctState.WANDER
         && state != InstinctState.WANDER
         && !previousPromptedWander) {
       forwardWanderCooldown = Math.max(forwardWanderCooldown, adjustedForwardWanderCooldown());
     }
-    if (state != InstinctState.REST
-        && state != InstinctState.LOOK
-        && state != InstinctState.WANDER) {
-      clearDirectionIntent();
+    if (state != InstinctState.WANDER && promptedWanderTicks <= 0) {
+      clearWanderSearch();
     }
     promptedWanderWasActive = isRunningGoal(PromptedWanderGoal.class);
+  }
+
+  private void updateControl() {
     Vec3 lookTarget = lookTarget();
     float targetYaw = bodyYaw;
     float targetPitch = player.getXRot();
@@ -1012,27 +1044,15 @@ final class InstinctController {
     }
 
     int eatTicks = state == InstinctState.EAT ? Math.max(1, instinctEatTicks()) : 0;
-    control = new Control(state, targetYaw, targetPitch, eatTicks, nativeMovement, rabbitJumped);
-  }
-
-  private void replanDirectionIntent() {
-    if (!canInterfereWithWander()
-        || !hasDirectionIntent()
-        || !shadow.getNavigation().isInProgress()
-        || directionReplanCooldown > 0
-        || Math.abs(Mth.wrapDegrees(directionIntentYaw - lastPathIntentYaw))
-            < MIN_DIRECTION_REPLAN_DEGREES) {
-      return;
-    }
-
-    Vec3 anchor = promptedWanderTicks > 0 ? promptedWanderAnchor : null;
-    Vec3 next = wanderDestination(directionIntentYaw, directionIntentStrength(), anchor);
-    Path path = next == null ? null : shadow.getNavigation().createPath(next.x, next.y, next.z, 1);
-    if (path != null) {
-      shadow.getNavigation().moveTo(path, nativeWanderSpeedModifier);
-      lastPathIntentYaw = directionIntentYaw;
-    }
-    directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
+    control =
+        new Control(
+            state,
+            targetYaw,
+            targetPitch,
+            eatTicks,
+            nativeMovement,
+            rabbitJumped,
+            canPlayerIntervene());
   }
 
   private float movementYaw() {
@@ -1041,6 +1061,48 @@ final class InstinctController {
       return shadow.getYRot();
     }
     return (float) (Mth.atan2(horizontal.z, horizontal.x) * Mth.RAD_TO_DEG) - 90.0F;
+  }
+
+  private float resolveNativeNavigationYaw() {
+    Path path = shadow.getNavigation().getPath();
+    if (path != null && !path.isDone()) {
+      float pathYaw = yawToward(path.getNextEntityPos(shadow));
+      if (Float.isFinite(pathYaw)) {
+        return pathYaw;
+      }
+    }
+
+    var moveControl = shadow.getMoveControl();
+    if (moveControl.hasWanted()) {
+      float moveControlYaw =
+          yawToward(
+              new Vec3(
+                  moveControl.getWantedX(), moveControl.getWantedY(), moveControl.getWantedZ()));
+      if (Float.isFinite(moveControlYaw)) {
+        return moveControlYaw;
+      }
+    }
+
+    Vec3 horizontalMovement = capturedMovement.multiply(1.0, 0.0, 1.0);
+    if (shadow.getNavigation().isInProgress()
+        && horizontalMovement.lengthSqr() >= MINIMUM_HORIZONTAL_MOVEMENT_SQR) {
+      return (float) (Mth.atan2(horizontalMovement.z, horizontalMovement.x) * Mth.RAD_TO_DEG)
+          - 90.0F;
+    }
+    return Float.NaN;
+  }
+
+  private float yawToward(Vec3 destination) {
+    if (!Double.isFinite(destination.x)
+        || !Double.isFinite(destination.y)
+        || !Double.isFinite(destination.z)) {
+      return Float.NaN;
+    }
+    Vec3 delta = destination.subtract(shadow.position()).multiply(1.0, 0.0, 1.0);
+    if (delta.lengthSqr() < MINIMUM_HORIZONTAL_MOVEMENT_SQR) {
+      return Float.NaN;
+    }
+    return (float) (Mth.atan2(delta.z, delta.x) * Mth.RAD_TO_DEG) - 90.0F;
   }
 
   private InstinctState determineState() {
@@ -1153,10 +1215,10 @@ final class InstinctController {
   private void stopMoving() {
     shadow.getNavigation().stop();
     clearPromptedWander();
-    clearDirectionIntent();
+    clearWanderSearch();
     state = InstinctState.REST;
     action = InstinctAction.REST;
-    control = new Control(state, bodyYaw, player.getXRot(), 0, Vec3.ZERO, false);
+    control = new Control(state, bodyYaw, player.getXRot(), 0, Vec3.ZERO, false, false);
   }
 
   private void tickCooldowns() {
@@ -1169,14 +1231,14 @@ final class InstinctController {
     }
     scentMemoryTicks = Math.max(0, scentMemoryTicks - 1);
     forwardWanderCooldown = Math.max(0, forwardWanderCooldown - 1);
-    promptedWanderTicks = Math.max(0, promptedWanderTicks - 1);
-    lateralInterferenceCooldown = Math.max(0, lateralInterferenceCooldown - 1);
+    restWanderCooldown = Math.max(0, restWanderCooldown - 1);
+    if (promptedWanderTicks > 0 && --promptedWanderTicks == 0) {
+      clearPromptedWander();
+    }
     lateralInterferenceHeldTicks = Math.max(0, lateralInterferenceHeldTicks - 1);
     directionInterferenceHeldTicks = Math.max(0, directionInterferenceHeldTicks - 1);
     interferencePauseTicks = Math.max(0, interferencePauseTicks - 1);
-    directionIntentTicks = Math.max(0, directionIntentTicks - 1);
-    directionReplanCooldown = Math.max(0, directionReplanCooldown - 1);
-    panicStartTicks = Math.max(0, panicStartTicks - 1);
+    wanderResearchTicks = Math.max(0, wanderResearchTicks - 1);
     panicEscapeSourceTicks = Math.max(0, panicEscapeSourceTicks - 1);
     retaliationStartTicks = Math.max(0, retaliationStartTicks - 1);
     if (panicEscapeSourceTicks == 0) {
@@ -1249,7 +1311,7 @@ final class InstinctController {
   }
 
   private boolean isFleeingThreat() {
-    return InstinctThreats.isFleeing(shadow, isPanicking());
+    return InstinctThreats.isFleeing(shadow);
   }
 
   private void performImmediateMeleeAttack() {
@@ -1328,7 +1390,8 @@ final class InstinctController {
       float targetPitch,
       int eatTicks,
       Vec3 nativeMovement,
-      boolean rabbitJumped) {}
+      boolean rabbitJumped,
+      boolean playerInterventionAllowed) {}
 
   private final class PromptedWanderGoal extends Goal {
     private final PathfinderMob mob;
@@ -1379,10 +1442,8 @@ final class InstinctController {
         mob.getNavigation().stop();
         return false;
       }
-      boolean hasDirectionIntent = hasDirectionIntent();
-      float headingYaw = hasDirectionIntent ? directionIntentYaw : promptedWanderYaw;
-      float intentStrength = hasDirectionIntent ? directionIntentStrength() : 0.0F;
-      Vec3 next = wanderDestination(headingYaw, intentStrength, promptedWanderAnchor);
+      float headingYaw = hasWanderSearchDirection() ? wanderSearchYaw : promptedWanderYaw;
+      Vec3 next = directedWanderDestination(headingYaw, promptedWanderAnchor);
       if (next == null) {
         clearPromptedWander();
         mob.getNavigation().stop();
@@ -1397,15 +1458,46 @@ final class InstinctController {
       promptedWanderLegs--;
       destination = next;
       mob.getNavigation().moveTo(path, speedModifier);
-      lastPathIntentYaw = headingYaw;
-      directionReplanCooldown = DIRECTION_REPLAN_INTERVAL_TICKS;
       return true;
     }
   }
 
-  private Vec3 wanderDestination(float headingYaw, float intentStrength, Vec3 anchor) {
-    return InstinctWandering.destination(
-        shadow, config.instinct().wander(), headingYaw, intentStrength, anchor);
+  private Vec3 directedWanderDestination(float headingYaw, Vec3 anchor) {
+    return InstinctWandering.directionalDestination(
+        shadow,
+        this::nativeStrollDestination,
+        headingYaw,
+        WANDER_SEARCH_CONE_DEGREES,
+        anchor,
+        NATIVE_STROLL_HORIZONTAL_RANGE);
+  }
+
+  private Vec3 nativeStrollDestination() {
+    if (nativeStrollGoal != null) {
+      return ((RandomStrollGoalAccessor) nativeStrollGoal).mobLife$getPosition();
+    }
+    return net.minecraft.world.entity.ai.util.DefaultRandomPos.getPos(
+        shadow, NATIVE_STROLL_HORIZONTAL_RANGE, NATIVE_STROLL_VERTICAL_RANGE);
+  }
+
+  /** Occupies MOVE briefly after REST so native random stroll cannot restart immediately. */
+  private static final class WanderRestCooldownGoal extends Goal {
+    private final java.util.function.BooleanSupplier active;
+
+    private WanderRestCooldownGoal(java.util.function.BooleanSupplier active) {
+      this.active = active;
+      setFlags(EnumSet.of(Flag.MOVE));
+    }
+
+    @Override
+    public boolean canUse() {
+      return active.getAsBoolean();
+    }
+
+    @Override
+    public boolean canContinueToUse() {
+      return active.getAsBoolean();
+    }
   }
 
   private final class HerdCohesionGoal extends Goal {

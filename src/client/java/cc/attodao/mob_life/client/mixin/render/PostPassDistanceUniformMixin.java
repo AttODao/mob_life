@@ -23,7 +23,6 @@ public abstract class PostPassDistanceUniformMixin {
   private static final int DISTANCE_BLUR_UBO_SIZE = 128;
   private static final float NEAR_PLANE = 0.05F;
   private static final float MIN_DISTANCE_EFFECT_START = 8.0F;
-  private static final float FALLBACK_CAMERA_FOV = 70.0F;
   private static final float PERIPHERAL_BLUR_MULTIPLIER = 16.0F;
 
   @Inject(method = "addToFrame", at = @At("HEAD"))
@@ -72,11 +71,6 @@ public abstract class PostPassDistanceUniformMixin {
             * PERIPHERAL_BLUR_MULTIPLIER
             * (1.0F - 0.25F * instinctStrength);
     float peripheralEdgeBrightness = 1.0F;
-    float cameraFov = client.gameRenderer.mainCamera().getFov();
-    if (cameraFov <= 0.0F) {
-      cameraFov = FALLBACK_CAMERA_FOV * vision.fieldOfViewMultiplier();
-    }
-    float tanHalfFov = (float) Math.tan(Math.toRadians(Mth.clamp(cameraFov, 30.0F, 150.0F) * 0.5F));
     try (MemoryStack stack = MemoryStack.stackPush()) {
       Std140Builder distanceBlurData =
           Std140Builder.onStack(stack, DISTANCE_BLUR_UBO_SIZE)
@@ -109,7 +103,11 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.blueResponse().green(),
                   vision.blueResponse().blue(),
                   instinctLevel)
-              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), tanHalfFov, 0.0F);
+              .putVec4(
+                  vision.peripheralStart(),
+                  vision.lowLightBrightness(),
+                  0.0F,
+                  ClientInstinctState.interventionBlockedVisualBlend());
       var encoder = RenderSystem.getDevice().createCommandEncoder();
       encoder.writeToBuffer(distanceBlur.slice(), distanceBlurData.get());
     }

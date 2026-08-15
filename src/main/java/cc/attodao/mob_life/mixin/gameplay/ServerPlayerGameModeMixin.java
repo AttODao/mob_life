@@ -105,7 +105,7 @@ public abstract class ServerPlayerGameModeMixin {
       ItemStack itemStack,
       InteractionHand hand,
       CallbackInfoReturnable<InteractionResult> cir) {
-    InstinctManager.recordActivity(player);
+    InstinctManager.recordPotentialGuiActivity(player);
     if (InstinctManager.isEnabled(player)) {
       cir.setReturnValue(InteractionResult.FAIL);
     }

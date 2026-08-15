@@ -30,7 +30,6 @@ out vec4 fragColor;
 const vec3 LUMINANCE_RESPONSE = vec3(0.2126, 0.7152, 0.0722);
 const vec3 INSTINCT_GLOBAL_TINT = vec3(1.42, 0.93, 0.48);
 const vec3 INSTINCT_EDGE_TINT = vec3(1.35, 0.68, 0.14);
-
 float peripheralAmount() {
     vec2 edgePosition = abs(texCoord * 2.0 - 1.0);
     float roundedEdgeDistance = pow(
@@ -158,6 +157,7 @@ void main() {
     float instinctStrength = clamp(DynamicGreenResponse.w, 0.0, 1.0);
     float instinctLevel = clamp(DynamicBlueResponse.w, 0.0, 1.0);
     float instinctColorStrength = instinctStrength * instinctLevel;
+    float interventionBlocked = clamp(VisionBehavior.w, 0.0, 1.0);
     if (Mode.x < 0.5) {
         float peripheral = peripheralAmount();
         sourceColor.rgb = samplePeripheralBlur(
@@ -212,9 +212,17 @@ void main() {
             / transformedLuminance;
         float instinctFrame = instinctFrameAmount() * instinctColorStrength;
         vec3 globalInstinctColor = tintPreservingLuminance(baseVisionColor, INSTINCT_GLOBAL_TINT);
-        baseVisionColor = mix(baseVisionColor, globalInstinctColor, instinctColorStrength * 0.40);
+        baseVisionColor = mix(
+            baseVisionColor,
+            globalInstinctColor,
+            instinctColorStrength * (0.40 + interventionBlocked * 0.04)
+        );
         vec3 edgeInstinctColor = tintPreservingLuminance(baseVisionColor, INSTINCT_EDGE_TINT);
-        baseVisionColor = mix(baseVisionColor, edgeInstinctColor, instinctFrame * 0.72);
+        baseVisionColor = mix(
+            baseVisionColor,
+            edgeInstinctColor,
+            instinctFrame * (0.72 + interventionBlocked * 0.16)
+        );
         fragColor = vec4(
             clamp(baseVisionColor, 0.0, 1.0),
             sourceColor.a
@@ -234,7 +242,9 @@ void main() {
         ? 0.0
         : smoothstep(Parameters.x, Parameters.w, fragmentDistance);
     float hasWorldDepth = step(0.00001, depth);
-    vec3 sourceRgb = sampleDistanceBlur(blurAmount * (1.0 - 0.15 * instinctStrength));
+    vec3 sourceRgb = sampleDistanceBlur(
+        blurAmount * (1.0 - 0.15 * instinctStrength)
+    );
     float blurredLuminance = dot(sourceRgb, LUMINANCE_RESPONSE);
     float lightSensitivity = lowLightSensitivity()
         * hasWorldDepth

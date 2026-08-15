@@ -49,6 +49,8 @@ public final class MobLifeNetworking {
         .register(InstinctEscapeInputPayload.TYPE, InstinctEscapeInputPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(InstinctInterventionPayload.TYPE, InstinctInterventionPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(ClientGuiStatePayload.TYPE, ClientGuiStatePayload.CODEC);
     ServerPlayNetworking.registerGlobalReceiver(
         ChargedJumpPayload.TYPE,
         (payload, context) -> {
@@ -109,6 +111,12 @@ public final class MobLifeNetworking {
                     () ->
                         InstinctManager.intervene(
                             context.player(), payload.flags(), payload.viewYaw())));
+    ServerPlayNetworking.registerGlobalReceiver(
+        ClientGuiStatePayload.TYPE,
+        (payload, context) ->
+            context
+                .server()
+                .execute(() -> InstinctManager.setClientGuiOpen(context.player(), payload.open())));
   }
 
   public record WorldMorphSelectionPromptPayload(List<MorphConfigEntry> configs)
@@ -401,6 +409,23 @@ public final class MobLifeNetworking {
     }
   }
 
+  /**
+   * Mirrors client-only screens so server-owned idle timing can pause without blocking forced AI.
+   */
+  public record ClientGuiStatePayload(boolean open) implements CustomPacketPayload {
+    public static final Type<ClientGuiStatePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "client_gui_state"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ClientGuiStatePayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> buffer.writeBoolean(payload.open()),
+            buffer -> new ClientGuiStatePayload(buffer.readBoolean()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
   public record InstinctControlPayload(
       boolean enabled,
       int state,
@@ -408,6 +433,7 @@ public final class MobLifeNetworking {
       float targetPitch,
       int eatTicks,
       float instinctLevel,
+      boolean playerInterventionAllowed,
       float movementX,
       float movementY,
       float movementZ)
@@ -423,6 +449,7 @@ public final class MobLifeNetworking {
               buffer.writeFloat(payload.targetPitch());
               buffer.writeVarInt(payload.eatTicks());
               buffer.writeFloat(payload.instinctLevel());
+              buffer.writeBoolean(payload.playerInterventionAllowed());
               buffer.writeFloat(payload.movementX());
               buffer.writeFloat(payload.movementY());
               buffer.writeFloat(payload.movementZ());
@@ -435,6 +462,7 @@ public final class MobLifeNetworking {
                     buffer.readFloat(),
                     buffer.readVarInt(),
                     buffer.readFloat(),
+                    buffer.readBoolean(),
                     buffer.readFloat(),
                     buffer.readFloat(),
                     buffer.readFloat()));

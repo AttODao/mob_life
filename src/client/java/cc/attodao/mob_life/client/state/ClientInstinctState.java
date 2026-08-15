@@ -2,6 +2,7 @@ package cc.attodao.mob_life.client.state;
 
 import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
+import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -10,9 +11,13 @@ import net.minecraft.world.phys.Vec3;
 
 public final class ClientInstinctState {
   private static final int VISUAL_TRANSITION_TICKS = 10;
+  private static final int INTERVENTION_VISUAL_TRANSITION_TICKS = 5;
   private static final float MAX_YAW_CHANGE = 4.0F;
   private static final float MAX_PITCH_CHANGE = 3.0F;
   private static final float MAX_BODY_YAW_CHANGE = 3.0F;
+  private static final float RABBIT_MAX_BODY_YAW_CHANGE = 6.0F;
+  private static final float RABBIT_LOCKED_VIEW_MAX_YAW_CHANGE = 8.0F;
+  private static final float RABBIT_LOCKED_VIEW_MAX_PITCH_CHANGE = 6.0F;
   private static final float BODY_YAW_DEAD_ZONE = 0.35F;
   private static final float LOCKED_VIEW_MAX_YAW_OFFSET = 14.0F;
   private static final float LOCKED_VIEW_MAX_PITCH_OFFSET = 10.0F;
@@ -40,6 +45,8 @@ public final class ClientInstinctState {
   private static Vec3 nativeMovement = Vec3.ZERO;
   private static float visualBlend;
   private static float instinctLevel = InstinctManager.MAXIMUM_LEVEL;
+  private static boolean playerInterventionAllowed;
+  private static float interventionBlockedVisualBlend;
 
   private ClientInstinctState() {}
 
@@ -61,8 +68,9 @@ public final class ClientInstinctState {
         Float.isFinite(payload.instinctLevel())
             ? Mth.clamp(payload.instinctLevel(), 0.0F, InstinctManager.MAXIMUM_LEVEL)
             : InstinctManager.MAXIMUM_LEVEL;
-    nativeMovement = new Vec3(payload.movementX(), payload.movementY(), payload.movementZ());
+    playerInterventionAllowed = payload.playerInterventionAllowed();
     Minecraft client = Minecraft.getInstance();
+    nativeMovement = new Vec3(payload.movementX(), payload.movementY(), payload.movementZ());
     if (enabled && !wasEnabled) {
       heldEscapeInputs = currentHeldEscapeInputs(client);
       pendingEscapeInputs = 0;
@@ -75,13 +83,14 @@ public final class ClientInstinctState {
       heldEscapeInputs = 0;
       pendingEscapeInputs = 0;
       nativeMovement = Vec3.ZERO;
+      playerInterventionAllowed = false;
     }
 
     LocalPlayer player = client.player;
     if (player != null) {
       if (enabled && !wasEnabled) {
         selectedSlot = player.getInventory().getSelectedSlot();
-        bodyYaw = payload.targetYaw();
+        bodyYaw = isRabbitMorph() ? player.getYRot() : payload.targetYaw();
         viewYawOffset =
             Mth.clamp(
                 Mth.wrapDegrees(player.getYRot() - bodyYaw),
@@ -108,16 +117,16 @@ public final class ClientInstinctState {
     return enabled && state.locksView();
   }
 
-  public static boolean isWandering() {
-    return enabled && state == InstinctState.WANDER;
-  }
-
   public static float visualBlend() {
     return visualBlend;
   }
 
   public static float instinctLevelRatio() {
     return Mth.clamp(instinctLevel / InstinctManager.MAXIMUM_LEVEL, 0.0F, 1.0F);
+  }
+
+  public static float interventionBlockedVisualBlend() {
+    return interventionBlockedVisualBlend;
   }
 
   public static void recordEscapeAction(int input, boolean held, boolean pressed) {
@@ -150,13 +159,13 @@ public final class ClientInstinctState {
   }
 
   public static void recordMovement(boolean forward, boolean left, boolean right) {
-    if (!enabled) {
+    if (!enabled || !playerInterventionAllowed) {
       return;
     }
-    if (forward && (state.acceptsForward() || isWandering())) {
+    if (forward) {
       pendingInterventions |= InstinctManager.INTERVENE_FORWARD;
     }
-    if ((state == InstinctState.REST || isWandering()) && left != right) {
+    if (left != right) {
       pendingInterventions |=
           left ? InstinctManager.INTERVENE_LEFT : InstinctManager.INTERVENE_RIGHT;
     }
@@ -189,7 +198,7 @@ public final class ClientInstinctState {
     }
 
     if (!viewInitialized) {
-      bodyYaw = desiredYaw;
+      bodyYaw = isRabbitMorph() ? player.getYRot() : desiredYaw;
       viewYawOffset =
           Mth.clamp(
               Mth.wrapDegrees(player.getYRot() - bodyYaw),
@@ -199,7 +208,9 @@ public final class ClientInstinctState {
       viewInitialized = true;
     }
     float frameTicks = (float) Math.clamp(frameTime * 20.0, 0.0, 3.0);
-    bodyYaw = approachBodyYaw(bodyYaw, desiredYaw, MAX_BODY_YAW_CHANGE * frameTicks);
+    float bodyYawChange =
+        (isRabbitMorph() ? RABBIT_MAX_BODY_YAW_CHANGE : MAX_BODY_YAW_CHANGE) * frameTicks;
+    bodyYaw = approachBodyYaw(bodyYaw, desiredYaw, bodyYawChange);
 
     float yaw;
     float pitch;
@@ -223,6 +234,13 @@ public final class ClientInstinctState {
       pendingViewPitchInput = 0.0F;
       yaw = Mth.wrapDegrees(bodyYaw + viewYawOffset);
       pitch = viewPitch;
+    } else if (isRabbitMorph()) {
+      yaw =
+          approachYaw(player.getYRot(), desiredYaw, RABBIT_LOCKED_VIEW_MAX_YAW_CHANGE * frameTicks);
+      pitch =
+          approachPitch(
+              player.getXRot(), desiredPitch, RABBIT_LOCKED_VIEW_MAX_PITCH_CHANGE * frameTicks);
+      viewPitch = pitch;
     } else {
       yaw =
           player.getYRot()
@@ -263,6 +281,14 @@ public final class ClientInstinctState {
         targetBlend > visualBlend
             ? Math.min(targetBlend, visualBlend + step)
             : Math.max(targetBlend, visualBlend - step);
+    float interventionStep = 1.0F / INTERVENTION_VISUAL_TRANSITION_TICKS;
+    float targetInterventionBlockedBlend = enabled && !playerInterventionAllowed ? 1.0F : 0.0F;
+    interventionBlockedVisualBlend =
+        targetInterventionBlockedBlend > interventionBlockedVisualBlend
+            ? Math.min(
+                targetInterventionBlockedBlend, interventionBlockedVisualBlend + interventionStep)
+            : Math.max(
+                targetInterventionBlockedBlend, interventionBlockedVisualBlend - interventionStep);
     if (client.player == null || client.isPaused()) {
       return;
     }
@@ -292,6 +318,8 @@ public final class ClientInstinctState {
     nativeMovement = Vec3.ZERO;
     visualBlend = 0.0F;
     instinctLevel = InstinctManager.MAXIMUM_LEVEL;
+    playerInterventionAllowed = false;
+    interventionBlockedVisualBlend = 0.0F;
   }
 
   private static float perFrameResponse(float perTickResponse, float frameTicks) {
@@ -304,6 +332,23 @@ public final class ClientInstinctState {
       return currentYaw;
     }
     return Mth.wrapDegrees(currentYaw + Mth.clamp(difference, -maximumChange, maximumChange));
+  }
+
+  private static float approachYaw(float currentYaw, float targetYaw, float maximumChange) {
+    return Mth.wrapDegrees(
+        currentYaw
+            + Mth.clamp(Mth.wrapDegrees(targetYaw - currentYaw), -maximumChange, maximumChange));
+  }
+
+  private static float approachPitch(float currentPitch, float targetPitch, float maximumChange) {
+    return Mth.clamp(
+        currentPitch + Mth.clamp(targetPitch - currentPitch, -maximumChange, maximumChange),
+        -90.0F,
+        90.0F);
+  }
+
+  private static boolean isRabbitMorph() {
+    return ClientMorphState.morph() == MorphType.RABBIT;
   }
 
   private static int currentHeldEscapeInputs(Minecraft client) {

@@ -179,8 +179,33 @@ public final class InstinctManager {
 
   public static void recordActivity(ServerPlayer player) {
     if (ServerMorphManager.hasMobForm() && !isEnabled(player)) {
-      transition(player).recordActivity(player.tickCount);
+      TransitionState transition = transition(player);
+      transition.recordActivity(player.tickCount, transition.isGuiOpen(player));
     }
+  }
+
+  /**
+   * Marks a use action that may resolve into a GUI without prematurely discarding idle progress.
+   */
+  public static void recordPotentialGuiActivity(ServerPlayer player) {
+    if (ServerMorphManager.hasMobForm() && !isEnabled(player)) {
+      TransitionState transition = transition(player);
+      transition.recordPotentialGuiActivity(player.tickCount, transition.isGuiOpen(player));
+    }
+  }
+
+  /** Called by the server menu path after an interaction has actually opened a container. */
+  public static void openedServerContainer(ServerPlayer player) {
+    transition(player).openedServerContainer(player.tickCount);
+  }
+
+  /** Receives the state of client-only screens such as inventory and Mod Menu. */
+  public static void setClientGuiOpen(ServerPlayer player, boolean open) {
+    transition(player).setClientGuiOpen(player.tickCount, open);
+  }
+
+  public static boolean isGuiOpen(ServerPlayer player) {
+    return transition(player).isGuiOpen(player);
   }
 
   public static void forget(ServerPlayer player) {
@@ -342,6 +367,7 @@ public final class InstinctManager {
             player.getXRot(),
             0,
             finalInstinctLevel,
+            false,
             0.0F,
             0.0F,
             0.0F));
@@ -490,6 +516,7 @@ public final class InstinctManager {
             control.targetPitch(),
             control.eatTicks(),
             transition(controller.player()).instinctLevel(),
+            control.playerInterventionAllowed(),
             (float) control.nativeMovement().x,
             (float) control.nativeMovement().y,
             (float) control.nativeMovement().z));
@@ -522,6 +549,8 @@ public final class InstinctManager {
   }
 
   private static final class TransitionState {
+    private static final int GUI_OPEN_CONFIRMATION_TICKS = 10;
+
     private int idleTicks;
     private float instinctLevel = MAXIMUM_LEVEL;
     private int lastEscapeInputTick = Integer.MIN_VALUE;
@@ -533,6 +562,10 @@ public final class InstinctManager {
     private float lastYaw;
     private float lastPitch;
     private int lastActivityTick = Integer.MIN_VALUE;
+    private int idleTicksBeforeLastActivity;
+    private boolean clientGuiOpen;
+    private int pendingGuiActivityIdleTicks = -1;
+    private int pendingGuiActivityExpiryTick = Integer.MIN_VALUE;
 
     void observeActivity(ServerPlayer player) {
       Input input = player.getLastClientInput();
@@ -549,19 +582,53 @@ public final class InstinctManager {
               && (Math.abs(Mth.wrapDegrees(player.getYRot() - lastYaw)) > ACTIVITY_ROTATION_EPSILON
                   || Math.abs(player.getXRot() - lastPitch) > ACTIVITY_ROTATION_EPSILON);
       if (inputActive || viewChanged) {
-        recordActivity(player.tickCount);
+        recordActivity(player.tickCount, isGuiOpen(player));
       }
       activityInitialized = true;
       lastYaw = player.getYRot();
       lastPitch = player.getXRot();
     }
 
-    void recordActivity(int tick) {
+    void recordActivity(int tick, boolean guiOpen) {
+      if (guiOpen) {
+        return;
+      }
+      idleTicksBeforeLastActivity = idleTicks;
       lastActivityTick = tick;
       idleTicks = 0;
     }
 
+    void recordPotentialGuiActivity(int tick, boolean guiOpen) {
+      if (!guiOpen) {
+        pendingGuiActivityIdleTicks = idleTicks;
+        pendingGuiActivityExpiryTick = tick + GUI_OPEN_CONFIRMATION_TICKS;
+      }
+      recordActivity(tick, guiOpen);
+    }
+
+    void openedServerContainer(int tick) {
+      if (lastActivityTick == tick) {
+        idleTicks = idleTicksBeforeLastActivity;
+        lastActivityTick = Integer.MIN_VALUE;
+      }
+      restoreIdleForConfirmedGui(tick);
+    }
+
+    void setClientGuiOpen(int tick, boolean open) {
+      if (open && !clientGuiOpen) {
+        restoreIdleForConfirmedGui(tick);
+      }
+      clientGuiOpen = open;
+    }
+
+    boolean isGuiOpen(ServerPlayer player) {
+      return clientGuiOpen || player.hasContainerOpen();
+    }
+
     boolean advanceIdle(ServerPlayer player) {
+      if (isGuiOpen(player)) {
+        return false;
+      }
       if (lastActivityTick == player.tickCount) {
         idleTicks = 0;
         return false;
@@ -596,11 +663,13 @@ public final class InstinctManager {
 
     void resetForEntry() {
       idleTicks = 0;
+      clearGuiActivityCandidate();
       resetInstinctLevel();
     }
 
     void resetForExit() {
       idleTicks = 0;
+      clearGuiActivityCandidate();
       resetInstinctLevel();
     }
 
@@ -608,6 +677,19 @@ public final class InstinctManager {
       instinctLevel = MAXIMUM_LEVEL;
       lastEscapeInputTick = Integer.MIN_VALUE;
       acceptedEscapeInputs = 0;
+    }
+
+    private void restoreIdleForConfirmedGui(int tick) {
+      if (pendingGuiActivityIdleTicks >= 0 && tick <= pendingGuiActivityExpiryTick) {
+        idleTicks = pendingGuiActivityIdleTicks;
+        lastActivityTick = Integer.MIN_VALUE;
+      }
+      clearGuiActivityCandidate();
+    }
+
+    private void clearGuiActivityCandidate() {
+      pendingGuiActivityIdleTicks = -1;
+      pendingGuiActivityExpiryTick = Integer.MIN_VALUE;
     }
 
     boolean predatorNearby() {

@@ -72,6 +72,7 @@ public final class ServerMorphManager {
   private static final float EMPTY_INVENTORY_DECAY_MULTIPLIER = 5.0F;
   private static final float ITEM_DECAY_SCALE = 16.0F;
   private static final float SAME_MOB_DECAY_PER_SECOND = 1.0F;
+  private static final float GUI_AWKWARDNESS_GAIN_PER_SECOND = 2.0F;
   private static final float NON_FORWARD_MOVEMENT_GAIN = 0.04F;
   private static final float NORMAL_AWKWARDNESS_GAIN_MULTIPLIER = 2.0F;
   private static final float CRITICAL_HUNGER_AWKWARDNESS_GAIN_MULTIPLIER = 2.0F;
@@ -653,6 +654,7 @@ public final class ServerMorphManager {
     PlayerMorphRuntimeState runtimeState = runtimeState(player);
     if (InstinctManager.isEnabled(player)) {
       runtimeState.rabbitHopCooldown = 0;
+      runtimeState.rabbitHopGroundedKnown = false;
       if (InstinctManager.rabbitJumped(player)) {
         player
             .level()
@@ -661,15 +663,21 @@ public final class ServerMorphManager {
       return;
     }
 
-    int cooldown = Math.max(0, runtimeState.rabbitHopCooldown - 1);
-    runtimeState.rabbitHopCooldown = cooldown;
-
     Input input = player.getLastClientInput();
     boolean moving = hasMovementInput(input);
     boolean jumping = input.jump();
     boolean groundedOnLand = player.onGround() && !player.isInWater() && !player.isInLava();
+    boolean wasGrounded =
+        runtimeState.rabbitHopGroundedKnown ? runtimeState.rabbitHopGrounded : groundedOnLand;
+    if (groundedOnLand && !wasGrounded) {
+      runtimeState.rabbitHopCooldown = RabbitHopMovement.landingCooldown(player, input);
+    } else if (runtimeState.rabbitHopCooldown > 0) {
+      runtimeState.rabbitHopCooldown--;
+    }
+    runtimeState.rabbitHopGrounded = groundedOnLand;
+    runtimeState.rabbitHopGroundedKnown = true;
     if ((!moving && !jumping)
-        || cooldown > 0
+        || runtimeState.rabbitHopCooldown > 0
         || !groundedOnLand
         || player.isPassenger()
         || player.getAbilities().flying) {
@@ -677,7 +685,6 @@ public final class ServerMorphManager {
     }
 
     RabbitHopMovement.launch(player, input);
-    runtimeState.rabbitHopCooldown = RabbitHopMovement.cooldown(player, input);
     player
         .level()
         .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
@@ -796,6 +803,9 @@ public final class ServerMorphManager {
     }
 
     if (player.tickCount % 20 == 0) {
+      if (InstinctManager.isGuiOpen(player)) {
+        delta += GUI_AWKWARDNESS_GAIN_PER_SECOND;
+      }
       if (instinct && !InstinctManager.pausesAwkwardnessDecay(player)) {
         delta -= PASSIVE_DECAY_PER_SECOND * passiveDecayMultiplier(player);
         if (hasNearbySameMob(player)) {
@@ -805,6 +815,9 @@ public final class ServerMorphManager {
         }
       }
       delta += MorphAwkwardnessBehavior.threatGainPerSecond(player, activeMorph());
+      delta +=
+          MorphAwkwardnessBehavior.unfavorableLightGainPerSecond(
+              player, activeConfig().sleep().schedule());
     }
 
     if (delta != 0.0F) {

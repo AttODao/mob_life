@@ -21,7 +21,10 @@ public abstract class AvoidEntityGoalMixin {
 
   @Shadow @Nullable protected LivingEntity toAvoid;
 
-  @Inject(method = "canUse", at = @At("RETURN"), cancellable = true)
+  @Inject(
+      method = {"canUse", "canContinueToUse"},
+      at = @At("RETURN"),
+      cancellable = true)
   private void mobLife$doNotFleeFromPreyMorph(CallbackInfoReturnable<Boolean> cir) {
     MorphType morph = ServerMorphManager.activeMorph();
     if (!cir.getReturnValue()) {

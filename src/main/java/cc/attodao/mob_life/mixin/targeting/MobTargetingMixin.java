@@ -45,7 +45,7 @@ public abstract class MobTargetingMixin {
       cir.setReturnValue(false);
       return;
     }
-    if ((predator || mob instanceof Enemy)
+    if ((!predator && mob instanceof Enemy)
         && !MorphPredation.isWithinMorphDetectionRange(mob, player, morph)) {
       cir.setReturnValue(false);
     }

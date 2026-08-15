@@ -56,10 +56,10 @@
   for rest, wandering, fleeing, hunting, melee attacks, grass eating, and
   rabbit garden raids, then transfers its native movement vector to the player.
   Only forward, lateral, and view input can intervene in the states that allow
-  them: forward captures the camera direction for a local wander or an active
-  wander's direction intent, and lateral input probabilistically turns that
-  intent or the resting body's direction. Keyboard and Controllify controller
-  input use the same intervention path. The mode does not display a text overlay
+  them: forward makes a chance-based local wander request from rest or continues
+  an active wander, while lateral input immediately turns the resting body or
+  active wander search direction. Keyboard and Controllify controller input use
+  the same intervention path. The mode does not display a text overlay
   or crosshair. Its visual effect is active for the whole mode;
   per-morph data packs can disable it or scale its intensity with
   `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`. It
@@ -124,13 +124,20 @@
   instinct mode, so reconnect persistence and exit eligibility remain correct.
 - A configured predator that acquires the transformed player with its existing
   target goal forcibly enters the player into instinct mode and the shadow mob
-  runs its avoidance goal. Predator detection begins at awkwardness 30 with a
+  continues to run only its own native panic and avoidance goals. Predator detection begins at
+  awkwardness 30 with a
   zero-block range, grows linearly, and reaches the predator's vanilla
   `FOLLOW_RANGE` at awkwardness 70; it is capped at that native range above 70.
-  The compatibility target goal retains vanilla LOS, sensing, `canAttack`,
-  randomized acquisition interval, tame filtering, and target memory. The same
-  scaled range predicate gates the shadow's flee goal, while
-  `instinct.senses.predator_range` remains only the bounded candidate-scan cap.
+  The compatibility target goal retains each predator's vanilla LOS, sensing,
+  `canAttack`, follow range, randomized acquisition interval, tame filtering,
+  and target memory. Configured predators therefore attack a matching morph as
+  native prey; the scaled range predicate is used only for forced instinct
+  entry. A configured relationship does not add a common fallback flee goal:
+  native goal priority, range, speeds, and continuation conditions determine
+  whether the source mob actually flees.
+- Foxes treat a rabbit-form player as native rabbit prey after the compatibility
+  target goal selects it: an existing player-avoid goal ends, then the native
+  Fox stalk, pounce, and melee goals run normally.
 - Nearby living-entity scans are shared for up to 5 ticks by instinct sensing,
   forced hunting, outlines, predator acquisition, and nearby-same-mob decay.
 - Instinct mode is the sole ordinary way to reduce awkwardness. A valid forward
@@ -139,6 +146,10 @@
   forward or left/right direction-interference key is held, decay is paused
   whether its probability roll or path generation succeeds. No intervention adds
   awkwardness.
+- While any client GUI is open, Idle Instinct's accumulated wait time is frozen
+  without being reset. Forced predator, damage, hunger, and maximum-awkwardness
+  entry checks continue normally. The GUI adds 2 awkwardness per second through
+  the ordinary gain path, so critical hunger doubles that amount to 4.
 - At or below 30% of the form's maximum food, every awkwardness gain is doubled
   and passive plus nearby-same-mob decay are halved. The threshold is shared
   with hunger-forced instinct entry and critical-hunger hunting.
@@ -152,6 +163,10 @@
 - Cat, ocelot, and wolf forms are nocturnal but are never forced to sleep or
   wake. Their sleep on soft surfaces or in beds is allowed during daytime and
   is rejected at night.
+- Every second, a nocturnal form gains 0.2 awkwardness at local raw light level 8 or above,
+  while a diurnal form gains 0.2 at local raw light level 0 through 7. The schedule's `day`
+  value denotes nocturnal and `normal` denotes diurnal; `never` has no circadian gain. Critical
+  hunger applies the normal 2x awkwardness gain multiplier to this environmental gain.
 
 - Each player has a persisted and client-synchronized awkwardness value from
   0 to 100. It resets to 0 on respawn.

@@ -4,6 +4,7 @@ import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
+import net.minecraft.world.entity.animal.fox.Fox;
 
 /**
  * Lets vanilla target selection discover a transformed player. The parent goal owns targeting
@@ -16,7 +17,7 @@ public final class MorphPredatorTargetGoal extends NearestAttackableTargetGoal<S
         mob,
         ServerPlayer.class,
         10,
-        true,
+        !(mob instanceof Fox),
         false,
         (target, level) ->
             target instanceof ServerPlayer player && MorphPredation.isEligibleTarget(mob, player));

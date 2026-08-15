@@ -33,7 +33,8 @@ public final class RabbitHopMovement {
     player.moveRelative(horizontalSpeed, new Vec3(sideways, 0.0, forward));
   }
 
-  public static int cooldown(Player player, Input input) {
+  /** Matches Rabbit's native 10-tick normal and 3-tick fast landing delays. */
+  public static int landingCooldown(Player player, Input input) {
     MorphConfig.RabbitHop config = config(player);
     if (input.shift()) {
       return config.sneakCooldown();

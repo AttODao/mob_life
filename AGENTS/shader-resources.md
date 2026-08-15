@@ -59,3 +59,5 @@
   changes, avoiding an abrupt shader transition.
   `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`
   (`0.0` to `1.0`) control this per morph.
+- The synchronized server-side intervention admission state smoothly increases
+  that existing amber fringe while intervention is unavailable.

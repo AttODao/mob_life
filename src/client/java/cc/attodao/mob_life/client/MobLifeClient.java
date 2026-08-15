@@ -35,6 +35,7 @@ public final class MobLifeClient implements ClientModInitializer {
               InputConstants.Type.KEYSYM,
               GLFW.GLFW_KEY_N,
               KeyMapping.Category.GAMEPLAY));
+  private static Boolean lastReportedGuiOpen;
 
   @Override
   public void onInitializeClient() {
@@ -107,6 +108,7 @@ public final class MobLifeClient implements ClientModInitializer {
           ClientInstinctState.clear();
           ClientOutlineState.clear();
           ServerMobLifeConfig.clearSynchronized();
+          lastReportedGuiOpen = null;
           client.gameRenderer.clearPostEffect();
         });
     ClientTickEvents.END_CLIENT_TICK.register(
@@ -124,6 +126,12 @@ public final class MobLifeClient implements ClientModInitializer {
                 && !ClientInstinctState.enabled()) {
               ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());
             }
+          }
+          boolean guiOpen = client.player != null && client.gui.screen() != null;
+          if (client.player != null
+              && (lastReportedGuiOpen == null || lastReportedGuiOpen != guiOpen)) {
+            ClientPlayNetworking.send(new MobLifeNetworking.ClientGuiStatePayload(guiOpen));
+            lastReportedGuiOpen = guiOpen;
           }
           int escapeInputs = ClientInstinctState.consumeEscapeInputs(client);
           if (escapeInputs != 0) {

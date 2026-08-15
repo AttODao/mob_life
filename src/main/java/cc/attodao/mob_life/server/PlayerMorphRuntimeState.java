@@ -10,6 +10,8 @@ final class PlayerMorphRuntimeState {
   boolean jumpGrounded;
   boolean jumpGroundedKnown;
   int rabbitHopCooldown;
+  boolean rabbitHopGrounded;
+  boolean rabbitHopGroundedKnown;
   int ambientSoundTime;
   int normalGrassEatingTicks;
   long normalGrassEatingCooldownUntilTick;
