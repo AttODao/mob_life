@@ -2,6 +2,28 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-08-16 - v1.2.9
+
+- Reworked instinct WANDER around each source mob's native stroll goal. REST
+  lateral input now turns immediately, WANDER steering searches once per
+  second, and native path ranges, priorities, speeds, and completion behavior
+  are retained. WANDER now reevaluates native prey targeting before its stroll
+  movement, so wolves and other hunting forms resume hunting when prey is
+  available.
+- FLEE now follows only native panic and avoidance goals already present on
+  the source mob, preserving species-specific priorities, ranges, speeds, and
+  conditions. Foxes can again stalk, pounce on, and attack rabbit-form players.
+- Opening a GUI pauses Idle Instinct without resetting its accumulated wait.
+  Forced entries remain active, while GUI use adds 2 awkwardness per second
+  through the normal hunger multiplier.
+- Instinct's existing amber screen edge now becomes slightly stronger whenever
+  the server cannot accept player intervention, then smoothly returns when
+  intervention is available. Removed directional vision obstruction from
+  instinct mode.
+- Rabbit hop cooldowns now begin on landing, matching native Rabbit delays.
+  Added awkwardness pressure for diurnal forms in darkness and nocturnal forms
+  in bright light.
+
 ## 2026-08-14 - v1.2.8
 
 - World morph selection now validates the selected morph and supported variant or
