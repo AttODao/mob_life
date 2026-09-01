@@ -10,11 +10,6 @@
   - Sheep: 6 hotbar + 19 inventory slots
   - Chicken: 3 hotbar + 9 inventory slots
 - Items in slots disabled by a smaller form move into active slots; overflow is dropped.
-- Instinct mode presents an empty hand without moving the selected stack,
-  blocks inventory and container screens, prevents item use, and prevents item
-  pickup. Its hotbar remains visible as a dimmed, locked row with no selected
-  slot, offhand item, or attack indicator. The lock icon interpolates from red
-  at instinct level 100 to gray at zero.
 - Disabled inventory, hotbar, armor, and form-specific equipment slots are
   fully hidden. The vanilla slot areas are cleared and only active slots are
   redrawn, preventing leftover borders from disabled slots.

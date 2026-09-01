@@ -51,13 +51,3 @@
   retained saturation, contrast, low-light brightness, peripheral degradation,
   and distance-effect parameters are loaded from each morph's data-pack JSON
   and synchronized to the client.
-- Instinct mode uses the same post chain rather than a second full-screen pass.
-  While the mode is enabled, it gives the outer half of the screen a strong
-  amber fringe and shifts the whole view slightly toward amber while preserving
-  luminance. Peripheral and distant blur each reduce by up to 25%.
-  The instinct contribution fades in and out over 10 client ticks when the mode
-  changes, avoiding an abrupt shader transition.
-  `instinct.visual_effect.enabled` and `instinct.visual_effect.strength`
-  (`0.0` to `1.0`) control this per morph.
-- The synchronized server-side intervention admission state smoothly increases
-  that existing amber fringe while intervention is unavailable.

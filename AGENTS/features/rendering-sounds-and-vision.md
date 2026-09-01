@@ -9,9 +9,6 @@
   mouse-following rotation instead of facing fixed forward.
 - Normal player form removes all Mob Life attribute modifiers and restores vanilla rendering, dimensions, health, movement, mining speed, and vision.
 - Mob forms apply a form-specific low-saturation dichromatic post-processing effect.
-- During instinct mode, the original orange instinct tint fades toward the
-  form's normal vision color as the synchronized instinct level falls from 100
-  to zero.
 - Cat and ocelot forms, plus any morph tagged with `night_vision`, receive a
   persistent night-vision light boost while transformed. Use that trait for
   forms that spawn in dark places.
@@ -20,6 +17,6 @@
   changes contribute only 10% of vanilla's dynamic FOV effect while
   transformed, so walking and sprinting do not substantially alter the field
   of view.
-- Predator and prey outlines remain active independently of instinct mode.
-  They use only two colors, default to a 96-block server-scanned range, never
-  load chunks, and use the per-form data-pack `outline.range` setting.
+- Configured predators receive red outlines. The server scans up to the
+  per-form `outline.range` every second without loading chunks. Predator types
+  come from `combat.predators`, so targeting and outlines share one data source.
