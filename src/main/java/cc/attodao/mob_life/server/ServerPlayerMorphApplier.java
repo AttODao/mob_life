@@ -115,6 +115,11 @@ final class ServerPlayerMorphApplier {
         player, Attributes.STEP_HEIGHT, MorphAttributeModifiers.STEP_HEIGHT, stepHeight);
     setAttributeValue(
         player,
+        Attributes.GRAVITY,
+        MorphAttributeModifiers.GRAVITY,
+        livingMorph.getAttributeValue(Attributes.GRAVITY));
+    setAttributeValue(
+        player,
         Attributes.SAFE_FALL_DISTANCE,
         MorphAttributeModifiers.SAFE_FALL_DISTANCE,
         livingMorph.getAttributeValue(Attributes.SAFE_FALL_DISTANCE));

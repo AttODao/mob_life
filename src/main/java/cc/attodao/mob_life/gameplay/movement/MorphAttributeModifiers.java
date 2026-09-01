@@ -16,6 +16,7 @@ public final class MorphAttributeModifiers {
   public static final Identifier MAX_HEALTH = MobLife.id("morph_max_health");
   public static final Identifier BLOCK_BREAK_SPEED = MobLife.id("morph_block_break_speed");
   public static final Identifier STEP_HEIGHT = MobLife.id("morph_step_height");
+  public static final Identifier GRAVITY = MobLife.id("morph_gravity");
   public static final Identifier JUMP_STRENGTH = MobLife.id("morph_jump_strength");
   public static final Identifier SAFE_FALL_DISTANCE = MobLife.id("morph_safe_fall_distance");
   public static final Identifier FALL_DAMAGE_MULTIPLIER =
@@ -33,6 +34,7 @@ public final class MorphAttributeModifiers {
     remove(player, Attributes.MAX_HEALTH, MAX_HEALTH);
     remove(player, Attributes.BLOCK_BREAK_SPEED, BLOCK_BREAK_SPEED);
     remove(player, Attributes.STEP_HEIGHT, STEP_HEIGHT);
+    remove(player, Attributes.GRAVITY, GRAVITY);
     remove(player, Attributes.JUMP_STRENGTH, JUMP_STRENGTH);
     remove(player, Attributes.SAFE_FALL_DISTANCE, SAFE_FALL_DISTANCE);
     remove(player, Attributes.FALL_DAMAGE_MULTIPLIER, FALL_DAMAGE_MULTIPLIER);
