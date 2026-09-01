@@ -13,8 +13,8 @@ final class PlayerMorphRuntimeState {
   boolean rabbitHopGrounded;
   boolean rabbitHopGroundedKnown;
   int ambientSoundTime;
-  int normalGrassEatingTicks;
-  long normalGrassEatingCooldownUntilTick;
+  int grassEatingTicks;
+  long grassEatingCooldownUntilTick;
   boolean bedlessSleepPending;
   Float lastSyncedAwkwardness;
   long damageAwkwardnessCooldownUntilTick;

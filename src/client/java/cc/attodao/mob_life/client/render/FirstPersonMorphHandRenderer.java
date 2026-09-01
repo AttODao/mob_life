@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.client.render;
 
-import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.morph.MorphType;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -55,11 +54,6 @@ public final class FirstPersonMorphHandRenderer {
       PoseStack poseStack, float inverseArmHeight, float attackValue, HumanoidArm arm) {
     if (ClientMorphState.morph() == null) {
       return false;
-    }
-
-    if (ClientInstinctState.enabled()) {
-      inverseArmHeight = 0.0F;
-      attackValue = 0.0F;
     }
 
     float side = arm == HumanoidArm.RIGHT ? 1.0F : -1.0F;

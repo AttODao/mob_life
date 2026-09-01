@@ -5,7 +5,6 @@ import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
-import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.movement.MorphAttributeModifiers;
@@ -39,7 +38,6 @@ final class ServerPlayerMorphApplier {
     MorphType morph = definition.type();
 
     if (morph.isPlayer()) {
-      InstinctManager.forget(player);
       MorphInventoryCapacity.apply(player, morph);
       MorphFoodCapacity.apply(player, morph);
       restorePlayerAttributes(player, preserveHealthRatio);

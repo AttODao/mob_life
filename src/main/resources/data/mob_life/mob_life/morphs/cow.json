@@ -91,11 +91,6 @@
     "without_bed": true,
     "required_ticks": 200
   },
-  "instinct": {
-    "social": {
-      "enabled": true
-    }
-  },
   "abilities": ["none"],
   "traits": []
 }

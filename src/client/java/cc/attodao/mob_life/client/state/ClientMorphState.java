@@ -45,8 +45,7 @@ public final class ClientMorphState {
   private ClientMorphState() {}
 
   public static void setMorph(MorphDefinition newDefinition) {
-    ClientInstinctState.clear();
-    ClientOutlineState.clear();
+    ClientPredatorOutlineState.clear();
     MorphType newMorph = newDefinition.type();
     definition = newMorph.isPlayer() ? null : newDefinition;
     morph = newMorph.isPlayer() ? null : newMorph;
@@ -184,17 +183,11 @@ public final class ClientMorphState {
     MorphConfig.Movement movement = morph != null ? MorphConfigManager.get(morph).movement() : null;
     CHARGED_JUMP.tick(client, movement);
     refreshChestedInventory(client.player);
-    boolean instinct = ClientInstinctState.enabled();
-    if (movement != null && !instinct && movement.slowFallMultiplier() < 1.0F) {
+    if (movement != null && movement.slowFallMultiplier() < 1.0F) {
       slowChickenFall(client.player);
     }
     if (movement != null && movement.wingAnimation()) {
       tickChickenWings(client);
-    }
-    if (instinct) {
-      rabbitHopCooldown = 0;
-      rabbitHopGroundedKnown = false;
-      return;
     }
     if (movement != null && movement.rabbitHop().enabled()) {
       tickRabbitHop(client.player);
@@ -216,8 +209,7 @@ public final class ClientMorphState {
   }
 
   public static void clear() {
-    ClientInstinctState.clear();
-    ClientOutlineState.clear();
+    ClientPredatorOutlineState.clear();
     definition = null;
     morph = null;
     dimensions = null;

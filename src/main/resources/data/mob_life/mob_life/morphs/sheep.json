@@ -93,21 +93,6 @@
     "without_bed": true,
     "required_ticks": 200
   },
-  "instinct": {
-    "social": {
-      "enabled": true
-    },
-    "senses": {
-      "predator_range": 96
-    },
-    "feeding": {
-      "eat_block": {
-        "enabled": true,
-        "nutrition": 2,
-        "cooldown_ticks": 1200
-      }
-    }
-  },
   "abilities": ["none"],
   "traits": [
     "eats_grass"

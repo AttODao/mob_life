@@ -1,7 +1,6 @@
 package cc.attodao.mob_life.mixin.targeting;
 
 import cc.attodao.mob_life.config.MorphConfigManager;
-import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -9,7 +8,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.entity.monster.Enemy;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,16 +26,6 @@ public abstract class MobTargetingMixin {
     Mob mob = (Mob) (Object) this;
     MorphType morph = ServerMorphManager.activeMorph();
     boolean predator = MorphPredation.isPredatorForPlayer(mob, player, morph);
-    if (InstinctManager.isEnabled(player)) {
-      // A configured predator keeps its native target while the shadow mob is fleeing from it.
-      if (predator) {
-        return;
-      }
-      if (mob instanceof Enemy && !mobLife$isExistingTarget(mob, player)) {
-        cir.setReturnValue(false);
-      }
-      return;
-    }
     if (MorphConfigManager.get(morph)
         .combat()
         .avoidedBy()
@@ -49,10 +37,5 @@ public abstract class MobTargetingMixin {
         && !MorphPredation.isWithinMorphDetectionRange(mob, player, morph)) {
       cir.setReturnValue(false);
     }
-  }
-
-  private static boolean mobLife$isExistingTarget(Mob mob, ServerPlayer player) {
-    return mob.getTargetUnchecked() == player
-        || mob.getBrain().isMemoryValue(MemoryModuleType.ATTACK_TARGET, player);
   }
 }

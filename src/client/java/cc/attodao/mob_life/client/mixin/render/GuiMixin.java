@@ -4,7 +4,6 @@ import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
 import cc.attodao.mob_life.client.render.AwkwardnessColor;
 import cc.attodao.mob_life.client.render.MorphJumpBarRenderer;
 import cc.attodao.mob_life.client.render.SizedHotbarRenderer;
-import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import net.minecraft.client.DeltaTracker;
@@ -56,14 +55,6 @@ public abstract class GuiMixin {
       ItemStack stack,
       int seed);
 
-  @Inject(method = "extractCrosshair", at = @At("HEAD"), cancellable = true)
-  private void mobLife$hideInstinctCrosshair(
-      GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
-    if (ClientInstinctState.enabled()) {
-      ci.cancel();
-    }
-  }
-
   @Redirect(
       method = "extractHotbarAndDecorations",
       at =
@@ -77,16 +68,6 @@ public abstract class GuiMixin {
     if (player == null) {
       return;
     }
-    if (ClientInstinctState.enabled()) {
-      SizedHotbarRenderer.renderLocked(
-          graphics,
-          deltaTracker,
-          player,
-          this::extractSlot,
-          ClientInstinctState.instinctLevelRatio());
-      return;
-    }
-
     SizedHotbarRenderer.render(graphics, deltaTracker, minecraft, player, this::extractSlot);
   }
 

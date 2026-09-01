@@ -1,10 +1,8 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
-import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
-import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
@@ -36,7 +34,6 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
               target = "Lnet/minecraft/client/player/ClientInput;tick()V",
               shift = At.Shift.AFTER))
   private void mobLife$restrictVehicleInputAfterPolling(CallbackInfo ci) {
-    mobLife$processInstinctInput();
     mobLife$applyQuadrupedInput();
     mobLife$keepOnlyDismountInput();
   }
@@ -96,27 +93,9 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
     setSprinting(false);
   }
 
-  private void mobLife$processInstinctInput() {
-    Input raw = input.keyPresses;
-    Vec2 movement = input.getMoveVector();
-    if (!ClientInstinctState.enabled()) {
-      return;
-    }
-
-    ClientInstinctState.recordEscapeAction(InstinctManager.ESCAPE_JUMP, raw.jump(), false);
-    ClientInstinctState.recordMovement(
-        raw.forward() || movement.y > 1.0E-4F,
-        raw.left() || movement.x > 1.0E-4F,
-        raw.right() || movement.x < -1.0E-4F);
-    // Controlify replaces the player's ClientInput, so neutralize the common result after it polls.
-    input.keyPresses = Input.EMPTY;
-    ((ClientInputAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
-    setSprinting(false);
-  }
-
   private void mobLife$applyQuadrupedInput() {
     ClientMorphState.setQuadrupedTurnInput(0.0F);
-    if (ClientInstinctState.enabled() || ClientMorphState.morph() == null || isPassenger()) {
+    if (ClientMorphState.morph() == null || isPassenger()) {
       return;
     }
 
@@ -140,7 +119,7 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
     input.keyPresses =
         new Input(
             forwardInput > 1.0E-4F, false, false, false, raw.jump(), raw.shift(), raw.sprint());
-    ((ClientInputAccessor) input).mobLife$setMoveVector(new Vec2(0.0F, forwardInput));
+    ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(new Vec2(0.0F, forwardInput));
   }
 
   private boolean mobLife$isRestrictedVehicle() {

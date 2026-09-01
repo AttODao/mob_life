@@ -41,7 +41,6 @@ final class MorphConfigCodec {
     root.add("attributes", attributesJson(config.attributes()));
     root.add("inventory", inventoryJson(config.inventory()));
     root.add("sleep", sleepJson(config.sleep()));
-    root.add("instinct", instinctJson(config.instinct()));
     root.add("outline", outlineJson(config.outline()));
     root.add("abilities", abilitiesJson(config.abilities()));
     root.add("traits", traitsJson(config.traits()));
@@ -110,17 +109,6 @@ final class MorphConfigCodec {
         new MorphConfig.Attributes(1.0, 20, 1.0, 1.0),
         new MorphConfig.Inventory(9, 27, 0),
         new MorphConfig.Sleep(MorphConfig.SleepSchedule.NORMAL, false, 200),
-        new MorphConfig.Instinct(
-            true,
-            new MorphConfig.Wander(10, 7, 120, 0.55F),
-            new MorphConfig.Intervention(0.75F, 50, 40, 120, 20),
-            new MorphConfig.Social(false, 24.0, 8.0, 2),
-            new MorphConfig.Senses(64.0, 64.0, 120, 20),
-            new MorphConfig.Hunting(40, 10, 400, 400, 1200, 4.0, List.of()),
-            new MorphConfig.Feeding(
-                new MorphConfig.FeedingAction(false, 4, 0),
-                new MorphConfig.FeedingAction(false, 4, 100)),
-            new MorphConfig.VisualEffect(true, 1.0F)),
         new MorphConfig.Outline(true, 96.0),
         new MorphConfig.Abilities(MorphConfig.Ability.NONE),
         new MorphConfig.Traits(Set.of()));
@@ -136,16 +124,6 @@ final class MorphConfigCodec {
     JsonObject attributes = object(root, "attributes");
     JsonObject inventory = object(root, "inventory");
     JsonObject sleep = object(root, "sleep");
-    JsonObject instinct = object(root, "instinct");
-    JsonObject wander = object(instinct, "wander");
-    JsonObject intervention = object(instinct, "intervention");
-    JsonObject social = object(instinct, "social");
-    JsonObject senses = object(instinct, "senses");
-    JsonObject hunting = object(instinct, "hunting");
-    JsonObject feeding = object(instinct, "feeding");
-    JsonObject eatBlock = object(feeding, "eat_block");
-    JsonObject raidGarden = object(feeding, "raid_garden");
-    JsonObject visualEffect = object(instinct, "visual_effect");
     JsonObject outline = object(root, "outline");
     MorphConfig.Movement defaultMovement = defaults.movement();
     MorphConfig.RabbitHop defaultHop = defaultMovement.rabbitHop();
@@ -155,14 +133,6 @@ final class MorphConfigCodec {
     MorphConfig.Attributes defaultAttributes = defaults.attributes();
     MorphConfig.Inventory defaultInventory = defaults.inventory();
     MorphConfig.Sleep defaultSleep = defaults.sleep();
-    MorphConfig.Instinct defaultInstinct = defaults.instinct();
-    MorphConfig.Wander defaultWander = defaultInstinct.wander();
-    MorphConfig.Intervention defaultIntervention = defaultInstinct.intervention();
-    MorphConfig.Social defaultSocial = defaultInstinct.social();
-    MorphConfig.Senses defaultSenses = defaultInstinct.senses();
-    MorphConfig.Hunting defaultHunting = defaultInstinct.hunting();
-    MorphConfig.Feeding defaultFeeding = defaultInstinct.feeding();
-    MorphConfig.VisualEffect defaultVisualEffect = defaultInstinct.visualEffect();
     MorphConfig.Outline defaultOutline = defaults.outline();
     return new MorphConfig(
         new MorphConfig.Movement(
@@ -248,97 +218,6 @@ final class MorphConfigCodec {
                 string(sleep, "schedule", defaultSleep.schedule().id()), defaultSleep.schedule()),
             bool(sleep, "without_bed", defaultSleep.withoutBed()),
             integer(sleep, "required_ticks", defaultSleep.requiredTicks())),
-        new MorphConfig.Instinct(
-            bool(instinct, "enabled", defaultInstinct.enabled()),
-            new MorphConfig.Wander(
-                clampedInteger(wander, "horizontal_range", defaultWander.horizontalRange(), 1, 32),
-                clampedInteger(wander, "vertical_range", defaultWander.verticalRange(), 1, 16),
-                clampedInteger(wander, "interval_ticks", defaultWander.intervalTicks(), 1, 1200),
-                clampedDecimal(wander, "gaze_weight", defaultWander.gazeWeight(), 0.0F, 1.0F)),
-            new MorphConfig.Intervention(
-                clampedDecimal(
-                    intervention,
-                    "forward_wander_chance",
-                    defaultIntervention.forwardWanderChance(),
-                    0.0F,
-                    1.0F),
-                clampedInteger(
-                    intervention,
-                    "forward_wander_cooldown_ticks",
-                    defaultIntervention.forwardWanderCooldownTicks(),
-                    1,
-                    1200),
-                clampedInteger(
-                    intervention,
-                    "forward_wander_duration_min_ticks",
-                    defaultIntervention.forwardWanderDurationMinTicks(),
-                    1,
-                    1200),
-                clampedInteger(
-                    intervention,
-                    "forward_wander_duration_max_ticks",
-                    defaultIntervention.forwardWanderDurationMaxTicks(),
-                    1,
-                    1200),
-                clampedInteger(
-                    intervention,
-                    "decay_pause_ticks",
-                    defaultIntervention.decayPauseTicks(),
-                    0,
-                    1200)),
-            new MorphConfig.Social(
-                bool(social, "enabled", defaultSocial.enabled()),
-                clampedNumber(social, "search_range", defaultSocial.searchRange(), 1.0, 64.0),
-                clampedNumber(social, "preferred_range", defaultSocial.preferredRange(), 1.0, 64.0),
-                clampedInteger(
-                    social, "minimum_group_size", defaultSocial.minimumGroupSize(), 1, 16)),
-            new MorphConfig.Senses(
-                clampedNumber(senses, "prey_range", defaultSenses.preyRange(), 0.0, 128.0),
-                clampedNumber(senses, "predator_range", defaultSenses.predatorRange(), 0.0, 128.0),
-                clampedInteger(senses, "memory_ticks", defaultSenses.memoryTicks(), 0, 1200),
-                clampedInteger(
-                    senses, "scan_interval_ticks", defaultSenses.scanIntervalTicks(), 5, 200)),
-            new MorphConfig.Hunting(
-                clampedInteger(
-                    hunting, "eat_duration_ticks", defaultHunting.eatDurationTicks(), 0, 1200),
-                clampedInteger(
-                    hunting,
-                    "attack_cooldown_ticks",
-                    defaultHunting.attackCooldownTicks(),
-                    1,
-                    1200),
-                clampedInteger(
-                    hunting,
-                    "post_kill_cooldown_ticks",
-                    defaultHunting.postKillCooldownTicks(),
-                    0,
-                    12000),
-                clampedInteger(
-                    hunting,
-                    "pursuit_timeout_ticks",
-                    defaultHunting.pursuitTimeoutTicks(),
-                    20,
-                    12000),
-                clampedInteger(
-                    hunting,
-                    "abandoned_hunt_cooldown_ticks",
-                    defaultHunting.abandonedHuntCooldownTicks(),
-                    0,
-                    12000),
-                clampedNumber(
-                    hunting,
-                    "feline_sprint_start_distance",
-                    defaultHunting.felineSprintStartDistance(),
-                    0.0,
-                    128.0),
-                prey(hunting, "prey", defaultHunting.prey())),
-            new MorphConfig.Feeding(
-                feedingAction(eatBlock, defaultFeeding.eatBlock()),
-                feedingAction(raidGarden, defaultFeeding.raidGarden())),
-            new MorphConfig.VisualEffect(
-                bool(visualEffect, "enabled", defaultVisualEffect.enabled()),
-                clampedDecimal(
-                    visualEffect, "strength", defaultVisualEffect.strength(), 0.0F, 1.0F))),
         new MorphConfig.Outline(
             bool(outline, "enabled", defaultOutline.enabled()),
             clampedNumber(outline, "range", defaultOutline.range(), 0.0, 128.0)),
@@ -451,84 +330,6 @@ final class MorphConfigCodec {
     return sleepJson;
   }
 
-  private static JsonObject instinctJson(MorphConfig.Instinct instinct) {
-    JsonObject result = new JsonObject();
-    result.addProperty("enabled", instinct.enabled());
-
-    JsonObject wander = new JsonObject();
-    wander.addProperty("horizontal_range", instinct.wander().horizontalRange());
-    wander.addProperty("vertical_range", instinct.wander().verticalRange());
-    wander.addProperty("interval_ticks", instinct.wander().intervalTicks());
-    wander.addProperty("gaze_weight", instinct.wander().gazeWeight());
-    result.add("wander", wander);
-
-    JsonObject intervention = new JsonObject();
-    intervention.addProperty(
-        "forward_wander_chance", instinct.intervention().forwardWanderChance());
-    intervention.addProperty(
-        "forward_wander_cooldown_ticks", instinct.intervention().forwardWanderCooldownTicks());
-    intervention.addProperty(
-        "forward_wander_duration_min_ticks",
-        instinct.intervention().forwardWanderDurationMinTicks());
-    intervention.addProperty(
-        "forward_wander_duration_max_ticks",
-        instinct.intervention().forwardWanderDurationMaxTicks());
-    intervention.addProperty("decay_pause_ticks", instinct.intervention().decayPauseTicks());
-    result.add("intervention", intervention);
-
-    JsonObject social = new JsonObject();
-    social.addProperty("enabled", instinct.social().enabled());
-    social.addProperty("search_range", instinct.social().searchRange());
-    social.addProperty("preferred_range", instinct.social().preferredRange());
-    social.addProperty("minimum_group_size", instinct.social().minimumGroupSize());
-    result.add("social", social);
-
-    JsonObject senses = new JsonObject();
-    senses.addProperty("prey_range", instinct.senses().preyRange());
-    senses.addProperty("predator_range", instinct.senses().predatorRange());
-    senses.addProperty("memory_ticks", instinct.senses().memoryTicks());
-    senses.addProperty("scan_interval_ticks", instinct.senses().scanIntervalTicks());
-    result.add("senses", senses);
-
-    JsonObject hunting = new JsonObject();
-    hunting.addProperty("eat_duration_ticks", instinct.hunting().eatDurationTicks());
-    hunting.addProperty("attack_cooldown_ticks", instinct.hunting().attackCooldownTicks());
-    hunting.addProperty("post_kill_cooldown_ticks", instinct.hunting().postKillCooldownTicks());
-    hunting.addProperty("pursuit_timeout_ticks", instinct.hunting().pursuitTimeoutTicks());
-    hunting.addProperty(
-        "abandoned_hunt_cooldown_ticks", instinct.hunting().abandonedHuntCooldownTicks());
-    hunting.addProperty(
-        "feline_sprint_start_distance", instinct.hunting().felineSprintStartDistance());
-    JsonArray prey = new JsonArray();
-    for (MorphConfig.Prey entry : instinct.hunting().prey()) {
-      JsonObject preyEntry = new JsonObject();
-      preyEntry.addProperty("selector", entry.selector());
-      preyEntry.addProperty("nutrition", entry.nutrition());
-      prey.add(preyEntry);
-    }
-    hunting.add("prey", prey);
-    result.add("hunting", hunting);
-
-    JsonObject feeding = new JsonObject();
-    feeding.add("eat_block", feedingActionJson(instinct.feeding().eatBlock()));
-    feeding.add("raid_garden", feedingActionJson(instinct.feeding().raidGarden()));
-    result.add("feeding", feeding);
-
-    JsonObject visualEffect = new JsonObject();
-    visualEffect.addProperty("enabled", instinct.visualEffect().enabled());
-    visualEffect.addProperty("strength", instinct.visualEffect().strength());
-    result.add("visual_effect", visualEffect);
-    return result;
-  }
-
-  private static JsonObject feedingActionJson(MorphConfig.FeedingAction action) {
-    JsonObject result = new JsonObject();
-    result.addProperty("enabled", action.enabled());
-    result.addProperty("nutrition", action.nutrition());
-    result.addProperty("cooldown_ticks", action.cooldownTicks());
-    return result;
-  }
-
   private static JsonObject outlineJson(MorphConfig.Outline outline) {
     JsonObject result = new JsonObject();
     result.addProperty("enabled", outline.enabled());
@@ -634,35 +435,6 @@ final class MorphConfigCodec {
   private static double clampedNumber(
       JsonObject object, String name, double fallback, double minimum, double maximum) {
     return Math.clamp(number(object, name, fallback), minimum, maximum);
-  }
-
-  private static MorphConfig.FeedingAction feedingAction(
-      JsonObject object, MorphConfig.FeedingAction fallback) {
-    return new MorphConfig.FeedingAction(
-        bool(object, "enabled", fallback.enabled()),
-        clampedInteger(object, "nutrition", fallback.nutrition(), 0, 100),
-        clampedInteger(object, "cooldown_ticks", fallback.cooldownTicks(), 0, 12000));
-  }
-
-  private static List<MorphConfig.Prey> prey(
-      JsonObject object, String name, List<MorphConfig.Prey> fallback) {
-    JsonElement element = object.get(name);
-    if (element == null || !element.isJsonArray()) {
-      return fallback;
-    }
-
-    List<MorphConfig.Prey> values = new ArrayList<>();
-    for (JsonElement value : element.getAsJsonArray()) {
-      if (!value.isJsonObject()) {
-        continue;
-      }
-      JsonObject entry = value.getAsJsonObject();
-      String selector = string(entry, "selector", "");
-      if (!selector.isBlank()) {
-        values.add(new MorphConfig.Prey(selector, clampedInteger(entry, "nutrition", 0, 0, 100)));
-      }
-    }
-    return List.copyOf(values);
   }
 
   private static List<String> strings(JsonObject object, String name, List<String> fallback) {

@@ -2,9 +2,8 @@ package cc.attodao.mob_life.client;
 
 import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
 import cc.attodao.mob_life.client.screen.MorphSelectionScreen;
-import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.client.state.ClientOutlineState;
+import cc.attodao.mob_life.client.state.ClientPredatorOutlineState;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphDefinition;
@@ -35,7 +34,6 @@ public final class MobLifeClient implements ClientModInitializer {
               InputConstants.Type.KEYSYM,
               GLFW.GLFW_KEY_N,
               KeyMapping.Category.GAMEPLAY));
-  private static Boolean lastReportedGuiOpen;
 
   @Override
   public void onInitializeClient() {
@@ -93,59 +91,29 @@ public final class MobLifeClient implements ClientModInitializer {
                         ClientMorphState.setGrassEatingTicks(
                             payload.entityId(), payload.remainingTicks())));
     ClientPlayNetworking.registerGlobalReceiver(
-        MobLifeNetworking.InstinctControlPayload.TYPE,
-        (payload, context) -> context.client().execute(() -> ClientInstinctState.apply(payload)));
-    ClientPlayNetworking.registerGlobalReceiver(
-        MobLifeNetworking.OutlinePayload.TYPE,
+        MobLifeNetworking.PredatorOutlinePayload.TYPE,
         (payload, context) ->
-            context
-                .client()
-                .execute(() -> ClientOutlineState.set(payload.predators(), payload.prey())));
+            context.client().execute(() -> ClientPredatorOutlineState.set(payload.predators())));
 
     ClientPlayConnectionEvents.DISCONNECT.register(
         (handler, client) -> {
           ClientMorphState.clear();
-          ClientInstinctState.clear();
-          ClientOutlineState.clear();
+          ClientPredatorOutlineState.clear();
           ServerMobLifeConfig.clearSynchronized();
-          lastReportedGuiOpen = null;
           client.gameRenderer.clearPostEffect();
         });
     ClientTickEvents.END_CLIENT_TICK.register(
         client -> {
           while (ABILITY_KEY.consumeClick()) {
-            if (client.player != null
-                && ClientMorphState.morph() != null
-                && !ClientInstinctState.enabled()) {
+            if (client.player != null && ClientMorphState.morph() != null) {
               ClientPlayNetworking.send(new MobLifeNetworking.AbilityRequestPayload());
             }
           }
           while (SLEEP_KEY.consumeClick()) {
-            if (client.player != null
-                && ClientMorphState.morph() != null
-                && !ClientInstinctState.enabled()) {
+            if (client.player != null && ClientMorphState.morph() != null) {
               ClientPlayNetworking.send(new MobLifeNetworking.SleepRequestPayload());
             }
           }
-          boolean guiOpen = client.player != null && client.gui.screen() != null;
-          if (client.player != null
-              && (lastReportedGuiOpen == null || lastReportedGuiOpen != guiOpen)) {
-            ClientPlayNetworking.send(new MobLifeNetworking.ClientGuiStatePayload(guiOpen));
-            lastReportedGuiOpen = guiOpen;
-          }
-          int escapeInputs = ClientInstinctState.consumeEscapeInputs(client);
-          if (escapeInputs != 0) {
-            ClientPlayNetworking.send(
-                new MobLifeNetworking.InstinctEscapeInputPayload(escapeInputs));
-          }
-          ClientInstinctState.Intervention intervention =
-              ClientInstinctState.consumeInterventions();
-          if (intervention.flags() != 0) {
-            ClientPlayNetworking.send(
-                new MobLifeNetworking.InstinctInterventionPayload(
-                    intervention.flags(), intervention.viewYaw()));
-          }
-          ClientInstinctState.tick(client);
           ClientMorphState.tick(client);
         });
   }

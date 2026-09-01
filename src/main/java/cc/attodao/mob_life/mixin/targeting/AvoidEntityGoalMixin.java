@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.mixin.targeting;
 
-import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -28,10 +27,6 @@ public abstract class AvoidEntityGoalMixin {
   private void mobLife$doNotFleeFromPreyMorph(CallbackInfoReturnable<Boolean> cir) {
     MorphType morph = ServerMorphManager.activeMorph();
     if (!cir.getReturnValue()) {
-      return;
-    }
-    if (toAvoid != null && InstinctManager.isControllingPlayer(mob, toAvoid)) {
-      cir.setReturnValue(false);
       return;
     }
     if (morph != null

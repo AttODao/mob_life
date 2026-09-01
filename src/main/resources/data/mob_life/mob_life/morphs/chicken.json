@@ -94,14 +94,6 @@
     "without_bed": true,
     "required_ticks": 200
   },
-  "instinct": {
-    "social": {
-      "enabled": true
-    },
-    "senses": {
-      "predator_range": 96
-    }
-  },
   "abilities": ["egg_laying"],
   "traits": [
     "fall_damage_immune"

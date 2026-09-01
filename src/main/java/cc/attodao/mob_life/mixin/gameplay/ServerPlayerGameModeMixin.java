@@ -1,7 +1,6 @@
 package cc.attodao.mob_life.mixin.gameplay;
 
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
-import cc.attodao.mob_life.gameplay.instinct.InstinctManager;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.BlockPos;
@@ -56,7 +55,6 @@ public abstract class ServerPlayerGameModeMixin {
       int maxY,
       int sequence,
       CallbackInfo ci) {
-    InstinctManager.recordActivity(player);
     if (action != ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK
         && mobLife$isBlockActionRestricted()) {
       mobLife$clearDestroyState();
@@ -91,22 +89,8 @@ public abstract class ServerPlayerGameModeMixin {
       InteractionHand hand,
       BlockHitResult hitResult,
       CallbackInfoReturnable<InteractionResult> cir) {
-    InstinctManager.recordActivity(player);
     if (mobLife$isAnyInteractionRestricted()
         || itemStack.getItem() instanceof BlockItem && mobLife$isMovementRestricted()) {
-      cir.setReturnValue(InteractionResult.FAIL);
-    }
-  }
-
-  @Inject(method = "useItem", at = @At("HEAD"), cancellable = true)
-  private void mobLife$preventInstinctItemUse(
-      ServerPlayer player,
-      Level level,
-      ItemStack itemStack,
-      InteractionHand hand,
-      CallbackInfoReturnable<InteractionResult> cir) {
-    InstinctManager.recordPotentialGuiActivity(player);
-    if (InstinctManager.isEnabled(player)) {
       cir.setReturnValue(InteractionResult.FAIL);
     }
   }
@@ -139,8 +123,7 @@ public abstract class ServerPlayerGameModeMixin {
   }
 
   private boolean mobLife$isAnyInteractionRestricted() {
-    return ServerMorphManager.hasMobForm()
-        && (InstinctManager.isEnabled(player) || MorphAwkwardness.blocksWorldInteraction(player));
+    return ServerMorphManager.hasMobForm() && MorphAwkwardness.blocksWorldInteraction(player);
   }
 
   private void mobLife$clearDestroyState() {

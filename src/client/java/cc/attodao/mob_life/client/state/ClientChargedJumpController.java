@@ -34,10 +34,7 @@ final class ClientChargedJumpController {
 
   void tick(Minecraft client, MorphConfig.Movement movement) {
     LocalPlayer player = client.player;
-    if (player == null
-        || movement == null
-        || movement.rabbitHop().enabled()
-        || ClientInstinctState.enabled()) {
+    if (player == null || movement == null || movement.rabbitHop().enabled()) {
       reset();
       return;
     }

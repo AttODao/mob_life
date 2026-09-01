@@ -78,67 +78,6 @@ public final class SizedHotbarRenderer {
     renderAttackIndicator(graphics, minecraft, player, offhandArm, left, width);
   }
 
-  public static void renderLocked(
-      GuiGraphicsExtractor graphics,
-      DeltaTracker deltaTracker,
-      Player player,
-      SlotRenderer slotRenderer,
-      float instinctLevel) {
-    int slotCount = MorphInventoryCapacity.hotbarSlots(player);
-    int width = slotCount * 20 + 2;
-    int left = (graphics.guiWidth() - width) / 2;
-    int top = graphics.guiHeight() - 22;
-
-    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, HOTBAR, 182, 22, 0, 0, left, top, width, 22);
-    int seed = 1;
-    int itemY = graphics.guiHeight() - 19;
-    for (int slot = 0; slot < slotCount; slot++) {
-      slotRenderer.render(
-          graphics,
-          left + 3 + slot * 20,
-          itemY,
-          deltaTracker,
-          player,
-          player.getInventory().getItem(slot),
-          seed++);
-    }
-
-    // Keep the stored hotbar visible, but make its unavailable state unambiguous.
-    graphics.fill(left + 2, top + 2, left + width - 2, top + 20, 0x9C0A0E12);
-    int lockColor = lockColor(instinctLevel);
-    renderLock(graphics, left + width / 2, top + 11, lockColor);
-  }
-
-  private static void renderLock(
-      GuiGraphicsExtractor graphics, int centerX, int centerY, int lockColor) {
-    int outline = 0xFF10171C;
-    int shadow = darken(lockColor, 0.45F);
-
-    graphics.fill(centerX - 4, centerY - 6, centerX + 4, centerY + 1, outline);
-    graphics.fill(centerX - 3, centerY - 5, centerX + 3, centerY + 1, lockColor);
-    graphics.fill(centerX - 1, centerY - 4, centerX + 1, centerY + 1, outline);
-    graphics.fill(centerX - 5, centerY, centerX + 5, centerY + 7, outline);
-    graphics.fill(centerX - 4, centerY + 1, centerX + 4, centerY + 6, lockColor);
-    graphics.fill(centerX - 3, centerY + 5, centerX + 4, centerY + 6, shadow);
-    graphics.fill(centerX - 1, centerY + 2, centerX + 1, centerY + 5, outline);
-  }
-
-  private static int lockColor(float instinctLevel) {
-    float ratio = Math.clamp(instinctLevel, 0.0F, 1.0F);
-    int red = Math.round(195.0F + (255.0F - 195.0F) * ratio);
-    int green = Math.round(204.0F + (64.0F - 204.0F) * ratio);
-    int blue = Math.round(208.0F + (64.0F - 208.0F) * ratio);
-    return 0xFF000000 | red << 16 | green << 8 | blue;
-  }
-
-  private static int darken(int color, float factor) {
-    float clamped = Math.clamp(factor, 0.0F, 1.0F);
-    int red = Math.round((color >> 16 & 0xFF) * clamped);
-    int green = Math.round((color >> 8 & 0xFF) * clamped);
-    int blue = Math.round((color & 0xFF) * clamped);
-    return color & 0xFF000000 | red << 16 | green << 8 | blue;
-  }
-
   private static void renderOffhand(
       GuiGraphicsExtractor graphics,
       DeltaTracker deltaTracker,

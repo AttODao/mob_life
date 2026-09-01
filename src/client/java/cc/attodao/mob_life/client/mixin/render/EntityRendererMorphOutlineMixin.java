@@ -1,6 +1,6 @@
 package cc.attodao.mob_life.client.mixin.render;
 
-import cc.attodao.mob_life.client.state.ClientOutlineState;
+import cc.attodao.mob_life.client.state.ClientPredatorOutlineState;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.world.entity.Entity;
@@ -12,16 +12,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererMorphOutlineMixin {
   @Inject(method = "extractRenderState", at = @At("TAIL"))
-  private void mobLife$applyPredatorOrPreyOutline(
+  private void mobLife$applyPredatorOutline(
       Entity entity, EntityRenderState state, float partialTick, CallbackInfo ci) {
     int entityId = ((EntityIdAccessor) entity).mobLife$getId();
     if (entityId == Entity.INVALID_ENTITY_ID || entity.level().getEntity(entityId) != entity) {
       return;
     }
 
-    int color = ClientOutlineState.color(entityId);
-    if (color != 0) {
-      state.outlineColor = color;
+    if (ClientPredatorOutlineState.contains(entityId)) {
+      state.outlineColor = 0xFFFF3B30;
     }
   }
 }

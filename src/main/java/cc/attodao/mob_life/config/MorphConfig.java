@@ -15,7 +15,6 @@ public record MorphConfig(
     Attributes attributes,
     Inventory inventory,
     Sleep sleep,
-    Instinct instinct,
     Outline outline,
     Abilities abilities,
     Traits traits) {
@@ -176,108 +175,6 @@ public record MorphConfig(
     public Sleep {
       schedule = Objects.requireNonNull(schedule);
       requiredTicks = Math.clamp(requiredTicks, 0, 24_000);
-    }
-  }
-
-  public record Instinct(
-      boolean enabled,
-      Wander wander,
-      Intervention intervention,
-      Social social,
-      Senses senses,
-      Hunting hunting,
-      Feeding feeding,
-      VisualEffect visualEffect) {}
-
-  public record Wander(
-      int horizontalRange, int verticalRange, int intervalTicks, float gazeWeight) {
-    public Wander {
-      horizontalRange = Math.clamp(horizontalRange, 1, 32);
-      verticalRange = Math.clamp(verticalRange, 1, 16);
-      intervalTicks = Math.clamp(intervalTicks, 1, 1200);
-      gazeWeight = finite(gazeWeight, 0.0F, 1.0F);
-    }
-  }
-
-  public record Intervention(
-      float forwardWanderChance,
-      int forwardWanderCooldownTicks,
-      int forwardWanderDurationMinTicks,
-      int forwardWanderDurationMaxTicks,
-      int decayPauseTicks) {
-    public Intervention {
-      forwardWanderChance = finite(forwardWanderChance, 0.0F, 1.0F);
-      forwardWanderCooldownTicks = Math.clamp(forwardWanderCooldownTicks, 1, 1200);
-      forwardWanderDurationMinTicks = Math.clamp(forwardWanderDurationMinTicks, 1, 1200);
-      forwardWanderDurationMaxTicks =
-          Math.clamp(
-              Math.max(forwardWanderDurationMinTicks, forwardWanderDurationMaxTicks), 1, 1200);
-      decayPauseTicks = Math.clamp(decayPauseTicks, 0, 1200);
-    }
-  }
-
-  public record Social(
-      boolean enabled, double searchRange, double preferredRange, int minimumGroupSize) {
-    public Social {
-      searchRange = finite(searchRange, 1.0, 64.0);
-      preferredRange = finite(preferredRange, 1.0, searchRange);
-      minimumGroupSize = Math.clamp(minimumGroupSize, 1, 16);
-    }
-  }
-
-  public record Senses(
-      double preyRange, double predatorRange, int memoryTicks, int scanIntervalTicks) {
-    public Senses {
-      preyRange = finite(preyRange, 0.0, 128.0);
-      predatorRange = finite(predatorRange, 0.0, 128.0);
-      memoryTicks = Math.clamp(memoryTicks, 0, 1200);
-      scanIntervalTicks = Math.clamp(scanIntervalTicks, 5, 200);
-    }
-  }
-
-  public record Hunting(
-      int eatDurationTicks,
-      int attackCooldownTicks,
-      int postKillCooldownTicks,
-      int pursuitTimeoutTicks,
-      int abandonedHuntCooldownTicks,
-      double felineSprintStartDistance,
-      List<Prey> prey) {
-    public Hunting {
-      eatDurationTicks = Math.clamp(eatDurationTicks, 0, 1200);
-      attackCooldownTicks = Math.clamp(attackCooldownTicks, 1, 1200);
-      postKillCooldownTicks = Math.clamp(postKillCooldownTicks, 0, 12000);
-      pursuitTimeoutTicks = Math.clamp(pursuitTimeoutTicks, 20, 12000);
-      abandonedHuntCooldownTicks = Math.clamp(abandonedHuntCooldownTicks, 0, 12000);
-      felineSprintStartDistance = finite(felineSprintStartDistance, 0.0, 128.0);
-      prey = List.copyOf(prey);
-    }
-  }
-
-  public record Prey(String selector, int nutrition) {
-    public Prey {
-      selector = Objects.requireNonNull(selector);
-      nutrition = Math.clamp(nutrition, 0, 100);
-    }
-  }
-
-  public record Feeding(FeedingAction eatBlock, FeedingAction raidGarden) {
-    public Feeding {
-      eatBlock = Objects.requireNonNull(eatBlock);
-      raidGarden = Objects.requireNonNull(raidGarden);
-    }
-  }
-
-  public record FeedingAction(boolean enabled, int nutrition, int cooldownTicks) {
-    public FeedingAction {
-      nutrition = Math.clamp(nutrition, 0, 100);
-      cooldownTicks = Math.clamp(cooldownTicks, 0, 12000);
-    }
-  }
-
-  public record VisualEffect(boolean enabled, float strength) {
-    public VisualEffect {
-      strength = finite(strength, 0.0F, 1.0F);
     }
   }
 

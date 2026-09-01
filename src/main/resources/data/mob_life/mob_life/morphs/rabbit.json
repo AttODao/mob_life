@@ -94,32 +94,6 @@
     "without_bed": true,
     "required_ticks": 200
   },
-  "instinct": {
-    "social": {
-      "enabled": true
-    },
-    "senses": {
-      "prey_range": 32,
-      "predator_range": 96
-    },
-    "hunting": {
-      "attack_cooldown_ticks": 10,
-      "post_kill_cooldown_ticks": 400,
-      "pursuit_timeout_ticks": 400,
-      "abandoned_hunt_cooldown_ticks": 1200,
-      "prey": [
-        { "selector": "minecraft:player", "nutrition": 5 },
-        { "selector": "minecraft:wolf", "nutrition": 4 }
-      ]
-    },
-    "feeding": {
-      "raid_garden": {
-        "enabled": true,
-        "nutrition": 3,
-        "cooldown_ticks": 100
-      }
-    }
-  },
   "abilities": ["none"],
   "traits": []
 }

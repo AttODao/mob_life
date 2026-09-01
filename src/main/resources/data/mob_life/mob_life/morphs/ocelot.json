@@ -93,22 +93,6 @@
     "without_bed": true,
     "required_ticks": 200
   },
-  "instinct": {
-    "senses": {
-      "prey_range": 24
-    },
-    "hunting": {
-      "attack_cooldown_ticks": 10,
-      "post_kill_cooldown_ticks": 400,
-      "pursuit_timeout_ticks": 400,
-      "abandoned_hunt_cooldown_ticks": 1200,
-      "feline_sprint_start_distance": 8,
-      "prey": [
-        { "selector": "minecraft:chicken", "nutrition": 4 },
-        { "selector": "minecraft:turtle", "nutrition": 3 }
-      ]
-    }
-  },
   "abilities": ["none"],
   "traits": [
     "fall_damage_immune",

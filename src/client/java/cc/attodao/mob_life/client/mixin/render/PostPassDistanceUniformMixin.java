@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.client.mixin.render;
 
-import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
@@ -45,9 +44,6 @@ public abstract class PostPassDistanceUniformMixin {
     Minecraft client = Minecraft.getInstance();
     MorphConfig config = MorphConfigManager.get(ClientMorphState.morph());
     MorphConfig.Vision vision = config.vision();
-    MorphConfig.VisualEffect visualEffect = config.instinct().visualEffect();
-    float instinctStrength =
-        visualEffect.enabled() ? visualEffect.strength() * ClientInstinctState.visualBlend() : 0.0F;
     float peripheralStrength = Mth.clamp(2.0F - vision.fieldOfViewMultiplier(), 0.0F, 1.0F);
     float farPlane =
         Math.max(vision.fullFogDistance(), client.options.getEffectiveRenderDistance() * 16.0F);
@@ -56,7 +52,6 @@ public abstract class PostPassDistanceUniformMixin {
             ? 1.0F
             : 1.0F - Mth.clamp(client.level.getSkyDarken() / 15.0F, 0.0F, 1.0F);
     float interference = MorphAwkwardness.visionInterference(ClientMorphState.awkwardness());
-    float instinctLevel = ClientInstinctState.instinctLevelRatio();
     float distanceStart = Math.max(vision.effectStartDistance(), MIN_DISTANCE_EFFECT_START);
     float distanceOffset = distanceStart - vision.effectStartDistance();
     float fullBlurDistance =
@@ -66,19 +61,14 @@ public abstract class PostPassDistanceUniformMixin {
     float fullFogDistance =
         Math.max(fullDarkeningDistance + 1.0F, vision.fullFogDistance() + distanceOffset);
     float peripheralBlurRadius =
-        vision.peripheralBlurRadius()
-            * peripheralStrength
-            * PERIPHERAL_BLUR_MULTIPLIER
-            * (1.0F - 0.25F * instinctStrength);
+        vision.peripheralBlurRadius() * peripheralStrength * PERIPHERAL_BLUR_MULTIPLIER;
     float peripheralEdgeBrightness = 1.0F;
     try (MemoryStack stack = MemoryStack.stackPush()) {
       Std140Builder distanceBlurData =
           Std140Builder.onStack(stack, DISTANCE_BLUR_UBO_SIZE)
               .putVec4(distanceStart, fullBlurDistance, fullDarkeningDistance, fullFogDistance)
               .putVec4(
-                  vision.maximumBlurRadius()
-                      * (1.0F + interference)
-                      * (1.0F - 0.25F * instinctStrength),
+                  vision.maximumBlurRadius() * (1.0F + interference),
                   skyBrightness,
                   peripheralEdgeBrightness,
                   vision.hazeStrength())
@@ -97,17 +87,13 @@ public abstract class PostPassDistanceUniformMixin {
                   vision.greenResponse().red(),
                   vision.greenResponse().green(),
                   vision.greenResponse().blue(),
-                  instinctStrength)
+                  0.0F)
               .putVec4(
                   vision.blueResponse().red(),
                   vision.blueResponse().green(),
                   vision.blueResponse().blue(),
-                  instinctLevel)
-              .putVec4(
-                  vision.peripheralStart(),
-                  vision.lowLightBrightness(),
-                  0.0F,
-                  ClientInstinctState.interventionBlockedVisualBlend());
+                  0.0F)
+              .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), 0.0F, 0.0F);
       var encoder = RenderSystem.getDevice().createCommandEncoder();
       encoder.writeToBuffer(distanceBlur.slice(), distanceBlurData.get());
     }
