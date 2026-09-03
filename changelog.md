@@ -2,6 +2,47 @@
 
 Future changes should be recorded here with the date and version.
 
+## 2026-09-03 - v1.3.0
+
+- Reimplemented instinct mode from scratch around a hidden native mob proxy.
+  Supported forms now run their own goals, navigation, movement attributes,
+  physics, body rotation, and head rotation instead of using a shared generic
+  behavior model.
+- Added automatic instinct entry from awkwardness-scaled inactivity, maximum
+  awkwardness, native panic damage, nearby native predators, critical hunger,
+  and love state. Creative players keep zero awkwardness and ignore forced
+  entry, while the `instinct enter` and `instinct exit` commands remain
+  available for testing.
+- Added the regenerating instinct meter and resistance actions. Jump, attack,
+  and use presses reduce instinct only during rest or wandering, while forced
+  behavior remains active until the player fully breaks out of instinct mode.
+- Added Controlify-compatible instinct intervention. Forward input requests a
+  native wander, backward input stops a wander, lateral input turns a resting
+  body or shifts the next path search, and camera input controls a bounded head
+  offset without becoming direct movement.
+- Added server-authoritative proxy movement and client interpolation, including
+  fixes for resting slide, stale movement targets, Rabbit hop direction,
+  water-entry inertia, excessive swimming speed, and camera snapping during
+  body turns.
+- Locked normal player actions during instinct mode, including inventory and
+  container access, item use, hotbar changes, block and entity interaction,
+  item pickup, and experience-orb attraction. Held items are ignored by the AI,
+  the crosshair and targeting focus are hidden, and first-person view is
+  enforced with a brown edge effect and locked hotbar display.
+- Added native hunting, foraging, feeding, panic, avoidance, and love behavior.
+  Instinct kills use datapack-defined prey nutrition, suppress item and
+  experience drops, and recover food only after feeding completes. Sheep graze
+  valid grass and Rabbits raid mature carrots through their native goals.
+- Added per-player predator and prey outlines, morph-aware targeting and
+  avoidance, leash support, breeding interactions, and equine riding and
+  equipment access. Transformed Horses, Donkeys, and Mules cannot be tamed but
+  can be ridden and equipped as tame animals, with the rider controlling them
+  during instinct mode.
+- Added `instinct` morph JSON settings and the consolidated
+  `data/mob_life/mob_life/instinct/prey.json` datapack resource. Instinct state,
+  meter, inactivity, love, breeding cooldowns, and Chicken egg timing persist
+  across the applicable lifecycle events and reloads.
+
 ## 2026-08-16 - v1.2.9
 
 - Reworked instinct WANDER around each source mob's native stroll goal. REST
