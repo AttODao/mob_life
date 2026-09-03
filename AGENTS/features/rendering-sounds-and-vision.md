@@ -20,3 +20,13 @@
 - Configured predators receive red outlines. The server scans up to the
   per-form `outline.range` every second without loading chunks. Predator types
   come from `combat.predators`, so targeting and outlines share one data source.
+- Enabled native prey receive a separate yellow `#FFD54A` outline using the same
+  per-viewer range and one-second scan. Predator red wins if an entity qualifies
+  for both sets; each set is capped independently at 256 entities.
+- Instinct Mode forces first person, hides the crosshair, replaces block/entity
+  focus with a miss, and leaves first person selected after exit. A brown
+  `#3F2818` peripheral vignette scales from transparent to 55% alpha with the
+  Instinct level. The hotbar and item icons stay at 50% brightness, with one
+  centered padlock interpolating from red at level 100 to gray at zero.
+- The silent AI proxy never emits duplicate ambient sounds. Feeding chew sounds
+  are sent only to the transformed player.

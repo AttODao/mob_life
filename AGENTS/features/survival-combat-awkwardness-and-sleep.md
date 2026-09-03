@@ -65,8 +65,10 @@
 - Awkwardness can be set for the command executor with
   `/moblife awkwardness <0-100>`, or for a selected player with
   `/moblife awkwardness <0-100> <target>`.
-- Awkwardness does not decrease automatically. Only an explicit command or
-  respawn can lower it.
+- Outside Instinct Mode, awkwardness does not decrease automatically. While
+  Instinct Mode is active and no movement, camera, or button interference has
+  occurred for five ticks, it decreases at `2.0 - 1.5 * inventory fill ratio`
+  per second. All awkwardness increases are disabled during the mode.
 - The awkwardness HUD is a disabled-by-default debug display. It can be
   toggled from the global config and is saved in `config/mob_life.json`.
   When Mod Menu is installed, that screen is available from the mod list.
@@ -95,3 +97,45 @@
   the sleep adds 70 awkwardness afterward. It still checks for nearby monsters
   and requires 200 ticks instead of 100. Its sleep timer cap is extended only
   for this soft-surface sleep.
+
+## Instinct Mode
+
+- Each supported Mob form has an explicit code-registered native AI profile.
+  Survival and Adventure enter after `10 * (1 - awkwardness / 100)` seconds of
+  inactivity. Gameplay GUIs reset the timer; chat, pause, and option screens
+  freeze it. Awkwardness 100 enters immediately. Creative always holds
+  awkwardness at zero and disables every automatic entry cause; Spectator is
+  unsupported.
+- Automatic entry also occurs for a native panic-producing damage reaction,
+  Love state, a reachable native prey/forage target at or below 30% food, or a
+  native pre-avoid threat above awkwardness 30. Avoid distance scales linearly
+  from zero at 30 to the form's native distance at 100. A vanished trigger does
+  not exit the mode.
+- Instinct level starts at 100 and gains 20 per second, capped at 100. A new
+  jump, attack, use, or inventory press accepted during rest/wander lowers it by
+  `10 * (1 - awkwardness / 100)`, at most once per tick. Held inputs must be
+  released before counting again. Level zero exits.
+- Native danger, feeding, Love, riding, and non-rest/wander goals reject
+  resistance input. Movement uses 0.2 engage and 0.1 release thresholds, and
+  camera movement counts after a cumulative one degree within five ticks.
+- At critical hunger, native hunting and sheep/rabbit forage goals take priority.
+  A configured natural prey killed by the active player drops neither loot nor
+  experience and starts a stationary 40-tick feeding action. Completing it
+  restores prey-configured food; danger, riding, or moving over two blocks
+  cancels recovery. Sheep and rabbit forage use the form's `instinct.forage`
+  value and require `mobGriefing`.
+- Natural prey nutrition is loaded from the stacked exact resource
+  `data/mob_life/mob_life/instinct/prey.json`. Higher packs replace entries;
+  `enabled:false` or an invalid higher entry removes that prey. Built-ins are
+  chicken 2/0.3, fox 3/0.3, rabbit 3/0.3, sheep 2/0.3, and baby turtle 1/0.1.
+- Active native attacks use the Mob proxy rather than player weapons,
+  enchantments, cooldown, advancements, or Looting. The proxy still attributes
+  damage to the transformed player. Transformed players are treated as their
+  biological form for native target and avoidance relations, never as ordinary
+  Player prey.
+- Adult chickens keep a persisted 6000-12000 tick egg timer that advances only
+  while online in chicken form. A due egg waits for active Instinct Mode and at
+  least three food points, shares the manual daily quota, and costs three food.
+- Instinct active/level/idle, Love/cooldown, and egg timing persist through
+  logout and dimension changes. Death clears the mode but keeps egg timing;
+  form change clears mode, goal, Love, and cooldown while retaining egg timing.

@@ -23,8 +23,10 @@
   distributions while retaining their vanilla randomized health.
 - The current `variant` key and legacy-style `Variant` key are both accepted;
   values are loaded through the target entity's variant registry.
-- Entity identity, position, motion, rotation, and passenger tags are removed
-  before the NBT is applied to the morph template.
+- Entity identity, position, motion, rotation, passenger, brain, leash, owner,
+  tame, sitting, and trusting tags are removed before NBT is applied to the
+  morph template. Cat, ocelot, and wolf forms therefore cannot begin owned,
+  tamed, trusting, or sitting.
 - `Health` overrides the transformed player's maximum health. Other visual and
   entity attributes, including age and color, are loaded by the target entity.
 - The `/moblife` command tree is a cheat command and requires vanilla

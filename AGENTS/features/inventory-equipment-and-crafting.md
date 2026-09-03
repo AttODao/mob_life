@@ -18,7 +18,8 @@
   row and the active hotbar are centered independently.
 
 - Mob forms cannot wear humanoid head, chest, leg, or foot armor. Unsupported
-  equipped items are returned to active inventory slots or dropped if full.
+  equipment is dropped directly at the player's feet when the form changes,
+  irrespective of free inventory space or binding curses.
 - The player inventory screen adds form-specific body and saddle slots:
   pigs and equines can equip saddles, horses can equip horse armor, wolves can
   equip wolf armor, and donkeys or mules can equip a chest.
@@ -44,3 +45,16 @@
   normal player save, death-drop, and keep-inventory behavior.
 - The entity preview in the player inventory is fixed facing forward. Morph
   rendering preserves the preview render state's body, head, and pitch values.
+- Instinct Mode closes gameplay containers and blocks opening inventory or other
+  gameplay screens. All slots, crafting, held-item use, item dropping/swapping,
+  item pickup, experience-orb pickup, block actions, and entity interactions are
+  server-authoritatively disabled. Experience-orb attraction excludes active
+  Instinct players in both server and client simulation. Hands are treated as
+  empty while armor and form-specific equipment remain effective.
+- Adult horse, donkey, and mule forms behave as tamed-equivalent mounts without
+  storing an owner or permitting taming. An untransformed player can mount them;
+  secondary interaction opens their saddle, horse/wolf armor where applicable,
+  and donkey/mule chest equipment. While Instinct Mode is active, the rider's
+  analog input controls the mount instead of the transformed player input.
+- Leashable forms implement normal Mob leash behavior in and out of Instinct
+  Mode. Entering a boat or minecart drops the leash, matching native Mob behavior.

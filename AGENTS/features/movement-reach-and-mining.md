@@ -71,6 +71,58 @@
 - Block and entity interaction ranges are proportional to the NBT-adjusted
   morph height relative to the vanilla player height.
 
+- Instinct Mode discards normal player locomotion and advances a hidden,
+  NBT-matched native Mob as an AI proxy. The proxy's goals, navigation,
+  movement attributes, step handling, velocity, body/head rotations, and native
+  panic or flee reactions drive the transformed player. Detached proxies reset
+  `noActionTime` before each AI tick to match a registered nearby Mob and keep
+  idle stroll goals eligible.
+- The server sends the proxy-derived absolute position and grounded state in
+  each Instinct state update. The local player applies it immediately before
+  its normal position-send point and suppresses that vanilla position packet,
+  preventing client prediction from reverting server-authoritative AI motion.
+- Rest and wander can transition autonomously. Holding forward for about one
+  second while resting requests wandering; backward stops the active wander
+  goal and movement control even when pressed while airborne. Airborne forms
+  retain only their current physical momentum until landing. Grounded rest
+  clears residual horizontal velocity and displacement so stopped forms do not
+  slide. A wander-to-rest transition also clears a stale move-control target,
+  preventing rabbits from repeatedly hopping in place after their path ends.
+  Resting sideways input turns the body by up to 10 degrees per tick, while
+  wandering samples its next direction inside 15 degrees around
+  `camera yaw + normalized sideways input * 15 degrees`, where right is positive
+  and left is negative. A newly engaged, reversed, or substantially changed
+  analog input replans immediately; failed paths retry quickly. Analog values
+  come from the common client input path, including Controlify. Proxy rotation
+  is initialized from the player once and then remains AI-authoritative so the
+  vanilla player body alignment pass cannot undo accumulated rest turning or
+  native AI turns. Rest turning accumulates from the retained pre-AI-tick body
+  yaw, preventing the native stationary head-alignment pass from resetting each
+  input step. Once rest turning is used, that facing remains locked after
+  release until the AI leaves rest; untouched autonomous rest still permits
+  native facing changes. Diagonal forward-and-sideways input does not invoke
+  in-place rest turning; its sideways component biases the requested wander.
+- While an Instinct-controlled rabbit is moving, its body approaches the
+  measured hop direction by at most 15 degrees per tick instead of adopting a
+  stale navigation-node yaw. During rest or wander, a native body-yaw change
+  with no horizontal displacement is discarded unless it came from explicit
+  rest-turn input. This prevents sideways-looking travel and camera reversals
+  at path boundaries without replacing Rabbit navigation or hop physics.
+- In water, an Instinct-controlled rabbit caps carried horizontal velocity to
+  the native per-tick water acceleration and does not accumulate upward FloatGoal
+  impulses between ticks. Entering water also ends the land jump state. Native
+  path direction and fresh liquid-jump impulses remain active, while
+  damage-derived external motion gets a five-tick exemption from these caps.
+- Camera yaw is limited to 75 degrees from the body and pitch to 40 degrees.
+  Native head motion approaches at 10 degrees per tick; without a look target,
+  the camera uses proportional restoration capped at 0.5 degrees per tick
+  toward the body. Body rotation carries the independently stored relative
+  camera offset without treating server rotation synchronization as user input.
+  Instinct mode overrides `LocalPlayer#getViewYRot` and `getViewXRot` so render
+  frames interpolate the previous and current tick angles. Raw look input adds
+  the same delta to both angles, keeping direct camera input immediate while
+  smoothing only the latest 20 Hz body-yaw target.
+
 - Mining speed uses the `minecraft:block_break_speed` attribute:
   - Cow: approximately `0.78x`
   - Sheep: approximately `0.72x`

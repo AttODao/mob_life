@@ -54,3 +54,10 @@
   `data/mob_life/mob_life/morphs/<mob>.json`. Data packs can override the same
   paths, and successful `/reload` reapplies server attributes and synchronizes
   movement and vision settings to clients.
+- Mob forms opt into Instinct Mode with an explicit `instinct` object containing
+  their exact code-registered `mob_life:<form>` profile and forage food value.
+  Player form and missing, invalid, unknown, or mismatched profiles do not support
+  Instinct Mode; there is no generic AI fallback.
+- `/moblife instinct enter [target]` and `/moblife instinct exit [target]` are
+  gamemaster-only per-player controls. Command entry works in Creative, while
+  Spectator and unsupported forms reject entry.
