@@ -1,8 +1,8 @@
 package cc.attodao.mob_life.mixin.targeting;
 
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.gameplay.targeting.TransformedPlayerAvoidGoal;
-import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.monster.Creeper;
@@ -29,8 +29,8 @@ public abstract class CreeperAvoidMorphMixin extends Monster {
             entity ->
                 entity.isAlive()
                     && !entity.isSpectator()
-                    && ServerMorphManager.hasMobForm()
-                    && MorphConfigManager.get(ServerMorphManager.activeMorph())
+                    && MorphRelations.morphOf(entity) != null
+                    && MorphConfigManager.get(MorphRelations.morphOf(entity))
                         .combat()
                         .avoidedBy()
                         .contains(BuiltInRegistries.ENTITY_TYPE.getKey(getType()).toString()),

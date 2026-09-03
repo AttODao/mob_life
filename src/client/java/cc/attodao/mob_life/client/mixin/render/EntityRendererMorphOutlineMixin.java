@@ -21,6 +21,8 @@ public abstract class EntityRendererMorphOutlineMixin {
 
     if (ClientPredatorOutlineState.contains(entityId)) {
       state.outlineColor = 0xFFFF3B30;
+    } else if (ClientPredatorOutlineState.containsPrey(entityId)) {
+      state.outlineColor = 0xFFFFD54A;
     }
   }
 }

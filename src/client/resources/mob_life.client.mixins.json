@@ -5,7 +5,9 @@
 	"client": [
 		"gameplay.ClientInputMoveVectorAccessor",
 		"gameplay.ClientChargedJumpMixin",
+		"gameplay.EntityInstinctCameraMixin",
 		"gameplay.LocalPlayerMovementMixin",
+		"gameplay.MinecraftInstinctFocusMixin",
 		"gameplay.LocalPlayerMorphFluidMovementMixin",
 		"gameplay.MultiPlayerGameModeMixin",
 		"gameplay.MouseHandlerQuadrupedTurningMixin",

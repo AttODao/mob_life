@@ -91,6 +91,10 @@
     "without_bed": true,
     "required_ticks": 200
   },
+  "instinct": {
+    "profile": "mob_life:wolf",
+    "forage": { "nutrition": 0, "saturation_modifier": 0.0 }
+  },
   "abilities": ["none"],
   "traits": [
     "can_equip_wolf_armor"

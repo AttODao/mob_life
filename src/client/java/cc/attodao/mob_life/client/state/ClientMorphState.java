@@ -45,6 +45,7 @@ public final class ClientMorphState {
   private ClientMorphState() {}
 
   public static void setMorph(MorphDefinition newDefinition) {
+    ClientInstinctState.clear();
     ClientPredatorOutlineState.clear();
     MorphType newMorph = newDefinition.type();
     definition = newMorph.isPlayer() ? null : newDefinition;
@@ -209,6 +210,7 @@ public final class ClientMorphState {
   }
 
   public static void clear() {
+    ClientInstinctState.clear();
     ClientPredatorOutlineState.clear();
     definition = null;
     morph = null;

@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.mixin.inventory;
 
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -33,7 +34,7 @@ public abstract class SlotMixin {
   @Inject(method = "mayPickup", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventTakingFromInactiveSlot(
       Player player, CallbackInfoReturnable<Boolean> cir) {
-    if (!mobLife$isActiveInventorySlot()) {
+    if (MorphInstinct.blocksActions(player) || !mobLife$isActiveInventorySlot()) {
       cir.setReturnValue(false);
     }
   }

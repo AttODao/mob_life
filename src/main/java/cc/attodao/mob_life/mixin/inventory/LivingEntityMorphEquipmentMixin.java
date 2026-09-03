@@ -1,7 +1,7 @@
 package cc.attodao.mob_life.mixin.inventory;
 
+import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.morph.MorphType;
-import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -16,11 +16,14 @@ public abstract class LivingEntityMorphEquipmentMixin {
   @Inject(method = "canUseSlot", at = @At("HEAD"), cancellable = true)
   private void mobLife$restrictMorphEquipment(
       EquipmentSlot slot, CallbackInfoReturnable<Boolean> cir) {
-    if (!((Object) this instanceof ServerPlayer) || !ServerMorphManager.hasMobForm()) {
+    if (!((Object) this instanceof ServerPlayer player)) {
       return;
     }
 
-    MorphType morph = ServerMorphManager.activeMorph();
+    MorphType morph = MorphRelations.morphOf(player);
+    if (morph == null) {
+      return;
+    }
     if (slot.getType() == EquipmentSlot.Type.HUMANOID_ARMOR) {
       cir.setReturnValue(false);
     } else if (slot == EquipmentSlot.BODY) {

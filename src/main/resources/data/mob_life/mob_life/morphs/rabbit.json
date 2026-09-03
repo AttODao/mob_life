@@ -94,6 +94,10 @@
     "without_bed": true,
     "required_ticks": 200
   },
+  "instinct": {
+    "profile": "mob_life:rabbit",
+    "forage": { "nutrition": 3, "saturation_modifier": 0.6 }
+  },
   "abilities": ["none"],
   "traits": []
 }

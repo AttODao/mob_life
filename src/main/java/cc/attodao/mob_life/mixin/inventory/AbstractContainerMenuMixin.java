@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.mixin.inventory;
 
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -14,6 +15,10 @@ public abstract class AbstractContainerMenuMixin {
   @Inject(method = "clicked", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventSwapToInactiveHotbarSlot(
       int slotIndex, int buttonNum, ContainerInput containerInput, Player player, CallbackInfo ci) {
+    if (MorphInstinct.blocksActions(player)) {
+      ci.cancel();
+      return;
+    }
     if (!MorphInventoryCapacity.hasMobForm(player)) {
       return;
     }

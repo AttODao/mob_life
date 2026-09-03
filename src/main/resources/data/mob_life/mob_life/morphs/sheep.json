@@ -93,6 +93,10 @@
     "without_bed": true,
     "required_ticks": 200
   },
+  "instinct": {
+    "profile": "mob_life:sheep",
+    "forage": { "nutrition": 2, "saturation_modifier": 0.0 }
+  },
   "abilities": ["none"],
   "traits": [
     "eats_grass"

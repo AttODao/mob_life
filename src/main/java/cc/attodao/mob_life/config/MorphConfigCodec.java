@@ -42,6 +42,9 @@ final class MorphConfigCodec {
     root.add("inventory", inventoryJson(config.inventory()));
     root.add("sleep", sleepJson(config.sleep()));
     root.add("outline", outlineJson(config.outline()));
+    if (config.instinct().supported()) {
+      root.add("instinct", instinctJson(config.instinct()));
+    }
     root.add("abilities", abilitiesJson(config.abilities()));
     root.add("traits", traitsJson(config.traits()));
     return root;
@@ -110,6 +113,7 @@ final class MorphConfigCodec {
         new MorphConfig.Inventory(9, 27, 0),
         new MorphConfig.Sleep(MorphConfig.SleepSchedule.NORMAL, false, 200),
         new MorphConfig.Outline(true, 96.0),
+        MorphConfig.Instinct.unsupported(),
         new MorphConfig.Abilities(MorphConfig.Ability.NONE),
         new MorphConfig.Traits(Set.of()));
   }
@@ -125,6 +129,7 @@ final class MorphConfigCodec {
     JsonObject inventory = object(root, "inventory");
     JsonObject sleep = object(root, "sleep");
     JsonObject outline = object(root, "outline");
+    JsonElement instinct = root.get("instinct");
     MorphConfig.Movement defaultMovement = defaults.movement();
     MorphConfig.RabbitHop defaultHop = defaultMovement.rabbitHop();
     MorphConfig.Diet defaultDiet = defaults.diet();
@@ -134,6 +139,7 @@ final class MorphConfigCodec {
     MorphConfig.Inventory defaultInventory = defaults.inventory();
     MorphConfig.Sleep defaultSleep = defaults.sleep();
     MorphConfig.Outline defaultOutline = defaults.outline();
+    MorphConfig.Instinct defaultInstinct = defaults.instinct();
     return new MorphConfig(
         new MorphConfig.Movement(
             number(movement, "reference_mob_speed", defaultMovement.referenceMobSpeed()),
@@ -221,6 +227,7 @@ final class MorphConfigCodec {
         new MorphConfig.Outline(
             bool(outline, "enabled", defaultOutline.enabled()),
             clampedNumber(outline, "range", defaultOutline.range(), 0.0, 128.0)),
+        instinct(instinct, defaultInstinct),
         new MorphConfig.Abilities(ability(root, "abilities", defaults.abilities().value())),
         new MorphConfig.Traits(traits(root, "traits", defaults.traits().values())));
   }
@@ -335,6 +342,71 @@ final class MorphConfigCodec {
     result.addProperty("enabled", outline.enabled());
     result.addProperty("range", outline.range());
     return result;
+  }
+
+  private static JsonObject instinctJson(MorphConfig.Instinct instinct) {
+    JsonObject result = new JsonObject();
+    result.addProperty("profile", instinct.profile());
+    JsonObject forage = new JsonObject();
+    forage.addProperty("nutrition", instinct.forage().nutrition());
+    forage.addProperty("saturation_modifier", instinct.forage().saturationModifier());
+    result.add("forage", forage);
+    return result;
+  }
+
+  private static MorphConfig.Instinct instinct(
+      JsonElement instinctElement, MorphConfig.Instinct fallback) {
+    if (instinctElement == null) {
+      return fallback;
+    }
+    try {
+      if (!instinctElement.isJsonObject()) {
+        throw new IllegalArgumentException("instinct must be an object");
+      }
+      JsonObject instinct = instinctElement.getAsJsonObject();
+      JsonElement profileElement = instinct.get("profile");
+      if (profileElement == null
+          || !profileElement.isJsonPrimitive()
+          || !profileElement.getAsJsonPrimitive().isString()) {
+        throw new IllegalArgumentException("instinct.profile must be a string");
+      }
+      String profile = profileElement.getAsString();
+      if (profile.isBlank()) {
+        return MorphConfig.Instinct.unsupported();
+      }
+      JsonElement forageElement = instinct.get("forage");
+      if (forageElement == null || !forageElement.isJsonObject()) {
+        throw new IllegalArgumentException("instinct.forage must be an object");
+      }
+      JsonObject forage = forageElement.getAsJsonObject();
+      JsonElement nutritionElement = forage.get("nutrition");
+      JsonElement saturationElement = forage.get("saturation_modifier");
+      if (nutritionElement == null
+          || !nutritionElement.isJsonPrimitive()
+          || !nutritionElement.getAsJsonPrimitive().isNumber()) {
+        throw new IllegalArgumentException("instinct.forage.nutrition must be an integer");
+      }
+      double rawNutrition = nutritionElement.getAsDouble();
+      if (!Double.isFinite(rawNutrition)
+          || rawNutrition < 0.0
+          || rawNutrition > Integer.MAX_VALUE
+          || rawNutrition != Math.rint(rawNutrition)) {
+        throw new IllegalArgumentException(
+            "instinct.forage.nutrition must be a non-negative integer");
+      }
+      if (saturationElement == null
+          || !saturationElement.isJsonPrimitive()
+          || !saturationElement.getAsJsonPrimitive().isNumber()) {
+        throw new IllegalArgumentException("instinct.forage.saturation_modifier must be a number");
+      }
+      float saturation = saturationElement.getAsFloat();
+      return new MorphConfig.Instinct(
+          profile, new MorphConfig.Forage((int) rawNutrition, saturation));
+    } catch (RuntimeException exception) {
+      cc.attodao.mob_life.MobLife.LOGGER.error(
+          "Disabling invalid instinct configuration", exception);
+      return MorphConfig.Instinct.unsupported();
+    }
   }
 
   private static JsonArray abilitiesJson(MorphConfig.Abilities abilities) {

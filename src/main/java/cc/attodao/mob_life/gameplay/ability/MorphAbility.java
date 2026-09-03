@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.gameplay.ability;
 
 import cc.attodao.mob_life.config.MorphConfig;
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -18,7 +19,7 @@ public final class MorphAbility {
   private MorphAbility() {}
 
   public static void request(ServerPlayer player) {
-    if (!ServerMorphManager.hasMobForm() || !player.isAlive()) {
+    if (!ServerMorphManager.hasMobForm() || !player.isAlive() || MorphInstinct.isActive(player)) {
       return;
     }
 
@@ -35,6 +36,14 @@ public final class MorphAbility {
   }
 
   private static void layEgg(ServerPlayer player) {
+    tryLayEgg(player, true);
+  }
+
+  public static boolean tryLayAutomaticEgg(ServerPlayer player) {
+    return tryLayEgg(player, false);
+  }
+
+  private static boolean tryLayEgg(ServerPlayer player, boolean showFailure) {
     MorphAbilityHolder holder = holder(player);
     long day = Math.floorDiv(player.level().getDefaultClockTime(), DAY_TICKS);
     if (holder.mobLife$getEggDay() != day) {
@@ -43,15 +52,19 @@ public final class MorphAbility {
     }
 
     if (holder.mobLife$getEggsLaidToday() >= MAXIMUM_EGGS_PER_DAY) {
-      player.sendOverlayMessage(Component.translatable("mob_life.ability.egg.daily_limit"));
-      return;
+      if (showFailure) {
+        player.sendOverlayMessage(Component.translatable("mob_life.ability.egg.daily_limit"));
+      }
+      return false;
     }
 
     FoodData food = player.getFoodData();
     if (food.getFoodLevel() < EGG_FOOD_COST) {
-      player.sendOverlayMessage(
-          Component.translatable("mob_life.ability.egg.not_enough_food", EGG_FOOD_COST));
-      return;
+      if (showFailure) {
+        player.sendOverlayMessage(
+            Component.translatable("mob_life.ability.egg.not_enough_food", EGG_FOOD_COST));
+      }
+      return false;
     }
 
     int remainingFood = food.getFoodLevel() - EGG_FOOD_COST;
@@ -70,6 +83,7 @@ public final class MorphAbility {
             1.0F,
             1.0F);
     holder.mobLife$setEggsLaidToday(holder.mobLife$getEggsLaidToday() + 1);
+    return true;
   }
 
   private static MorphAbilityHolder holder(ServerPlayer player) {

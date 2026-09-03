@@ -2,6 +2,7 @@ package cc.attodao.mob_life;
 
 import cc.attodao.mob_life.config.MorphConfigReloadListener;
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
+import cc.attodao.mob_life.gameplay.instinct.InstinctPreyReloadListener;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import cc.attodao.mob_life.server.MobLifeCommand;
 import cc.attodao.mob_life.server.ServerMorphManager;
@@ -25,6 +26,8 @@ public final class MobLife implements ModInitializer {
     ServerMobLifeConfig.load();
     DataResourceLoader.get()
         .registerReloadListener(id("morph_configs"), new MorphConfigReloadListener());
+    DataResourceLoader.get()
+        .registerReloadListener(id("instinct_prey"), new InstinctPreyReloadListener());
     MobLifeNetworking.registerPayloads();
     MobLifeCommand.register();
     ServerMorphManager.registerEvents();

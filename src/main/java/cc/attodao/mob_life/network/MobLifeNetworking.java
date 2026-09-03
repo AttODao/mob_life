@@ -3,6 +3,8 @@ package cc.attodao.mob_life.network;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
+import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import cc.attodao.mob_life.world.MorphVariantRequest;
@@ -35,6 +37,8 @@ public final class MobLifeNetworking {
         .register(GrassEatingStatePayload.TYPE, GrassEatingStatePayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
         .register(PredatorOutlinePayload.TYPE, PredatorOutlinePayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(InstinctStatePayload.TYPE, InstinctStatePayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(ChargedJumpPayload.TYPE, ChargedJumpPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
@@ -43,6 +47,26 @@ public final class MobLifeNetworking {
         .register(AbilityRequestPayload.TYPE, AbilityRequestPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(WorldMorphSelectionSubmitPayload.TYPE, WorldMorphSelectionSubmitPayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay()
+        .register(InstinctInputPayload.TYPE, InstinctInputPayload.CODEC);
+    ServerPlayNetworking.registerGlobalReceiver(
+        InstinctInputPayload.TYPE,
+        (payload, context) -> {
+          MinecraftServer server = context.server();
+          ServerPlayer player = context.player();
+          server.execute(
+              () ->
+                  MorphInstinct.receiveInput(
+                      player,
+                      new InstinctInput(
+                          payload.sideways(),
+                          payload.forward(),
+                          payload.cameraYaw(),
+                          payload.cameraPitch(),
+                          payload.cameraDelta(),
+                          payload.buttons(),
+                          payload.screenMode())));
+        });
     ServerPlayNetworking.registerGlobalReceiver(
         ChargedJumpPayload.TYPE,
         (payload, context) -> {
@@ -333,16 +357,21 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record PredatorOutlinePayload(List<Integer> predators) implements CustomPacketPayload {
+  public record PredatorOutlinePayload(List<Integer> predators, List<Integer> prey)
+      implements CustomPacketPayload {
     public static final Type<PredatorOutlinePayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "predator_outlines"));
     public static final StreamCodec<RegistryFriendlyByteBuf, PredatorOutlinePayload> CODEC =
         StreamCodec.of(
-            (buffer, payload) -> writeIds(buffer, payload.predators()),
-            buffer -> new PredatorOutlinePayload(readIds(buffer)));
+            (buffer, payload) -> {
+              writeIds(buffer, payload.predators());
+              writeIds(buffer, payload.prey());
+            },
+            buffer -> new PredatorOutlinePayload(readIds(buffer), readIds(buffer)));
 
     public PredatorOutlinePayload {
       predators = List.copyOf(predators);
+      prey = List.copyOf(prey);
     }
 
     @Override
@@ -362,6 +391,94 @@ public final class MobLifeNetworking {
         ids.add(buffer.readVarInt());
       }
       return ids;
+    }
+  }
+
+  public record InstinctInputPayload(
+      float sideways,
+      float forward,
+      float cameraYaw,
+      float cameraPitch,
+      float cameraDelta,
+      int buttons,
+      int screenMode)
+      implements CustomPacketPayload {
+    public static final Type<InstinctInputPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_input"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctInputPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeFloat(payload.sideways());
+              buffer.writeFloat(payload.forward());
+              buffer.writeFloat(payload.cameraYaw());
+              buffer.writeFloat(payload.cameraPitch());
+              buffer.writeFloat(payload.cameraDelta());
+              buffer.writeVarInt(payload.buttons());
+              buffer.writeVarInt(payload.screenMode());
+            },
+            buffer ->
+                new InstinctInputPayload(
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readVarInt(),
+                    buffer.readVarInt()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record InstinctStatePayload(
+      boolean active,
+      float level,
+      double x,
+      double y,
+      double z,
+      boolean onGround,
+      float bodyYaw,
+      float headYaw,
+      float headPitch,
+      boolean lookingAtTarget,
+      int activity)
+      implements CustomPacketPayload {
+    public static final Type<InstinctStatePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_state"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, InstinctStatePayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeBoolean(payload.active());
+              buffer.writeFloat(payload.level());
+              buffer.writeDouble(payload.x());
+              buffer.writeDouble(payload.y());
+              buffer.writeDouble(payload.z());
+              buffer.writeBoolean(payload.onGround());
+              buffer.writeFloat(payload.bodyYaw());
+              buffer.writeFloat(payload.headYaw());
+              buffer.writeFloat(payload.headPitch());
+              buffer.writeBoolean(payload.lookingAtTarget());
+              buffer.writeVarInt(payload.activity());
+            },
+            buffer ->
+                new InstinctStatePayload(
+                    buffer.readBoolean(),
+                    buffer.readFloat(),
+                    buffer.readDouble(),
+                    buffer.readDouble(),
+                    buffer.readDouble(),
+                    buffer.readBoolean(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readFloat(),
+                    buffer.readBoolean(),
+                    buffer.readVarInt()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
     }
   }
 }

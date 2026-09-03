@@ -1,8 +1,8 @@
 package cc.attodao.mob_life.mixin.targeting;
 
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
+import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.morph.MorphType;
-import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.PathfinderMob;
@@ -25,13 +25,14 @@ public abstract class AvoidEntityGoalMixin {
       at = @At("RETURN"),
       cancellable = true)
   private void mobLife$doNotFleeFromPreyMorph(CallbackInfoReturnable<Boolean> cir) {
-    MorphType morph = ServerMorphManager.activeMorph();
     if (!cir.getReturnValue()) {
       return;
     }
-    if (morph != null
-        && toAvoid instanceof ServerPlayer player
-        && MorphPredation.isPredatorForPlayer(mob, player, morph)) {
+    if (!(toAvoid instanceof ServerPlayer player)) {
+      return;
+    }
+    MorphType morph = MorphRelations.morphOf(player);
+    if (morph != null && MorphPredation.isPredatorForPlayer(mob, player, morph)) {
       cir.setReturnValue(false);
     }
   }

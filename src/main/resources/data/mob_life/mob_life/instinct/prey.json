@@ -1,0 +1,7 @@
+{
+  "minecraft:chicken": { "nutrition": 2, "saturation_modifier": 0.3 },
+  "minecraft:fox": { "nutrition": 3, "saturation_modifier": 0.3 },
+  "minecraft:rabbit": { "nutrition": 3, "saturation_modifier": 0.3 },
+  "minecraft:sheep": { "nutrition": 2, "saturation_modifier": 0.3 },
+  "minecraft:turtle": { "nutrition": 1, "saturation_modifier": 0.1 }
+}

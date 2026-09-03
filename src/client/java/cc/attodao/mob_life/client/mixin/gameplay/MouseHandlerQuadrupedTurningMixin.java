@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
+import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
@@ -15,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class MouseHandlerQuadrupedTurningMixin {
   @Inject(method = "turnPlayer", at = @At("TAIL"))
   private void mobLife$turnQuadrupedPerFrame(double frameTime, CallbackInfo ci) {
-    if (ClientMorphState.morph() == null) {
+    if (ClientMorphState.morph() == null || ClientInstinctState.active()) {
       return;
     }
 

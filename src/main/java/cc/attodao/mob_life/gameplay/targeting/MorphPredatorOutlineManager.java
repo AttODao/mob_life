@@ -2,6 +2,7 @@ package cc.attodao.mob_life.gameplay.targeting;
 
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import cc.attodao.mob_life.gameplay.instinct.InstinctProfiles;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import java.util.ArrayList;
@@ -16,7 +17,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 
 public final class MorphPredatorOutlineManager {
@@ -30,7 +30,7 @@ public final class MorphPredatorOutlineManager {
     ResourceKey<Level> dimension = player.level().dimension();
     OutlineSnapshot previous = LAST_SENT.get(player.getUUID());
     if (previous != null && !previous.dimension().equals(dimension)) {
-      sendIfChanged(player, new OutlineSnapshot(dimension, Set.of()));
+      sendIfChanged(player, new OutlineSnapshot(dimension, Set.of(), Set.of()));
     }
     if ((player.tickCount + Math.floorMod(player.getId(), UPDATE_INTERVAL_TICKS))
             % UPDATE_INTERVAL_TICKS
@@ -38,9 +38,13 @@ public final class MorphPredatorOutlineManager {
       return;
     }
 
+    if (morph == null) {
+      sendIfChanged(player, new OutlineSnapshot(dimension, Set.of(), Set.of()));
+      return;
+    }
     MorphConfig config = MorphConfigManager.get(morph);
     if (!config.outline().enabled() || config.outline().range() <= 0.0) {
-      sendIfChanged(player, new OutlineSnapshot(dimension, Set.of()));
+      sendIfChanged(player, new OutlineSnapshot(dimension, Set.of(), Set.of()));
       return;
     }
 
@@ -49,22 +53,27 @@ public final class MorphPredatorOutlineManager {
     nearby.sort(java.util.Comparator.comparingDouble(player::distanceToSqr));
 
     LinkedHashSet<Integer> predators = new LinkedHashSet<>();
+    LinkedHashSet<Integer> prey = new LinkedHashSet<>();
     for (LivingEntity entity : nearby) {
-      if (entity instanceof Mob mob
-          && !MorphRelations.isSameSpecies(entity, morph)
-          && MorphPredation.isPredatorFor(mob, morph)) {
+      if (!MorphRelations.isSameSpecies(entity, morph)
+          && MorphPredation.isPredatorFor(entity, morph)
+          && predators.size() < MAX_ENTITIES) {
         predators.add(entity.getId());
-        if (predators.size() >= MAX_ENTITIES) {
-          break;
-        }
+      }
+      if (InstinctProfiles.isEnabledNaturalPrey(morph, entity) && prey.size() < MAX_ENTITIES) {
+        prey.add(entity.getId());
+      }
+      if (predators.size() >= MAX_ENTITIES && prey.size() >= MAX_ENTITIES) {
+        break;
       }
     }
-    sendIfChanged(player, new OutlineSnapshot(dimension, Set.copyOf(predators)));
+    sendIfChanged(player, new OutlineSnapshot(dimension, Set.copyOf(predators), Set.copyOf(prey)));
   }
 
   public static void clear(MinecraftServer server) {
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-      ServerPlayNetworking.send(player, new MobLifeNetworking.PredatorOutlinePayload(List.of()));
+      ServerPlayNetworking.send(
+          player, new MobLifeNetworking.PredatorOutlinePayload(List.of(), List.of()));
     }
     LAST_SENT.clear();
   }
@@ -78,8 +87,11 @@ public final class MorphPredatorOutlineManager {
       return;
     }
     ServerPlayNetworking.send(
-        player, new MobLifeNetworking.PredatorOutlinePayload(List.copyOf(snapshot.predators())));
+        player,
+        new MobLifeNetworking.PredatorOutlinePayload(
+            List.copyOf(snapshot.predators()), List.copyOf(snapshot.prey())));
   }
 
-  private record OutlineSnapshot(ResourceKey<Level> dimension, Set<Integer> predators) {}
+  private record OutlineSnapshot(
+      ResourceKey<Level> dimension, Set<Integer> predators, Set<Integer> prey) {}
 }

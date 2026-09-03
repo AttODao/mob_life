@@ -2,6 +2,7 @@ package cc.attodao.mob_life.server;
 
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -27,6 +28,9 @@ public final class MobLifeCommand {
   private static final DynamicCommandExceptionType UNSUPPORTED_MORPH =
       new DynamicCommandExceptionType(
           id -> Component.translatable("commands.mob_life.morph.unsupported", id));
+  private static final DynamicCommandExceptionType INSTINCT_UNAVAILABLE =
+      new DynamicCommandExceptionType(
+          name -> Component.translatable("commands.mob_life.instinct.unavailable", name));
 
   private MobLifeCommand() {}
 
@@ -69,6 +73,32 @@ public final class MobLifeCommand {
                                                       CompoundTagArgument.getCompoundTag(
                                                           context, "nbt"))))))
                   .then(
+                      Commands.literal("instinct")
+                          .then(
+                              Commands.literal("enter")
+                                  .executes(context -> setInstinct(context, true, null))
+                                  .then(
+                                      Commands.argument("target", EntityArgument.player())
+                                          .executes(
+                                              context ->
+                                                  setInstinct(
+                                                      context,
+                                                      true,
+                                                      EntityArgument.getPlayer(
+                                                          context, "target")))))
+                          .then(
+                              Commands.literal("exit")
+                                  .executes(context -> setInstinct(context, false, null))
+                                  .then(
+                                      Commands.argument("target", EntityArgument.player())
+                                          .executes(
+                                              context ->
+                                                  setInstinct(
+                                                      context,
+                                                      false,
+                                                      EntityArgument.getPlayer(
+                                                          context, "target"))))))
+                  .then(
                       Commands.literal("awkwardness")
                           .then(
                               Commands.argument(
@@ -81,6 +111,33 @@ public final class MobLifeCommand {
                                       Commands.argument("target", EntityArgument.player())
                                           .executes(MobLifeCommand::setAwkwardnessForTarget)))));
         });
+  }
+
+  private static int setInstinct(
+      CommandContext<CommandSourceStack> context, boolean enter, ServerPlayer explicitTarget)
+      throws CommandSyntaxException {
+    ServerPlayer target =
+        explicitTarget != null ? explicitTarget : context.getSource().getPlayerOrException();
+    boolean changed;
+    if (enter) {
+      MorphDefinition definition = ServerMorphManager.activeDefinition();
+      changed = definition != null && MorphInstinct.enter(target, definition);
+      if (!changed) {
+        throw INSTINCT_UNAVAILABLE.create(target.getDisplayName());
+      }
+    } else {
+      changed = MorphInstinct.isActive(target);
+      MorphInstinct.exit(target);
+    }
+    context
+        .getSource()
+        .sendSuccess(
+            () ->
+                Component.translatable(
+                    enter ? "commands.mob_life.instinct.enter" : "commands.mob_life.instinct.exit",
+                    target.getDisplayName()),
+            false);
+    return changed ? 1 : 0;
   }
 
   private static int setAwkwardness(CommandContext<CommandSourceStack> context)

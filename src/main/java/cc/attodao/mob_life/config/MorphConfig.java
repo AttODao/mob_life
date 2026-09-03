@@ -16,6 +16,7 @@ public record MorphConfig(
     Inventory inventory,
     Sleep sleep,
     Outline outline,
+    Instinct instinct,
     Abilities abilities,
     Traits traits) {
 
@@ -184,6 +185,33 @@ public record MorphConfig(
     }
   }
 
+  public record Instinct(String profile, Forage forage) {
+    public Instinct {
+      profile = profile != null ? profile : "";
+      forage = Objects.requireNonNull(forage);
+    }
+
+    public boolean supported() {
+      return !profile.isBlank();
+    }
+
+    public static Instinct unsupported() {
+      return new Instinct("", new Forage(0, 0.0F));
+    }
+  }
+
+  public record Forage(int nutrition, float saturationModifier) {
+    public Forage {
+      if (nutrition < 0) {
+        throw new IllegalArgumentException("Instinct forage nutrition must be non-negative");
+      }
+      if (!Float.isFinite(saturationModifier) || saturationModifier < 0.0F) {
+        throw new IllegalArgumentException(
+            "Instinct forage saturation_modifier must be finite and non-negative");
+      }
+    }
+  }
+
   public enum AttackMode {
     NONE("none"),
     ALWAYS("always"),
@@ -345,7 +373,33 @@ public record MorphConfig(
   }
 
   public static MorphConfig fromJson(MorphType morph, JsonObject root) {
-    return MorphConfigCodec.fromJson(root, defaults(morph));
+    MorphConfig parsed = MorphConfigCodec.fromJson(root, defaults(morph));
+    String expectedProfile = "mob_life:" + morph.id();
+    if (!root.has("instinct") || !expectedProfile.equals(parsed.instinct().profile())) {
+      if (root.has("instinct") && parsed.instinct().supported()) {
+        cc.attodao.mob_life.MobLife.LOGGER.error(
+            "Disabling mismatched instinct profile {} for {}",
+            parsed.instinct().profile(),
+            morph.id());
+      }
+      parsed = parsed.withInstinct(Instinct.unsupported());
+    }
+    return parsed;
+  }
+
+  public MorphConfig withInstinct(Instinct replacement) {
+    return new MorphConfig(
+        movement,
+        diet,
+        vision,
+        combat,
+        attributes,
+        inventory,
+        sleep,
+        outline,
+        replacement,
+        abilities,
+        traits);
   }
 
   public JsonObject toJson() {

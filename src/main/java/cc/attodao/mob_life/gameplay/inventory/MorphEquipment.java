@@ -54,24 +54,26 @@ public final class MorphEquipment {
   public static void removeUnsupportedEquipment(Player player) {
     MorphType morph = morph(player);
     if (!morph.canEquipChest()) {
-      MorphChestInventory.get(player).returnTo(player);
+      MorphChestInventory.get(player).dropAll(player);
     }
     if (morph.isPlayer()) {
+      dropAtFeet(player, EquipmentSlot.BODY);
+      dropAtFeet(player, EquipmentSlot.SADDLE);
       return;
     }
 
     if (!isSlotActive(player, Inventory.SLOT_OFFHAND)) {
-      moveToInventory(player, EquipmentSlot.OFFHAND);
+      dropAtFeet(player, EquipmentSlot.OFFHAND);
     }
-    moveToInventory(player, EquipmentSlot.HEAD);
-    moveToInventory(player, EquipmentSlot.CHEST);
-    moveToInventory(player, EquipmentSlot.LEGS);
-    moveToInventory(player, EquipmentSlot.FEET);
+    dropAtFeet(player, EquipmentSlot.HEAD);
+    dropAtFeet(player, EquipmentSlot.CHEST);
+    dropAtFeet(player, EquipmentSlot.LEGS);
+    dropAtFeet(player, EquipmentSlot.FEET);
     if (!mayPlaceBody(player, player.getItemBySlot(EquipmentSlot.BODY))) {
-      moveToInventory(player, EquipmentSlot.BODY);
+      dropAtFeet(player, EquipmentSlot.BODY);
     }
     if (!mayPlaceSaddle(player, player.getItemBySlot(EquipmentSlot.SADDLE))) {
-      moveToInventory(player, EquipmentSlot.SADDLE);
+      dropAtFeet(player, EquipmentSlot.SADDLE);
     }
   }
 
@@ -87,13 +89,13 @@ public final class MorphEquipment {
     return ((MorphInventoryCapacityHolder) player).mobLife$getMorph();
   }
 
-  private static void moveToInventory(Player player, EquipmentSlot equipmentSlot) {
+  private static void dropAtFeet(Player player, EquipmentSlot equipmentSlot) {
     ItemStack stack = player.getItemBySlot(equipmentSlot);
     if (stack.isEmpty()) {
       return;
     }
 
     player.setItemSlot(equipmentSlot, ItemStack.EMPTY);
-    player.getInventory().placeItemBackInInventory(stack);
+    player.drop(stack, false, false);
   }
 }

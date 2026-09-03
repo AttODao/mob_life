@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.mixin.gameplay;
 
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.server.level.ServerPlayer;
@@ -27,6 +28,10 @@ public abstract class ServerVehicleInputMixin {
                   "Lnet/minecraft/server/level/ServerPlayer;setLastClientInput(Lnet/minecraft/world/entity/player/Input;)V"),
       index = 0)
   private Input mobLife$keepOnlyDismountInput(Input input) {
+    if (MorphInstinct.isActive(player)) {
+      player.setSprinting(false);
+      return Input.EMPTY;
+    }
     if (!mobLife$isRestrictedVehicle()) {
       return input;
     }

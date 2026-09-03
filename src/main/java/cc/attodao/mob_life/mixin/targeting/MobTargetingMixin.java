@@ -2,8 +2,8 @@ package cc.attodao.mob_life.mixin.targeting;
 
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredation;
+import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.morph.MorphType;
-import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -19,12 +19,15 @@ public abstract class MobTargetingMixin {
   @Inject(method = "canAttack", at = @At("HEAD"), cancellable = true)
   private void mobLife$ignoreNaturalMorphs(
       LivingEntity target, CallbackInfoReturnable<Boolean> cir) {
-    if (!(target instanceof ServerPlayer player) || !ServerMorphManager.hasMobForm()) {
+    if (!(target instanceof ServerPlayer player)) {
       return;
     }
 
     Mob mob = (Mob) (Object) this;
-    MorphType morph = ServerMorphManager.activeMorph();
+    MorphType morph = MorphRelations.morphOf(player);
+    if (morph == null) {
+      return;
+    }
     boolean predator = MorphPredation.isPredatorForPlayer(mob, player, morph);
     if (MorphConfigManager.get(morph)
         .combat()

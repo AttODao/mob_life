@@ -28,7 +28,15 @@ public record MorphDefinition(MorphType type, CompoundTag nbt) {
           "Passengers",
           "Brain",
           "Leash",
-          "PortalCooldown");
+          "PortalCooldown",
+          "Owner",
+          "owner",
+          "Sitting",
+          "Tame",
+          "tame",
+          "Trusting",
+          "trusting",
+          "leash");
 
   public MorphDefinition {
     Objects.requireNonNull(type, "type");

@@ -94,6 +94,10 @@
     "without_bed": true,
     "required_ticks": 200
   },
+  "instinct": {
+    "profile": "mob_life:chicken",
+    "forage": { "nutrition": 0, "saturation_modifier": 0.0 }
+  },
   "abilities": ["egg_laying"],
   "traits": [
     "fall_damage_immune"

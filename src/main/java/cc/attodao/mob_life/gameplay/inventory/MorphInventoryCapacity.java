@@ -6,6 +6,7 @@ import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphBodyScale;
 import cc.attodao.mob_life.morph.MorphType;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.Leashable;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -91,6 +92,12 @@ public record MorphInventoryCapacity(int hotbarSlots, int inventorySlots) {
     MorphInventoryCapacity capacity = forMorph(morph, morphHeight, hasChest);
     MorphInventoryCapacityHolder holder = (MorphInventoryCapacityHolder) player;
     holder.mobLife$setInventoryCapacity(morph, capacity.hotbarSlots(), capacity.inventorySlots());
+    if (!player.level().isClientSide()
+        && (morph == null || morph.isPlayer())
+        && player instanceof Leashable leashable
+        && leashable.isLeashed()) {
+      leashable.dropLeash();
+    }
 
     Inventory inventory = player.getInventory();
     if (inventory.getSelectedSlot() >= capacity.hotbarSlots()) {

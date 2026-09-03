@@ -4,8 +4,10 @@ import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
 import cc.attodao.mob_life.client.render.AwkwardnessColor;
 import cc.attodao.mob_life.client.render.MorphJumpBarRenderer;
 import cc.attodao.mob_life.client.render.SizedHotbarRenderer;
+import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
+import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -16,6 +18,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -124,6 +127,8 @@ public abstract class GuiMixin {
       return;
     }
 
+    mobLife$renderInstinctHotbarLock(graphics);
+
     float awkwardness = ClientMorphState.awkwardness();
     mobLife$drawAwkwardnessIndicator(
         graphics, awkwardness, tickCount + deltaTracker.getGameTimeDeltaPartialTick(false));
@@ -138,6 +143,80 @@ public abstract class GuiMixin {
         6,
         6,
         color);
+  }
+
+  @Inject(method = "extractCrosshair", at = @At("HEAD"), cancellable = true)
+  private void mobLife$hideInstinctCrosshair(
+      GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+    if (ClientInstinctState.active()) {
+      ci.cancel();
+    }
+  }
+
+  @Inject(method = "extractCameraOverlays", at = @At("TAIL"))
+  private void mobLife$renderInstinctVignette(
+      GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
+    if (!ClientInstinctState.active()) {
+      return;
+    }
+    float ratio = Mth.clamp(ClientInstinctState.level() / 100.0F, 0.0F, 1.0F);
+    int alpha = Math.round(255.0F * 0.55F * ratio);
+    int color = alpha << 24 | 0x003F2818;
+    int width = Math.max(20, graphics.guiWidth() / 8);
+    int height = Math.max(14, graphics.guiHeight() / 8);
+    graphics.fillGradient(0, 0, graphics.guiWidth(), height, color, 0x003F2818);
+    graphics.fillGradient(
+        0,
+        graphics.guiHeight() - height,
+        graphics.guiWidth(),
+        graphics.guiHeight(),
+        0x003F2818,
+        color);
+    int bands = Math.min(12, width);
+    for (int band = 0; band < bands; band++) {
+      float edge = 1.0F - band / (float) bands;
+      int bandAlpha = Math.round(alpha * edge * edge);
+      int bandColor = bandAlpha << 24 | 0x003F2818;
+      int x0 = band * width / bands;
+      int x1 = (band + 1) * width / bands;
+      graphics.fill(x0, height, x1, graphics.guiHeight() - height, bandColor);
+      graphics.fill(
+          graphics.guiWidth() - x1,
+          height,
+          graphics.guiWidth() - x0,
+          graphics.guiHeight() - height,
+          bandColor);
+    }
+  }
+
+  private static void mobLife$renderInstinctHotbarLock(GuiGraphicsExtractor graphics) {
+    if (!ClientInstinctState.active()) {
+      return;
+    }
+    int slotCount = MorphInventoryCapacity.hotbarSlots(Minecraft.getInstance().player);
+    int width = slotCount * 20 + 2;
+    int left = (graphics.guiWidth() - width) / 2;
+    int top = graphics.guiHeight() - 22;
+    graphics.fill(left, top, left + width, top + 22, 0x80000000);
+    Player player = Minecraft.getInstance().player;
+    if (player != null && !player.getOffhandItem().isEmpty()) {
+      boolean leftHand = player.getMainArm().getOpposite() == HumanoidArm.LEFT;
+      int offhandLeft = leftHand ? left - 29 : left + width;
+      graphics.fill(offhandLeft, top - 1, offhandLeft + 29, top + 23, 0x80000000);
+    }
+
+    float ratio = Mth.clamp(ClientInstinctState.level() / 100.0F, 0.0F, 1.0F);
+    int red = Math.round(Mth.lerp(ratio, 0x80, 0xFF));
+    int green = Math.round(Mth.lerp(ratio, 0x80, 0x55));
+    int blue = Math.round(Mth.lerp(ratio, 0x80, 0x55));
+    int color = 0xFF000000 | red << 16 | green << 8 | blue;
+    int x = graphics.guiWidth() / 2;
+    int y = graphics.guiHeight() - 18;
+    graphics.fill(x - 3, y, x + 4, y + 2, color);
+    graphics.fill(x - 4, y + 1, x - 2, y + 5, color);
+    graphics.fill(x + 3, y + 1, x + 5, y + 5, color);
+    graphics.fill(x - 5, y + 4, x + 6, y + 12, color);
+    graphics.fill(x - 1, y + 7, x + 2, y + 10, 0xFF201A16);
   }
 
   private static void mobLife$drawAwkwardnessIndicator(

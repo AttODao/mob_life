@@ -1,8 +1,10 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
+import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
+import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
@@ -34,6 +36,14 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
               target = "Lnet/minecraft/client/player/ClientInput;tick()V",
               shift = At.Shift.AFTER))
   private void mobLife$restrictVehicleInputAfterPolling(CallbackInfo ci) {
+    ClientInstinctState.capture(input);
+    if (ClientInstinctState.active()) {
+      ClientMorphState.setQuadrupedTurnInput(0.0F);
+      input.keyPresses = Input.EMPTY;
+      ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
+      setSprinting(false);
+      return;
+    }
     mobLife$applyQuadrupedInput();
     mobLife$keepOnlyDismountInput();
   }
@@ -41,6 +51,33 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
   @Inject(method = "aiStep", at = @At("TAIL"))
   private void mobLife$restrictVehicleInputAfterMovement(CallbackInfo ci) {
     mobLife$keepOnlyDismountInput();
+  }
+
+  @WrapWithCondition(
+      method = "tick",
+      at =
+          @At(
+              value = "INVOKE",
+              target = "Lnet/minecraft/client/player/LocalPlayer;sendPosition()V"))
+  private boolean mobLife$applyInstinctPositionInsteadOfSending(LocalPlayer player) {
+    ClientInstinctState.applyAuthoritativePosition(player);
+    return !ClientInstinctState.active();
+  }
+
+  @Inject(method = "getViewYRot", at = @At("HEAD"), cancellable = true)
+  private void mobLife$interpolateInstinctCameraYaw(
+      float partialTick, CallbackInfoReturnable<Float> cir) {
+    if (ClientInstinctState.active()) {
+      cir.setReturnValue(Mth.rotLerp(partialTick, yRotO, getYRot()));
+    }
+  }
+
+  @Inject(method = "getViewXRot", at = @At("HEAD"), cancellable = true)
+  private void mobLife$interpolateInstinctCameraPitch(
+      float partialTick, CallbackInfoReturnable<Float> cir) {
+    if (ClientInstinctState.active()) {
+      cir.setReturnValue(Mth.lerp(partialTick, xRotO, getXRot()));
+    }
   }
 
   @Inject(method = "rideTick", at = @At("HEAD"))
@@ -84,6 +121,12 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
   }
 
   private void mobLife$keepOnlyDismountInput() {
+    if (ClientInstinctState.active()) {
+      input.keyPresses = Input.EMPTY;
+      ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
+      setSprinting(false);
+      return;
+    }
     if (ClientMorphState.morph() == null || !mobLife$isRestrictedVehicle()) {
       return;
     }

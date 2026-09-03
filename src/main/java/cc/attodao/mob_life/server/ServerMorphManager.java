@@ -10,6 +10,8 @@ import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardnessBehavior;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
 import cc.attodao.mob_life.gameplay.food.MorphEatingSound;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
+import cc.attodao.mob_life.gameplay.instinct.InstinctState;
+import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
@@ -129,6 +131,7 @@ public final class ServerMorphManager {
         server -> {
           MorphPredatorOutlineManager.clear(server);
           MorphNearbyEntities.clear();
+          MorphInstinct.clear();
           resetActiveMorph();
           clearServerPlayerState();
         });
@@ -142,6 +145,7 @@ public final class ServerMorphManager {
           setActiveDefinition(server, activeDefinition);
           for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             ServerPlayerMorphApplier.apply(player, activeDefinition, true);
+            MorphInstinct.onReload(player, activeDefinition);
           }
         });
 
@@ -150,6 +154,7 @@ public final class ServerMorphManager {
         (handler, server) -> {
           MorphPredatorOutlineManager.remove(handler.getPlayer());
           MorphNearbyEntities.remove(handler.getPlayer());
+          MorphInstinct.removeRuntime(handler.getPlayer());
           RUNTIME_STATES.remove(handler.getPlayer().getUUID());
         });
     ServerPlayerEvents.AFTER_RESPAWN.register(
@@ -159,6 +164,9 @@ public final class ServerMorphManager {
           RUNTIME_STATES.remove(newPlayer.getUUID());
           MorphAwkwardness.set(newPlayer, MorphAwkwardness.MINIMUM);
           MorphAbility.copy(oldPlayer, newPlayer);
+          InstinctState.get(newPlayer).copyEggStateFrom(InstinctState.get(oldPlayer));
+          InstinctState.get(newPlayer).clearForMorphChange();
+          MorphInstinct.removeRuntime(oldPlayer);
           initializePlayer(newPlayer);
         });
 
@@ -263,7 +271,7 @@ public final class ServerMorphManager {
   }
 
   public static void adjustAwkwardness(ServerPlayer player, float amount) {
-    if (!hasMobForm()) {
+    if (!hasMobForm() || MorphInstinct.isActive(player) || player.isCreative()) {
       return;
     }
 
@@ -283,7 +291,10 @@ public final class ServerMorphManager {
   }
 
   public static void increaseAwkwardnessFromDamage(ServerPlayer player, float finalDamage) {
-    if (!hasMobForm() || finalDamage <= 0.0F) {
+    if (!hasMobForm()
+        || MorphInstinct.isActive(player)
+        || player.isCreative()
+        || finalDamage <= 0.0F) {
       return;
     }
 
@@ -317,7 +328,7 @@ public final class ServerMorphManager {
     }
 
     state.bedlessSleepPending = false;
-    if (hasMobForm()) {
+    if (hasMobForm() && !MorphInstinct.isActive(player)) {
       setAwkwardness(player, MorphAwkwardness.get(player) + BEDLESS_SLEEP_AWKWARDNESS_COST);
     }
   }
@@ -425,6 +436,7 @@ public final class ServerMorphManager {
       return;
     }
     syncAwkwardness(player, true);
+    MorphInstinct.onReload(player, definition);
     if (!activeConfig().movement().rabbitHop().enabled()) {
       syncJumpCooldown(player);
     }
@@ -458,6 +470,11 @@ public final class ServerMorphManager {
   }
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
+    if (activeDefinition != null && !activeDefinition.equals(definition)) {
+      for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+        MorphInstinct.onMorphChanged(player);
+      }
+    }
     MorphPredatorOutlineManager.clear(server);
     MorphNearbyEntities.clear();
     clearPerMorphEffectState();
@@ -491,6 +508,7 @@ public final class ServerMorphManager {
 
   private static void clearServerPlayerState() {
     RUNTIME_STATES.clear();
+    MorphInstinct.clear();
   }
 
   private static void applyActiveEntityProperties(MorphDefinition definition, Entity entity) {
@@ -512,7 +530,21 @@ public final class ServerMorphManager {
   }
 
   private static void tickPlayer(ServerPlayer player) {
-    MorphPredatorOutlineManager.tick(player, activeMorph());
+    MorphPredatorOutlineManager.tick(
+        player, cc.attodao.mob_life.gameplay.targeting.MorphRelations.morphOf(player));
+    MorphInstinct.tick(player, activeDefinition);
+    if (MorphInstinct.isActive(player)) {
+      tickAmbientSound(player);
+      if (player.tickCount % 20 == 0) {
+        refreshChestedInventory(player);
+        if (activeDimensions != null) {
+          ServerPlayerMorphApplier.refreshGameplayModifiers(
+              player, activeMorph(), activeDimensions.height());
+        }
+      }
+      clearMorphNightVisionEffect(player);
+      return;
+    }
     tickGrassEating(player);
     addMovementExhaustion(player);
     tickAwkwardness(player);
@@ -731,6 +763,14 @@ public final class ServerMorphManager {
   }
 
   private static void tickAwkwardness(ServerPlayer player) {
+    if (player.isCreative()) {
+      float previous = MorphAwkwardness.get(player);
+      MorphAwkwardness.set(player, MorphAwkwardness.MINIMUM);
+      if (previous != MorphAwkwardness.MINIMUM) {
+        syncAwkwardness(player, true);
+      }
+      return;
+    }
     float delta = 0.0F;
     Input input = player.getLastClientInput();
     boolean moving = hasMovementInput(input);

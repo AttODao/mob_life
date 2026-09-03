@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.gameplay.targeting;
 
-import cc.attodao.mob_life.server.ServerMorphManager;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.target.NearestAttackableTargetGoal;
@@ -21,11 +20,6 @@ public final class MorphPredatorTargetGoal extends NearestAttackableTargetGoal<S
         false,
         (target, level) ->
             target instanceof ServerPlayer player && MorphPredation.isEligibleTarget(mob, player));
-  }
-
-  @Override
-  public boolean canUse() {
-    return ServerMorphManager.hasMobForm() && super.canUse();
   }
 
   @Override

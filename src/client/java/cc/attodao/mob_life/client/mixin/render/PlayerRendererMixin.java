@@ -74,6 +74,7 @@ public abstract class PlayerRendererMixin {
     morphState.nameTag = state.nameTag;
     morphState.scoreText = state.scoreText;
     morphState.outlineColor = state.outlineColor;
+    morphState.leashStates = state.leashStates;
     renderer.submit(morphState, poseStack, submitNodeCollector, camera);
     ci.cancel();
   }
