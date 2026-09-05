@@ -6,6 +6,7 @@ import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.GaitType;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
+import cc.attodao.mob_life.gameplay.movement.MorphViewRecovery;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -37,6 +38,7 @@ final class ClientLocomotionController {
   private int bodyYawSentTick = Integer.MIN_VALUE;
   private boolean sentBodyYawKnown;
   private float sentBodyYaw;
+  private float pendingCameraDelta;
 
   void capture(Input input) {
     keys = input != null ? input : Input.EMPTY;
@@ -140,13 +142,15 @@ final class ClientLocomotionController {
   void recoverView(
       LocalPlayer currentPlayer, MorphType currentMorph, boolean aimingInteractionActive) {
     resetForIdentity(currentPlayer, currentMorph);
+    boolean cameraInputBlocksRecovery =
+        MorphViewRecovery.cameraInputBlocksRecovery(consumeCameraDelta());
     if (currentMorph == null
         || ClientInstinctState.active()
         || usesVanillaLocomotion(currentPlayer)) {
       return;
     }
     ensureOrientation(currentPlayer);
-    if (keys.left() == keys.right() && !aimingInteractionActive) {
+    if (keys.left() == keys.right() && !aimingInteractionActive && !cameraInputBlocksRecovery) {
       float yawDelta =
           Mth.clamp(
               Mth.wrapDegrees(bodyYaw - currentPlayer.getYRot()),
@@ -166,6 +170,8 @@ final class ClientLocomotionController {
     ensureOrientation(currentPlayer);
     float yawDelta = finiteDelta(yaw);
     float pitchDelta = finiteDelta(pitch);
+    pendingCameraDelta =
+        MorphViewRecovery.accumulateCameraDelta(pendingCameraDelta, yawDelta, pitchDelta);
     float currentYawOffset = Mth.wrapDegrees(currentPlayer.getYRot() - bodyYaw);
     float wantedYawOffset = Mth.wrapDegrees(currentYawOffset + yawDelta);
     if (Math.abs(wantedYawOffset) > MAX_HEAD_YAW
@@ -207,6 +213,7 @@ final class ClientLocomotionController {
     jumpWasDown = false;
     bodyYawSentTick = Integer.MIN_VALUE;
     sentBodyYawKnown = false;
+    pendingCameraDelta = 0.0F;
   }
 
   private boolean applyRabbit(
@@ -278,6 +285,7 @@ final class ClientLocomotionController {
     player = currentPlayer;
     morph = currentMorph;
     orientationKnown = false;
+    pendingCameraDelta = 0.0F;
     resetGait();
     jumpWasDown = keys.jump();
   }
@@ -322,6 +330,12 @@ final class ClientLocomotionController {
   private static float finiteDelta(double input) {
     float delta = (float) input * 0.15F;
     return Float.isFinite(delta) ? delta : 0.0F;
+  }
+
+  private float consumeCameraDelta() {
+    float result = pendingCameraDelta;
+    pendingCameraDelta = 0.0F;
+    return result;
   }
 
   private static void turnInterpolatedView(LocalPlayer player, float yawDelta, float pitchDelta) {

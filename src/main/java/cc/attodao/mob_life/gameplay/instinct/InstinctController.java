@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.gameplay.instinct;
 
+import cc.attodao.mob_life.gameplay.movement.MorphViewRecovery;
 import cc.attodao.mob_life.mixin.instinct.LivingEntityDamageAccessor;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
@@ -398,7 +399,7 @@ final class InstinctController {
     float nativeHeadYaw = proxy.getYHeadRot();
     float nativeHeadPitch = proxy.getXRot();
     float bodyYaw = InstinctAngles.approachYaw(previousBodyYaw, nativeBodyYaw, 90.0F);
-    boolean directCameraInput = input.cameraDelta() > 0.0F;
+    boolean directCameraInput = MorphViewRecovery.cameraInputBlocksRecovery(input.cameraDelta());
     float desiredHeadYaw =
         aiLookTarget ? nativeHeadYaw : directCameraInput ? input.cameraYaw() : bodyYaw;
     float desiredHeadPitch =

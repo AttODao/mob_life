@@ -32,7 +32,9 @@
   shared turn-in-place behavior.
 - Normal-mode body orientation no longer auto-follows head yaw. Without A/D,
   head/camera yaw and pitch recover to body forward by at most 2 degrees per
-  tick. Recovery pauses while attack or use is held on a targeted block/entity.
+  tick. Recovery pauses when that tick's absolute yaw plus pitch camera input
+  totals at least 0.5 degrees, or while attack or use is held on a targeted
+  block/entity.
   Tick-driven A/D and recovery retain their previous angles for render
   interpolation; direct view input updates current and previous angles together.
   Direct view input is bounded to body +/-75 yaw and +/-40 pitch. Changed body
@@ -81,13 +83,17 @@
   while the proxy is in water so WaterAvoidingRandomStrollGoal keeps its native
   land destination and can drive GroundPathNavigation toward a reachable bank.
 - Instinct body yaw follows native AI by at most 90 degrees per tick. Head yaw
-  follows active LookControl or direct camera input by at most 10; without
-  either it recovers to body forward and zero pitch by at most 2 degrees per tick
-  from every yaw, including across the wrapped +/-180-degree boundary. Head yaw
-  hard-clamps to body +/-75 and pitch to +/-40. The independent camera follows
-  head at most 30 degrees per tick with render interpolation, so
-  it may temporarily lag outside the body/head limit. Direct view input remains
-  immediate and bounded.
+  follows active LookControl or direct camera input totaling at least 0.5
+  degrees in that tick by at most 10; without either it recovers to body forward
+  and zero pitch by at most 2 degrees per tick from every yaw, including across
+  the wrapped +/-180-degree boundary.
+  Head yaw hard-clamps to body +/-75 and pitch to +/-40. The independent camera
+  follows head at most 30 degrees per tick with render interpolation, so it may
+  temporarily lag outside the body/head limit. In Instinct mode, direct view
+  input changes only the requested head target sent to the server; it is not
+  applied directly to the camera. The camera always follows the authoritative
+  head using the 30-degree-per-tick limit. Requested yaw is bounded to body
+  +/-75 and pitch to +/-40.
 - Instinct movement feeds confirmed proxy horizontal displacement and final
   speed into `ClientAvatarState`. The client buffers at most five samples,
   consumes at most two per client tick, and holds only the last amplitude target

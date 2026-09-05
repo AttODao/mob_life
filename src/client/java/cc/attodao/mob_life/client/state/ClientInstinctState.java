@@ -3,6 +3,7 @@ package cc.attodao.mob_life.client.state;
 import cc.attodao.mob_life.gameplay.instinct.InstinctAngles;
 import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
+import cc.attodao.mob_life.gameplay.movement.MorphViewRecovery;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import java.util.ArrayDeque;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -38,6 +39,8 @@ public final class ClientInstinctState {
   private static int lockedHotbarSlot;
   private static float cameraYaw;
   private static float cameraPitch;
+  private static float requestedHeadYaw;
+  private static float requestedHeadPitch;
   private static float pendingCameraDelta;
   private static double authoritativeX;
   private static double authoritativeY;
@@ -77,24 +80,23 @@ public final class ClientInstinctState {
       return active;
     }
     pendingCameraDelta =
-        Mth.clamp(pendingCameraDelta + Math.abs(yawDelta) + Math.abs(pitchDelta), 0.0F, 360.0F);
+        MorphViewRecovery.accumulateCameraDelta(pendingCameraDelta, yawDelta, pitchDelta);
     if (!active) {
       return false;
     }
 
-    float currentYawOffset = Mth.wrapDegrees(cameraYaw - bodyYaw);
+    float currentYawOffset = Mth.wrapDegrees(requestedHeadYaw - bodyYaw);
     float wantedYawOffset = Mth.wrapDegrees(currentYawOffset + yawDelta);
     if (Math.abs(wantedYawOffset) > 75.0F
         && Math.abs(wantedYawOffset) > Math.abs(currentYawOffset)) {
       yawDelta = 0.0F;
     }
-    float wantedPitch = cameraPitch + pitchDelta;
-    if (Math.abs(wantedPitch) > 40.0F && Math.abs(wantedPitch) > Math.abs(cameraPitch)) {
+    float wantedPitch = requestedHeadPitch + pitchDelta;
+    if (Math.abs(wantedPitch) > 40.0F && Math.abs(wantedPitch) > Math.abs(requestedHeadPitch)) {
       pitchDelta = 0.0F;
     }
-    cameraYaw += yawDelta;
-    cameraPitch = Mth.clamp(cameraPitch + pitchDelta, -40.0F, 40.0F);
-    applyImmediateCamera(player);
+    requestedHeadYaw += yawDelta;
+    requestedHeadPitch = Mth.clamp(requestedHeadPitch + pitchDelta, -40.0F, 40.0F);
     return true;
   }
 
@@ -110,6 +112,8 @@ public final class ClientInstinctState {
       lockedHotbarSlot = player.getInventory().getSelectedSlot();
       cameraYaw = player.getYRot();
       cameraPitch = Mth.clamp(player.getXRot(), -40.0F, 40.0F);
+      requestedHeadYaw = cameraYaw;
+      requestedHeadPitch = cameraPitch;
       viewBobPlayer = player;
       viewBobLevel = player.level();
       viewBobPlayerWasDead = player.isDeadOrDying();
@@ -137,6 +141,8 @@ public final class ClientInstinctState {
       rawKeys = Input.EMPTY;
       cameraYaw = 0.0F;
       cameraPitch = 0.0F;
+      requestedHeadYaw = 0.0F;
+      requestedHeadPitch = 0.0F;
       hasAuthoritativePosition = false;
     }
   }
@@ -146,8 +152,9 @@ public final class ClientInstinctState {
     if (player == null) {
       return;
     }
+    float cameraDelta = consumeCameraDelta();
     if (!active || ClientMorphState.morph() == null) {
-      sendInput(client, player, consumeCameraDelta());
+      sendInput(client, player, player.getYRot(), player.getXRot(), cameraDelta);
       return;
     }
 
@@ -164,7 +171,11 @@ public final class ClientInstinctState {
     player.yBodyRotO = bodyYaw;
     player.setYHeadRot(InstinctAngles.clampHeadYawToBody(headYaw, bodyYaw, 75.0F));
     player.yHeadRotO = player.getYHeadRot();
-    sendInput(client, player, consumeCameraDelta());
+    if (!MorphViewRecovery.cameraInputBlocksRecovery(cameraDelta)) {
+      requestedHeadYaw = headYaw;
+      requestedHeadPitch = headPitch;
+    }
+    sendInput(client, player, requestedHeadYaw, requestedHeadPitch, cameraDelta);
   }
 
   public static void clear() {
@@ -187,6 +198,8 @@ public final class ClientInstinctState {
     rawKeys = Input.EMPTY;
     cameraYaw = 0.0F;
     cameraPitch = 0.0F;
+    requestedHeadYaw = 0.0F;
+    requestedHeadPitch = 0.0F;
     pendingCameraDelta = 0.0F;
     hasAuthoritativePosition = false;
     clearViewBobSamples();
@@ -252,7 +265,12 @@ public final class ClientInstinctState {
     player.setOnGround(authoritativeOnGround);
   }
 
-  private static void sendInput(Minecraft client, LocalPlayer player, float cameraDelta) {
+  private static void sendInput(
+      Minecraft client,
+      LocalPlayer player,
+      float requestedHeadYaw,
+      float requestedHeadPitch,
+      float cameraDelta) {
     int buttons = 0;
     buttons |= rawKeys.jump() ? InstinctInput.JUMP : 0;
     buttons |= client.options.keyAttack.isDown() ? InstinctInput.ATTACK : 0;
@@ -275,8 +293,8 @@ public final class ClientInstinctState {
         new MobLifeNetworking.InstinctInputPayload(
             -rawMovement.x,
             rawMovement.y,
-            player.getYRot(),
-            player.getXRot(),
+            requestedHeadYaw,
+            requestedHeadPitch,
             cameraDelta,
             buttons,
             screenMode));
@@ -323,14 +341,6 @@ public final class ClientInstinctState {
     float yawDelta = Mth.wrapDegrees(cameraYaw - player.getYRot());
     player.setYRot(player.getYRot() + yawDelta);
     player.setXRot(cameraPitch);
-  }
-
-  private static void applyImmediateCamera(LocalPlayer player) {
-    float yawDelta = Mth.wrapDegrees(cameraYaw - player.getYRot());
-    float pitchDelta = cameraPitch - player.getXRot();
-    applyInterpolatedCamera(player);
-    player.yRotO += yawDelta;
-    player.xRotO += pitchDelta;
   }
 
   private static boolean isSafeScreen(Minecraft client) {
