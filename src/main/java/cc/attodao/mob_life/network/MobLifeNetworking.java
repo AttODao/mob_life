@@ -5,6 +5,8 @@ import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
 import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
+import cc.attodao.mob_life.gameplay.jump.GaitType;
+import cc.attodao.mob_life.gameplay.movement.MorphBodyYawSync;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import cc.attodao.mob_life.world.MorphVariantRequest;
@@ -28,6 +30,10 @@ public final class MobLifeNetworking {
     PayloadTypeRegistry.clientboundPlay()
         .register(WorldMorphSelectionPromptPayload.TYPE, WorldMorphSelectionPromptPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
+        .register(MorphProfilesPayload.TYPE, MorphProfilesPayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
+        .register(MorphBodyYawPayload.TYPE, MorphBodyYawPayload.CODEC);
+    PayloadTypeRegistry.clientboundPlay()
         .register(ServerConfigPayload.TYPE, ServerConfigPayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
         .register(MorphSelectionPayload.TYPE, MorphSelectionPayload.CODEC);
@@ -39,8 +45,9 @@ public final class MobLifeNetworking {
         .register(PredatorOutlinePayload.TYPE, PredatorOutlinePayload.CODEC);
     PayloadTypeRegistry.clientboundPlay()
         .register(InstinctStatePayload.TYPE, InstinctStatePayload.CODEC);
+    PayloadTypeRegistry.serverboundPlay().register(GaitEventPayload.TYPE, GaitEventPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
-        .register(ChargedJumpPayload.TYPE, ChargedJumpPayload.CODEC);
+        .register(MorphBodyYawUpdatePayload.TYPE, MorphBodyYawUpdatePayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(SleepRequestPayload.TYPE, SleepRequestPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
@@ -49,6 +56,12 @@ public final class MobLifeNetworking {
         .register(WorldMorphSelectionSubmitPayload.TYPE, WorldMorphSelectionSubmitPayload.CODEC);
     PayloadTypeRegistry.serverboundPlay()
         .register(InstinctInputPayload.TYPE, InstinctInputPayload.CODEC);
+    ServerPlayNetworking.registerGlobalReceiver(
+        MorphBodyYawUpdatePayload.TYPE,
+        (payload, context) ->
+            context
+                .server()
+                .execute(() -> MorphBodyYawSync.receive(context.player(), payload.bodyYaw())));
     ServerPlayNetworking.registerGlobalReceiver(
         InstinctInputPayload.TYPE,
         (payload, context) -> {
@@ -68,12 +81,11 @@ public final class MobLifeNetworking {
                           payload.screenMode())));
         });
     ServerPlayNetworking.registerGlobalReceiver(
-        ChargedJumpPayload.TYPE,
+        GaitEventPayload.TYPE,
         (payload, context) -> {
           MinecraftServer server = context.server();
           ServerPlayer player = context.player();
-          server.execute(
-              () -> ServerMorphManager.performChargedJump(player, payload.chargeAmount()));
+          server.execute(() -> ServerMorphManager.handleGaitEvent(player, payload.gaitType()));
         });
     ServerPlayNetworking.registerGlobalReceiver(
         SleepRequestPayload.TYPE,
@@ -100,7 +112,7 @@ public final class MobLifeNetworking {
         });
   }
 
-  public record WorldMorphSelectionPromptPayload(List<MorphConfigEntry> configs)
+  public record WorldMorphSelectionPromptPayload(List<String> morphIds)
       implements CustomPacketPayload {
     public static final Type<WorldMorphSelectionPromptPayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "world_morph_selection"));
@@ -108,23 +120,22 @@ public final class MobLifeNetworking {
         CODEC =
             StreamCodec.of(
                 (buffer, payload) -> {
-                  buffer.writeVarInt(payload.configs().size());
-                  for (MorphConfigEntry entry : payload.configs()) {
-                    buffer.writeUtf(entry.morphId());
-                    buffer.writeUtf(entry.configJson());
+                  buffer.writeVarInt(payload.morphIds().size());
+                  for (String morphId : payload.morphIds()) {
+                    buffer.writeUtf(morphId);
                   }
                 },
                 buffer -> {
                   int size = buffer.readVarInt();
-                  ArrayList<MorphConfigEntry> configs = new ArrayList<>(size);
+                  ArrayList<String> morphIds = new ArrayList<>(size);
                   for (int index = 0; index < size; index++) {
-                    configs.add(new MorphConfigEntry(buffer.readUtf(), buffer.readUtf()));
+                    morphIds.add(buffer.readUtf());
                   }
-                  return new WorldMorphSelectionPromptPayload(configs);
+                  return new WorldMorphSelectionPromptPayload(morphIds);
                 });
 
     public WorldMorphSelectionPromptPayload {
-      configs = List.copyOf(configs);
+      morphIds = List.copyOf(morphIds);
     }
 
     @Override
@@ -134,6 +145,74 @@ public final class MobLifeNetworking {
   }
 
   public record MorphConfigEntry(String morphId, String configJson) {}
+
+  public record MorphBodyYawUpdatePayload(float bodyYaw) implements CustomPacketPayload {
+    public static final Type<MorphBodyYawUpdatePayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "body_yaw_update"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MorphBodyYawUpdatePayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> buffer.writeFloat(payload.bodyYaw()),
+            buffer -> new MorphBodyYawUpdatePayload(buffer.readFloat()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record MorphBodyYawPayload(int entityId, float bodyYaw) implements CustomPacketPayload {
+    public static final Type<MorphBodyYawPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "body_yaw"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MorphBodyYawPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeVarInt(payload.entityId());
+              buffer.writeFloat(payload.bodyYaw());
+            },
+            buffer -> new MorphBodyYawPayload(buffer.readVarInt(), buffer.readFloat()));
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
+
+  public record MorphProfilesPayload(long generation, List<MorphConfigEntry> configs)
+      implements CustomPacketPayload {
+    public static final Type<MorphProfilesPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "morph_profiles"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, MorphProfilesPayload> CODEC =
+        StreamCodec.of(
+            (buffer, payload) -> {
+              buffer.writeVarLong(payload.generation());
+              buffer.writeVarInt(payload.configs().size());
+              for (MorphConfigEntry entry : payload.configs()) {
+                buffer.writeUtf(entry.morphId());
+                buffer.writeUtf(entry.configJson());
+              }
+            },
+            buffer -> {
+              long generation = buffer.readVarLong();
+              int size = buffer.readVarInt();
+              if (size < 0 || size > 128) {
+                throw new IllegalArgumentException("Invalid morph profile count " + size);
+              }
+              ArrayList<MorphConfigEntry> configs = new ArrayList<>(size);
+              for (int index = 0; index < size; index++) {
+                configs.add(new MorphConfigEntry(buffer.readUtf(), buffer.readUtf()));
+              }
+              return new MorphProfilesPayload(generation, configs);
+            });
+
+    public MorphProfilesPayload {
+      configs = List.copyOf(configs);
+    }
+
+    @Override
+    public Type<? extends CustomPacketPayload> type() {
+      return TYPE;
+    }
+  }
 
   /** Gameplay settings are sent only from the server and never accepted from clients. */
   public record ServerConfigPayload(
@@ -185,7 +264,7 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record MorphSelectionPayload(String morphId, CompoundTag nbt, String configJson)
+  public record MorphSelectionPayload(String morphId, CompoundTag nbt)
       implements CustomPacketPayload {
     public static final Type<MorphSelectionPayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "morph_selection"));
@@ -194,13 +273,11 @@ public final class MobLifeNetworking {
             (buffer, payload) -> {
               buffer.writeUtf(payload.morphId());
               buffer.writeNbt(payload.nbt());
-              buffer.writeUtf(payload.configJson());
             },
             buffer -> {
               String morphId = buffer.readUtf();
               CompoundTag nbt = buffer.readNbt();
-              return new MorphSelectionPayload(
-                  morphId, nbt != null ? nbt : new CompoundTag(), buffer.readUtf());
+              return new MorphSelectionPayload(morphId, nbt != null ? nbt : new CompoundTag());
             });
 
     public MorphSelectionPayload {
@@ -287,13 +364,20 @@ public final class MobLifeNetworking {
     }
   }
 
-  public record ChargedJumpPayload(int chargeAmount) implements CustomPacketPayload {
-    public static final Type<ChargedJumpPayload> TYPE =
-        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "charged_jump"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, ChargedJumpPayload> CODEC =
+  public record GaitEventPayload(GaitType gaitType) implements CustomPacketPayload {
+    public static final Type<GaitEventPayload> TYPE =
+        new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "gait_event"));
+    public static final StreamCodec<RegistryFriendlyByteBuf, GaitEventPayload> CODEC =
         StreamCodec.of(
-            (buffer, payload) -> buffer.writeVarInt(payload.chargeAmount()),
-            buffer -> new ChargedJumpPayload(buffer.readVarInt()));
+            (buffer, payload) -> buffer.writeVarInt(payload.gaitType().ordinal()),
+            buffer -> {
+              int ordinal = buffer.readVarInt();
+              GaitType[] values = GaitType.values();
+              if (ordinal < 0 || ordinal >= values.length) {
+                throw new IllegalArgumentException("Unknown gait type " + ordinal);
+              }
+              return new GaitEventPayload(values[ordinal]);
+            });
 
     @Override
     public Type<? extends CustomPacketPayload> type() {
@@ -443,7 +527,9 @@ public final class MobLifeNetworking {
       float headYaw,
       float headPitch,
       boolean lookingAtTarget,
-      int activity)
+      int activity,
+      float horizontalDisplacement,
+      float horizontalSpeed)
       implements CustomPacketPayload {
     public static final Type<InstinctStatePayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_state"));
@@ -461,6 +547,8 @@ public final class MobLifeNetworking {
               buffer.writeFloat(payload.headPitch());
               buffer.writeBoolean(payload.lookingAtTarget());
               buffer.writeVarInt(payload.activity());
+              buffer.writeFloat(payload.horizontalDisplacement());
+              buffer.writeFloat(payload.horizontalSpeed());
             },
             buffer ->
                 new InstinctStatePayload(
@@ -474,7 +562,18 @@ public final class MobLifeNetworking {
                     buffer.readFloat(),
                     buffer.readFloat(),
                     buffer.readBoolean(),
-                    buffer.readVarInt()));
+                    buffer.readVarInt(),
+                    buffer.readFloat(),
+                    buffer.readFloat()));
+
+    public InstinctStatePayload {
+      if (!Float.isFinite(horizontalDisplacement) || horizontalDisplacement < 0.0F) {
+        horizontalDisplacement = 0.0F;
+      }
+      if (!Float.isFinite(horizontalSpeed) || horizontalSpeed < 0.0F) {
+        horizontalSpeed = 0.0F;
+      }
+    }
 
     @Override
     public Type<? extends CustomPacketPayload> type() {

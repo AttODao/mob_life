@@ -54,22 +54,28 @@ final class MorphSelectionDetails {
   }
 
   private static List<DetailLine> buildLines(MorphType morph, int headerColor, int bodyColor) {
-    MorphConfig config = MorphConfigManager.get(morph);
     ArrayList<DetailLine> lines = new ArrayList<>();
+    if (morph.isPlayer()) {
+      addSectionHeader(lines, headerColor, "mob_life.world_select.section.movement");
+      addBody(lines, bodyColor, Component.translatable("mob_life.world_select.player.vanilla"));
+      return lines;
+    }
+
+    MorphConfig config = MorphConfigManager.get(morph);
 
     addSectionHeader(lines, headerColor, "mob_life.world_select.section.movement");
     addBody(
         lines,
         bodyColor,
         Component.translatable(
-            "mob_life.world_select.movement.charged_jump", yesNo(config.movement().chargedJump())));
+            "mob_life.world_select.movement.charged_jump", yesNo(morph.isEquine())));
     addBody(
         lines,
         bodyColor,
         Component.translatable(
             "mob_life.world_select.movement.slow_fall",
-            formatNumber(config.movement().slowFallMultiplier())));
-    if (config.movement().rabbitHop().enabled()) {
+            formatNumber(morph == MorphType.CHICKEN ? 0.6 : 1.0)));
+    if (morph == MorphType.RABBIT) {
       addBody(
           lines, bodyColor, Component.translatable("mob_life.world_select.movement.rabbit_hop"));
     }

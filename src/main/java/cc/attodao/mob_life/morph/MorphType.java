@@ -44,20 +44,21 @@ public enum MorphType {
   }
 
   public boolean isNocturnal() {
-    return MorphConfigManager.get(this).sleep().schedule()
-        == cc.attodao.mob_life.config.MorphConfig.SleepSchedule.DAY;
+    return !isPlayer()
+        && MorphConfigManager.get(this).sleep().schedule()
+            == cc.attodao.mob_life.config.MorphConfig.SleepSchedule.DAY;
   }
 
   public boolean canEquipSaddle() {
-    return MorphConfigManager.get(this).traits().canEquipSaddle();
+    return !isPlayer() && MorphConfigManager.get(this).traits().canEquipSaddle();
   }
 
   public boolean canEquipHorseArmor() {
-    return MorphConfigManager.get(this).traits().canEquipHorseArmor();
+    return !isPlayer() && MorphConfigManager.get(this).traits().canEquipHorseArmor();
   }
 
   public boolean canEquipWolfArmor() {
-    return MorphConfigManager.get(this).traits().canEquipWolfArmor();
+    return !isPlayer() && MorphConfigManager.get(this).traits().canEquipWolfArmor();
   }
 
   public boolean canEquipAnimalArmor() {
@@ -65,7 +66,7 @@ public enum MorphType {
   }
 
   public boolean canEquipChest() {
-    return MorphConfigManager.get(this).traits().canEquipChest();
+    return !isPlayer() && MorphConfigManager.get(this).traits().canEquipChest();
   }
 
   public boolean isEquine() {
@@ -73,7 +74,7 @@ public enum MorphType {
   }
 
   public String visionProfileId() {
-    return MorphConfigManager.get(this).vision().profile();
+    return isPlayer() ? "" : MorphConfigManager.get(this).vision().profile();
   }
 
   public String translationKey() {

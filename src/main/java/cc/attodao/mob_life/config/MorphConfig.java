@@ -20,55 +20,54 @@ public record MorphConfig(
     Abilities abilities,
     Traits traits) {
 
-  public record Movement(
-      double referenceMobSpeed,
-      double sneakSpeed,
-      double walkSpeed,
-      double sprintSpeed,
-      float sidewaysMultiplier,
-      float backwardMultiplier,
-      float waterInputMultiplier,
-      boolean chargedJump,
-      float slowFallMultiplier,
-      boolean wingAnimation,
-      boolean quadrupedTurning,
-      float quadrupedTurnSpeed,
-      RabbitHop rabbitHop) {
+  public record Movement(Map<MovementState, MovementValue> states) {
     public Movement {
-      referenceMobSpeed = finite(referenceMobSpeed, 0.0, 4.0);
-      sneakSpeed = finite(sneakSpeed, 0.0, 4.0);
-      walkSpeed = finite(walkSpeed, 0.0, 4.0);
-      sprintSpeed = finite(sprintSpeed, 0.0, 4.0);
-      sidewaysMultiplier = finite(sidewaysMultiplier, 0.0F, 4.0F);
-      backwardMultiplier = finite(backwardMultiplier, 0.0F, 4.0F);
-      waterInputMultiplier = finite(waterInputMultiplier, 0.0F, 4.0F);
-      slowFallMultiplier = finite(slowFallMultiplier, 0.0F, 4.0F);
-      quadrupedTurnSpeed = finite(quadrupedTurnSpeed, 0.1F, 30.0F);
-      rabbitHop = Objects.requireNonNull(rabbitHop);
+      states = Map.copyOf(states);
+      if (!states.containsKey(MovementState.WALK)) {
+        throw new IllegalArgumentException("movement.walk is required");
+      }
+    }
+
+    public MovementValue value(MovementState state) {
+      MovementValue value = states.get(state);
+      return value != null ? value : states.get(MovementState.WALK);
     }
   }
 
-  public record RabbitHop(
-      boolean enabled,
-      int sneakCooldown,
-      int walkCooldown,
-      int sprintCooldown,
-      float sneakHorizontalSpeed,
-      float walkHorizontalSpeed,
-      float sprintHorizontalSpeed,
-      double sneakJumpVelocity,
-      double walkJumpVelocity,
-      double sprintJumpVelocity) {
-    public RabbitHop {
-      sneakCooldown = Math.clamp(sneakCooldown, 0, 1200);
-      walkCooldown = Math.clamp(walkCooldown, 0, 1200);
-      sprintCooldown = Math.clamp(sprintCooldown, 0, 1200);
-      sneakHorizontalSpeed = finite(sneakHorizontalSpeed, 0.0F, 4.0F);
-      walkHorizontalSpeed = finite(walkHorizontalSpeed, 0.0F, 4.0F);
-      sprintHorizontalSpeed = finite(sprintHorizontalSpeed, 0.0F, 4.0F);
-      sneakJumpVelocity = finite(sneakJumpVelocity, 0.0, 4.0);
-      walkJumpVelocity = finite(walkJumpVelocity, 0.0, 4.0);
-      sprintJumpVelocity = finite(sprintJumpVelocity, 0.0, 4.0);
+  public enum MovementState {
+    SNEAK("sneak"),
+    WALK("walk"),
+    SPRINT("sprint");
+
+    private final String id;
+
+    MovementState(String id) {
+      this.id = id;
+    }
+
+    public String id() {
+      return id;
+    }
+  }
+
+  public record MovementValue(double goalSpeedModifier, double movementSpeedAttributeMultiplier) {
+    public MovementValue {
+      if (!Double.isFinite(goalSpeedModifier)
+          || goalSpeedModifier < 0.0
+          || goalSpeedModifier > 4.0) {
+        throw new IllegalArgumentException(
+            "goal_speed_modifier must be finite and between 0 and 4");
+      }
+      if (!Double.isFinite(movementSpeedAttributeMultiplier)
+          || movementSpeedAttributeMultiplier < 0.0
+          || movementSpeedAttributeMultiplier > 4.0) {
+        throw new IllegalArgumentException(
+            "movement_speed_attribute_multiplier must be finite and between 0 and 4");
+      }
+    }
+
+    public double controllerSpeed(double effectiveMovementSpeed) {
+      return goalSpeedModifier * effectiveMovementSpeed * movementSpeedAttributeMultiplier;
     }
   }
 
@@ -368,19 +367,24 @@ public record MorphConfig(
       MorphConfigCodec.loadBuiltinConfigs();
 
   public static MorphConfig defaults(MorphType morph) {
+    if (morph.isPlayer()) {
+      throw new IllegalArgumentException("The player form does not have a morph config");
+    }
     return Objects.requireNonNull(
         BUILTIN_CONFIGS.get(morph), "Missing builtin config for " + morph.id());
   }
 
   public static MorphConfig fromJson(MorphType morph, JsonObject root) {
-    MorphConfig parsed = MorphConfigCodec.fromJson(root, defaults(morph));
+    if (morph.isPlayer()) {
+      throw new IllegalArgumentException("player.json is not supported");
+    }
+    MorphConfigCodec.validateLayer(morph, root);
+    MorphConfig parsed = MorphConfigCodec.fromJson(morph, root, defaults(morph));
     String expectedProfile = "mob_life:" + morph.id();
     if (!root.has("instinct") || !expectedProfile.equals(parsed.instinct().profile())) {
-      if (root.has("instinct") && parsed.instinct().supported()) {
-        cc.attodao.mob_life.MobLife.LOGGER.error(
-            "Disabling mismatched instinct profile {} for {}",
-            parsed.instinct().profile(),
-            morph.id());
+      if (root.has("instinct")) {
+        throw new IllegalArgumentException(
+            "$.instinct.profile must be " + expectedProfile + " for " + morph.id());
       }
       parsed = parsed.withInstinct(Instinct.unsupported());
     }

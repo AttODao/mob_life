@@ -4,24 +4,29 @@ import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
 import cc.attodao.mob_life.morph.MorphType;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
-import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Player;
 
 public final class MorphMovementSpeed {
-  private static final double PLAYER_BLOCKS_PER_SECOND_PER_MOVEMENT_SPEED = 43.2;
-  private static final double MOB_BLOCKS_PER_SECOND_PER_MOVEMENT_SPEED = 10.8;
-  private static final double PLAYER_SPRINT_MULTIPLIER = 1.3;
+  private static final Identifier VANILLA_SPRINTING = Identifier.withDefaultNamespace("sprinting");
 
   private MorphMovementSpeed() {}
 
-  public static double walkingSpeed(MorphType morph, double movementSpeed) {
-    MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
-    return movement.walkSpeed()
-        * speedScale(movement, movementSpeed)
-        * blocksPerSecondPerMovementSpeed(morph)
-        / PLAYER_BLOCKS_PER_SECOND_PER_MOVEMENT_SPEED;
+  public static double controllerSpeed(
+      MorphType morph, MorphConfig.MovementState state, double effectiveMovementSpeed) {
+    return MorphConfigManager.get(morph)
+        .movement()
+        .value(state)
+        .controllerSpeed(effectiveMovementSpeed);
+  }
+
+  /** Expresses body-forward movement in the view-relative input coordinates used by travel. */
+  public static RelativeInput bodyForwardInput(float bodyYaw, float viewYaw, float speed) {
+    float angle = Mth.wrapDegrees(bodyYaw - viewYaw) * Mth.DEG_TO_RAD;
+    return new RelativeInput(-Mth.sin(angle) * speed, Mth.cos(angle) * speed);
   }
 
   public static boolean canSprint(Player player) {
@@ -30,8 +35,11 @@ public final class MorphMovementSpeed {
   }
 
   public static boolean canSprint(MorphType morph) {
-    MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
-    return movement.sprintSpeed() != movement.walkSpeed();
+    return !morph.isPlayer()
+        && MorphConfigManager.get(morph)
+            .movement()
+            .states()
+            .containsKey(MorphConfig.MovementState.SPRINT);
   }
 
   public static void refresh(Player player) {
@@ -45,39 +53,9 @@ public final class MorphMovementSpeed {
       movementSpeed.removeModifier(MorphAttributeModifiers.SPRINT_SPEED);
       return;
     }
-    MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
-    boolean sprinting = player.isSprinting();
-    boolean sprintAllowed = canSprint(morph);
-
-    if (!sprintAllowed && sprinting) {
-      player.setSprinting(false);
-      sprinting = false;
-    }
-
-    double walkSpeed = movement.walkSpeed();
-    double targetSpeed = sprinting && sprintAllowed ? movement.sprintSpeed() : walkSpeed;
-
-    if (Double.compare(targetSpeed, walkSpeed) == 0) {
-      movementSpeed.removeModifier(MorphAttributeModifiers.SPRINT_SPEED);
-      return;
-    }
-
-    double vanillaSprintMultiplier = sprinting ? PLAYER_SPRINT_MULTIPLIER : 1.0;
-    double extraMultiplier = targetSpeed / walkSpeed / vanillaSprintMultiplier - 1.0;
-    movementSpeed.addOrUpdateTransientModifier(
-        new AttributeModifier(
-            MorphAttributeModifiers.SPRINT_SPEED,
-            extraMultiplier,
-            AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+    movementSpeed.removeModifier(MorphAttributeModifiers.SPRINT_SPEED);
+    movementSpeed.removeModifier(VANILLA_SPRINTING);
   }
 
-  private static double speedScale(MorphConfig.Movement movement, double movementSpeed) {
-    return movementSpeed / movement.referenceMobSpeed();
-  }
-
-  private static double blocksPerSecondPerMovementSpeed(MorphType morph) {
-    return morph.isEquine()
-        ? PLAYER_BLOCKS_PER_SECOND_PER_MOVEMENT_SPEED
-        : MOB_BLOCKS_PER_SECOND_PER_MOVEMENT_SPEED;
-  }
+  public record RelativeInput(float sideways, float forward) {}
 }

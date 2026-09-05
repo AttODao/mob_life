@@ -2,8 +2,6 @@ package cc.attodao.mob_life.client.mixin.gameplay;
 
 import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
-import cc.attodao.mob_life.config.MorphConfig;
-import cc.attodao.mob_life.config.MorphConfigManager;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
@@ -38,19 +36,20 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
   private void mobLife$restrictVehicleInputAfterPolling(CallbackInfo ci) {
     ClientInstinctState.capture(input);
     if (ClientInstinctState.active()) {
-      ClientMorphState.setQuadrupedTurnInput(0.0F);
       input.keyPresses = Input.EMPTY;
       ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
       setSprinting(false);
       return;
     }
-    mobLife$applyQuadrupedInput();
+    ClientMorphState.captureMovementInput(input.keyPresses);
+    mobLife$discardBackwardInput();
     mobLife$keepOnlyDismountInput();
   }
 
   @Inject(method = "aiStep", at = @At("TAIL"))
   private void mobLife$restrictVehicleInputAfterMovement(CallbackInfo ci) {
     mobLife$keepOnlyDismountInput();
+    ClientMorphState.afterMovement((LocalPlayer) (Object) this);
   }
 
   @WrapWithCondition(
@@ -65,17 +64,17 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
   }
 
   @Inject(method = "getViewYRot", at = @At("HEAD"), cancellable = true)
-  private void mobLife$interpolateInstinctCameraYaw(
+  private void mobLife$interpolateMorphCameraYaw(
       float partialTick, CallbackInfoReturnable<Float> cir) {
-    if (ClientInstinctState.active()) {
+    if (ClientMorphState.morph() != null) {
       cir.setReturnValue(Mth.rotLerp(partialTick, yRotO, getYRot()));
     }
   }
 
   @Inject(method = "getViewXRot", at = @At("HEAD"), cancellable = true)
-  private void mobLife$interpolateInstinctCameraPitch(
+  private void mobLife$interpolateMorphCameraPitch(
       float partialTick, CallbackInfoReturnable<Float> cir) {
-    if (ClientInstinctState.active()) {
+    if (ClientMorphState.morph() != null) {
       cir.setReturnValue(Mth.lerp(partialTick, xRotO, getXRot()));
     }
   }
@@ -86,30 +85,13 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
   }
 
   @Inject(method = "applyInput", at = @At("TAIL"))
-  private void mobLife$slowNonForwardMovement(CallbackInfo ci) {
-    if (ClientMorphState.morph() == null || isPassenger()) {
-      return;
-    }
-
-    MorphConfig.Movement movement = MorphConfigManager.get(ClientMorphState.morph()).movement();
-    if (movement.rabbitHop().enabled() && onGround() && !isInWater() && !isInLava()) {
-      xxa = 0.0F;
-      zza = 0.0F;
-      return;
-    }
-
-    if (zza <= 0.0F) {
-      xxa *= movement.sidewaysMultiplier();
-      zza *= movement.backwardMultiplier();
-    } else {
-      xxa *= movement.sidewaysMultiplier();
-    }
-
-    if (isInWater()) {
-      float waterInputScale = ClientMorphState.waterMovementInputScale();
-      xxa *= waterInputScale;
-      zza *= waterInputScale;
-      setSprinting(false);
+  private void mobLife$applyMorphLocomotion(CallbackInfo ci) {
+    ClientMorphState.MovementInput movement =
+        ClientMorphState.applyMovement((LocalPlayer) (Object) this);
+    if (!movement.vanilla()) {
+      xxa = movement.sideways();
+      zza = movement.forward();
+      jumping = movement.jumping();
     }
   }
 
@@ -136,33 +118,17 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
     setSprinting(false);
   }
 
-  private void mobLife$applyQuadrupedInput() {
-    ClientMorphState.setQuadrupedTurnInput(0.0F);
-    if (ClientMorphState.morph() == null || isPassenger()) {
+  private void mobLife$discardBackwardInput() {
+    if (ClientMorphState.morph() == null) {
       return;
     }
-
-    MorphConfig.Movement movement = MorphConfigManager.get(ClientMorphState.morph()).movement();
-    if (!movement.quadrupedTurning()) {
-      return;
-    }
-
     Input raw = input.keyPresses;
-    Vec2 moveVector = input.getMoveVector();
-    float turnInput = moveVector.x;
-    if (Math.abs(turnInput) <= 1.0E-4F && raw.left() != raw.right()) {
-      turnInput = raw.left() ? 1.0F : -1.0F;
-    }
-    if (Math.abs(turnInput) <= 1.0E-4F) {
-      return;
-    }
-
-    ClientMorphState.setQuadrupedTurnInput(turnInput);
-    float forwardInput = Mth.clamp(Math.max(moveVector.y, Math.abs(turnInput)), 0.0F, 1.0F);
     input.keyPresses =
         new Input(
-            forwardInput > 1.0E-4F, false, false, false, raw.jump(), raw.shift(), raw.sprint());
-    ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(new Vec2(0.0F, forwardInput));
+            raw.forward(), false, raw.left(), raw.right(), raw.jump(), raw.shift(), raw.sprint());
+    float sideways = (raw.left() ? 1.0F : 0.0F) - (raw.right() ? 1.0F : 0.0F);
+    ((ClientInputMoveVectorAccessor) input)
+        .mobLife$setMoveVector(new Vec2(sideways, raw.forward() ? 1.0F : 0.0F));
   }
 
   private boolean mobLife$isRestrictedVehicle() {

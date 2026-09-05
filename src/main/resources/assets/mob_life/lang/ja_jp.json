@@ -91,6 +91,7 @@
 	"mob_life.world_select.movement.charged_jump": "チャージジャンプ: %s",
 	"mob_life.world_select.movement.slow_fall": "低速落下倍率: %s",
 	"mob_life.world_select.movement.rabbit_hop": "ラビットホップ",
+	"mob_life.world_select.player.vanilla": "Vanillaのプレイヤー移動・能力を使用",
 	"mob_life.world_select.movement.wing_animation": "翼アニメーション: %s",
 	"mob_life.world_select.attack.damage": "攻撃ダメージ: %s",
 	"mob_life.world_select.attack.leap": "攻撃時の飛びかかり",

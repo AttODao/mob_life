@@ -6,6 +6,7 @@ import cc.attodao.mob_life.gameplay.ability.MorphAbility;
 import cc.attodao.mob_life.gameplay.awkwardness.MorphAwkwardness;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
+import cc.attodao.mob_life.gameplay.movement.MorphBodyYawSync;
 import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
@@ -396,10 +397,17 @@ public final class MorphInstinct {
         player.setOnGround(output.onGround());
         player.yBodyRot = output.bodyYaw();
         player.yBodyRotO = output.bodyYaw();
+        MorphBodyYawSync.receive(player, output.bodyYaw());
         player.setYHeadRot(output.headYaw());
         player.yHeadRotO = output.headYaw();
         session.headPitch = output.headPitch();
-        sync(player, session, output.activity(), output.lookingAtTarget());
+        sync(
+            player,
+            session,
+            output.activity(),
+            output.lookingAtTarget(),
+            (float) output.displacement().horizontalDistance(),
+            output.horizontalSpeed());
       }
     }
 
@@ -436,10 +444,14 @@ public final class MorphInstinct {
       double dx = session.feedingPoint.x - player.getX();
       double dy = session.feedingPoint.y - (player.getY() + player.getEyeHeight());
       double dz = session.feedingPoint.z - player.getZ();
-      player.setYHeadRot((float) (Mth.atan2(dz, dx) * 180.0 / Math.PI) - 90.0F);
+      float desiredHeadYaw = (float) (Mth.atan2(dz, dx) * 180.0 / Math.PI) - 90.0F;
+      float headYaw = Mth.rotateIfNecessary(player.getYHeadRot(), desiredHeadYaw, 10.0F);
+      player.setYHeadRot(
+          player.yBodyRot + Mth.clamp(Mth.wrapDegrees(headYaw - player.yBodyRot), -75.0F, 75.0F));
       double horizontal = Math.sqrt(dx * dx + dz * dz);
-      session.headPitch =
+      float desiredPitch =
           Mth.clamp((float) -(Mth.atan2(dy, horizontal) * 180.0 / Math.PI), -40.0F, 40.0F);
+      session.headPitch = Mth.approach(session.headPitch, desiredPitch, 10.0F);
     }
     if (session.feedingTicks % 10 == 0) {
       player.connection.send(
@@ -559,6 +571,16 @@ public final class MorphInstinct {
 
   private static void sync(
       ServerPlayer player, Session session, InstinctActivity activity, boolean lookingAtTarget) {
+    sync(player, session, activity, lookingAtTarget, 0.0F, 0.0F);
+  }
+
+  private static void sync(
+      ServerPlayer player,
+      Session session,
+      InstinctActivity activity,
+      boolean lookingAtTarget,
+      float horizontalDisplacement,
+      float horizontalSpeed) {
     float level = InstinctState.get(player).level();
     ServerPlayNetworking.send(
         player,
@@ -573,7 +595,9 @@ public final class MorphInstinct {
             player.getYHeadRot(),
             session.headPitch,
             lookingAtTarget,
-            activity.ordinal()));
+            activity.ordinal(),
+            horizontalDisplacement,
+            horizontalSpeed));
   }
 
   private static Session session(ServerPlayer player) {
@@ -605,6 +629,7 @@ public final class MorphInstinct {
     void resetController(MorphDefinition definition, ServerPlayer player) {
       morph = definition.type();
       controller = new InstinctController(definition, player);
+      headPitch = player.getXRot();
       cancelFeeding();
     }
 

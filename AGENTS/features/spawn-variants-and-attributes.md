@@ -17,10 +17,11 @@
   forced swamp-hut placement. Otherwise the form is finalized in a biome where
   it can naturally spawn, so its generated variant is appropriate for that
   biome.
-- Horse, donkey, and mule maximum health, movement speed, and jump strength are
-  randomized once and persisted with the world morph. Horse uses its vanilla
-  spawn distributions; donkey and mule use the same speed and jump
-  distributions while retaining their vanilla randomized health.
+- Horse spawn attributes use its vanilla randomization. Donkey movement speed
+  and jump strength are fixed to `.175` and `.5`. Mule movement speed and jump
+  strength use vanilla `AbstractHorse.createOffspringAttribute`, with a newly
+  sampled natural Horse value and the fixed Donkey value as parents. Explicit
+  NBT loads after generation and overrides generated attributes.
 - The current `variant` key and legacy-style `Variant` key are both accepted;
   values are loaded through the target entity's variant registry.
 - Entity identity, position, motion, rotation, passenger, brain, leash, owner,
@@ -32,10 +33,10 @@
 - The `/moblife` command tree is a cheat command and requires vanilla
   gamemaster command permission, including in integrated singleplayer worlds.
 - Mob forms replace player rendering, animation, dimensions, collision box, eye height, movement speed, and maximum health.
-- The maximum step height is proportional to the actual NBT-adjusted morph
-  height, using the player's vanilla 0.6-block step height as the baseline.
-  Horse, donkey, and mule forms instead copy their original entity's
-  `minecraft:step_height` attribute.
+- All mob forms copy their NBT-adjusted source entity's `movement_speed`,
+  `friction_modifier`, `air_drag_modifier`, `movement_efficiency`,
+  `water_movement_efficiency`, `gravity`, `bounciness`, `step_height`, and
+  `jump_strength` attributes, plus `NoGravity`.
 - Chicken form has slower falling outside water. In water it uses normal
   vertical fluid movement.
 - Forms whose entity type is in `minecraft:fall_damage_immune` do not take

@@ -24,6 +24,7 @@ public record MorphDefinition(MorphType type, CompoundTag nbt) {
           "UUID",
           "Pos",
           "Motion",
+          "OnGround",
           "Rotation",
           "Passengers",
           "Brain",

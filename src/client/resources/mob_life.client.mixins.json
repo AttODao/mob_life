@@ -3,6 +3,7 @@
 	"package": "cc.attodao.mob_life.client.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"client": [
+		"gameplay.AbstractClientPlayerViewBobMixin",
 		"gameplay.ClientInputMoveVectorAccessor",
 		"gameplay.ClientChargedJumpMixin",
 		"gameplay.EntityInstinctCameraMixin",
@@ -10,8 +11,8 @@
 		"gameplay.MinecraftInstinctFocusMixin",
 		"gameplay.LocalPlayerMorphFluidMovementMixin",
 		"gameplay.MultiPlayerGameModeMixin",
-		"gameplay.MouseHandlerQuadrupedTurningMixin",
 		"gameplay.PlayerLeapAttackMixin",
+		"gameplay.PlayerMorphBodyYawMixin",
 		"inventory.AbstractContainerScreenAccessor",
 		"inventory.AbstractContainerScreenMixin",
 		"inventory.AbstractRecipeBookScreenMixin",

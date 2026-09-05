@@ -17,6 +17,12 @@ public final class MorphAttributeModifiers {
   public static final Identifier BLOCK_BREAK_SPEED = MobLife.id("morph_block_break_speed");
   public static final Identifier STEP_HEIGHT = MobLife.id("morph_step_height");
   public static final Identifier GRAVITY = MobLife.id("morph_gravity");
+  public static final Identifier FRICTION_MODIFIER = MobLife.id("morph_friction_modifier");
+  public static final Identifier AIR_DRAG_MODIFIER = MobLife.id("morph_air_drag_modifier");
+  public static final Identifier MOVEMENT_EFFICIENCY = MobLife.id("morph_movement_efficiency");
+  public static final Identifier WATER_MOVEMENT_EFFICIENCY =
+      MobLife.id("morph_water_movement_efficiency");
+  public static final Identifier BOUNCINESS = MobLife.id("morph_bounciness");
   public static final Identifier JUMP_STRENGTH = MobLife.id("morph_jump_strength");
   public static final Identifier SAFE_FALL_DISTANCE = MobLife.id("morph_safe_fall_distance");
   public static final Identifier FALL_DAMAGE_MULTIPLIER =
@@ -35,6 +41,11 @@ public final class MorphAttributeModifiers {
     remove(player, Attributes.BLOCK_BREAK_SPEED, BLOCK_BREAK_SPEED);
     remove(player, Attributes.STEP_HEIGHT, STEP_HEIGHT);
     remove(player, Attributes.GRAVITY, GRAVITY);
+    remove(player, Attributes.FRICTION_MODIFIER, FRICTION_MODIFIER);
+    remove(player, Attributes.AIR_DRAG_MODIFIER, AIR_DRAG_MODIFIER);
+    remove(player, Attributes.MOVEMENT_EFFICIENCY, MOVEMENT_EFFICIENCY);
+    remove(player, Attributes.WATER_MOVEMENT_EFFICIENCY, WATER_MOVEMENT_EFFICIENCY);
+    remove(player, Attributes.BOUNCINESS, BOUNCINESS);
     remove(player, Attributes.JUMP_STRENGTH, JUMP_STRENGTH);
     remove(player, Attributes.SAFE_FALL_DISTANCE, SAFE_FALL_DISTANCE);
     remove(player, Attributes.FALL_DAMAGE_MULTIPLIER, FALL_DAMAGE_MULTIPLIER);

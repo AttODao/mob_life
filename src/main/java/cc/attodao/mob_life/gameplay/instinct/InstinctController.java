@@ -34,6 +34,8 @@ final class InstinctController {
   private static final float[] GUIDED_WANDER_OFFSETS = {0.0F, -7.5F, 7.5F, -15.0F, 15.0F};
   private static final double RABBIT_WATER_RETAINED_HORIZONTAL_SPEED = 0.02;
   private static final int RABBIT_WATER_EXTERNAL_MOTION_TICKS = 5;
+  private static final float HEAD_TRACK_PER_TICK = 10.0F;
+  private static final float HEAD_RECOVERY_PER_TICK = 2.0F;
 
   private final MorphType morph;
   private final Mob proxy;
@@ -109,7 +111,8 @@ final class InstinctController {
       chicken.eggTime = Integer.MAX_VALUE;
     }
     float bodyYawBeforeTick = proxy.getYRot();
-    aimHead(input);
+    float headYawBeforeTick = proxy.getYHeadRot();
+    float headPitchBeforeTick = proxy.getXRot();
     boolean acceptsResistance =
         state.loveTicks() == 0
             && pendingDamage == null
@@ -208,13 +211,21 @@ final class InstinctController {
         restoreBodyFacingKeepingHead(bodyYawBeforeTick);
       }
     }
+    boolean lookingAtTarget = proxy.getLookControl().isLookingAtTarget();
+    constrainBodyAndHead(
+        input, bodyYawBeforeTick, headYawBeforeTick, headPitchBeforeTick, lookingAtTarget);
+    double horizontalSpeed = proxy.getDeltaMovement().horizontalDistance();
+    if (!Double.isFinite(horizontalSpeed)) {
+      horizontalSpeed = 0.0;
+    }
     return new Output(
         motion,
+        (float) horizontalSpeed,
         proxy.getYRot(),
         proxy.getYHeadRot(),
         proxy.getXRot(),
         proxy.onGround(),
-        proxy.getLookControl().isLookingAtTarget(),
+        lookingAtTarget,
         activity);
   }
 
@@ -383,13 +394,35 @@ final class InstinctController {
     state.setBreedingCooldown(Math.max(0, animal.getAge()));
   }
 
-  private void aimHead(InstinctInput input) {
-    float yawOffset =
-        Mth.clamp(Mth.wrapDegrees(input.cameraYaw() - proxy.getYRot()), -75.0F, 75.0F);
-    float desiredYaw = proxy.getYRot() + yawOffset;
-    proxy.setYHeadRot(Mth.rotateIfNecessary(proxy.getYHeadRot(), desiredYaw, 10.0F));
-    proxy.setXRot(
-        Mth.approach(proxy.getXRot(), Mth.clamp(input.cameraPitch(), -40.0F, 40.0F), 10.0F));
+  private void constrainBodyAndHead(
+      InstinctInput input,
+      float previousBodyYaw,
+      float previousHeadYaw,
+      float previousHeadPitch,
+      boolean aiLookTarget) {
+    float nativeBodyYaw = proxy.getYRot();
+    float nativeHeadYaw = proxy.getYHeadRot();
+    float nativeHeadPitch = proxy.getXRot();
+    float bodyYaw = Mth.rotateIfNecessary(previousBodyYaw, nativeBodyYaw, 90.0F);
+    boolean directCameraInput = input.cameraDelta() > 0.0F;
+    float desiredHeadYaw =
+        aiLookTarget ? nativeHeadYaw : directCameraInput ? input.cameraYaw() : bodyYaw;
+    float desiredHeadPitch =
+        aiLookTarget ? nativeHeadPitch : directCameraInput ? input.cameraPitch() : 0.0F;
+    float headStep =
+        aiLookTarget || directCameraInput ? HEAD_TRACK_PER_TICK : HEAD_RECOVERY_PER_TICK;
+    float headYaw = Mth.rotateIfNecessary(previousHeadYaw, desiredHeadYaw, headStep);
+    headYaw = bodyYaw + Mth.clamp(Mth.wrapDegrees(headYaw - bodyYaw), -75.0F, 75.0F);
+    float headPitch =
+        Mth.approach(previousHeadPitch, Mth.clamp(desiredHeadPitch, -40.0F, 40.0F), headStep);
+    proxy.setYRot(bodyYaw);
+    proxy.yRotO = bodyYaw;
+    proxy.yBodyRot = bodyYaw;
+    proxy.yBodyRotO = bodyYaw;
+    proxy.setYHeadRot(headYaw);
+    proxy.yHeadRotO = headYaw;
+    proxy.setXRot(headPitch);
+    proxy.xRotO = headPitch;
   }
 
   private void applyResistanceBias(InstinctInput input) {
@@ -643,6 +676,7 @@ final class InstinctController {
 
   record Output(
       Vec3 displacement,
+      float horizontalSpeed,
       float bodyYaw,
       float headYaw,
       float headPitch,

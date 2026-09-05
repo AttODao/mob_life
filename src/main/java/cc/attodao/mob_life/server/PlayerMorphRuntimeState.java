@@ -6,12 +6,6 @@ package cc.attodao.mob_life.server;
  */
 final class PlayerMorphRuntimeState {
 
-  long jumpCooldownUntilTick;
-  boolean jumpGrounded;
-  boolean jumpGroundedKnown;
-  int rabbitHopCooldown;
-  boolean rabbitHopGrounded;
-  boolean rabbitHopGroundedKnown;
   int ambientSoundTime;
   int grassEatingTicks;
   long grassEatingCooldownUntilTick;

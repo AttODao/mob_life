@@ -17,23 +17,59 @@ import java.util.Map;
 import java.util.Set;
 
 final class MorphConfigCodec {
+  private static final Set<String> ROOT_KEYS =
+      Set.of(
+          "schema_version",
+          "movement",
+          "diet",
+          "vision",
+          "combat",
+          "attributes",
+          "inventory",
+          "sleep",
+          "outline",
+          "instinct",
+          "abilities",
+          "traits");
+
   private MorphConfigCodec() {}
 
   static Map<MorphType, MorphConfig> loadBuiltinConfigs() {
     MorphConfig defaults = fallbackDefaults();
     EnumMap<MorphType, MorphConfig> configs = new EnumMap<>(MorphType.class);
     for (MorphType morph : MorphType.values()) {
-      configs.put(morph, parseConfig(builtinMorphJson(morph), defaults));
+      if (!morph.isPlayer()) {
+        JsonObject root = builtinMorphJson(morph);
+        validateLayer(morph, root);
+        configs.put(morph, parseConfig(morph, root, defaults));
+      }
     }
     return Map.copyOf(configs);
   }
 
-  static MorphConfig fromJson(JsonObject root, MorphConfig defaults) {
-    return parseConfig(root, defaults);
+  static MorphConfig fromJson(MorphType morph, JsonObject root, MorphConfig defaults) {
+    return parseConfig(morph, root, defaults);
+  }
+
+  static void validateLayer(MorphType morph, JsonObject root) {
+    requireSchemaVersion(root);
+    keys(root, "$", ROOT_KEYS);
+    validateMovement(morph, root.get("movement"));
+    validateDiet(root.get("diet"));
+    validateVision(root.get("vision"));
+    validateCombat(root.get("combat"));
+    validateAttributes(root.get("attributes"));
+    validateInventory(root.get("inventory"));
+    validateSleep(root.get("sleep"));
+    validateOutline(root.get("outline"));
+    validateInstinct(root.get("instinct"));
+    validateAbilities(root.get("abilities"));
+    validateTraits(root.get("traits"));
   }
 
   static JsonObject toJson(MorphConfig config) {
     JsonObject root = new JsonObject();
+    root.addProperty("schema_version", 2);
     root.add("movement", movementJson(config.movement()));
     root.add("diet", dietJson(config.diet()));
     root.add("vision", visionJson(config.vision()));
@@ -67,19 +103,7 @@ final class MorphConfigCodec {
   private static MorphConfig fallbackDefaults() {
     MorphConfig.Movement movement =
         new MorphConfig.Movement(
-            0.1,
-            0.03,
-            0.1,
-            0.13,
-            0.25F,
-            0.25F,
-            1.0F,
-            false,
-            1.0F,
-            false,
-            true,
-            4.0F,
-            new MorphConfig.RabbitHop(false, 10, 10, 3, 0.15F, 0.2F, 0.35F, 0.2, 0.2, 0.3));
+            Map.of(MorphConfig.MovementState.WALK, new MorphConfig.MovementValue(1.0, 1.0)));
     return new MorphConfig(
         movement,
         new MorphConfig.Diet(List.of(), 4, 0.3F),
@@ -118,9 +142,9 @@ final class MorphConfigCodec {
         new MorphConfig.Traits(Set.of()));
   }
 
-  private static MorphConfig parseConfig(JsonObject root, MorphConfig defaults) {
+  private static MorphConfig parseConfig(MorphType morph, JsonObject root, MorphConfig defaults) {
+    requireSchemaVersion(root);
     JsonObject movement = object(root, "movement");
-    JsonObject rabbit = object(movement, "rabbit_hop");
     JsonObject diet = object(root, "diet");
     JsonObject vision = object(root, "vision");
     JsonObject combat = object(root, "combat");
@@ -131,7 +155,6 @@ final class MorphConfigCodec {
     JsonObject outline = object(root, "outline");
     JsonElement instinct = root.get("instinct");
     MorphConfig.Movement defaultMovement = defaults.movement();
-    MorphConfig.RabbitHop defaultHop = defaultMovement.rabbitHop();
     MorphConfig.Diet defaultDiet = defaults.diet();
     MorphConfig.Vision defaultVision = defaults.vision();
     MorphConfig.Combat defaultCombat = defaults.combat();
@@ -141,35 +164,7 @@ final class MorphConfigCodec {
     MorphConfig.Outline defaultOutline = defaults.outline();
     MorphConfig.Instinct defaultInstinct = defaults.instinct();
     return new MorphConfig(
-        new MorphConfig.Movement(
-            number(movement, "reference_mob_speed", defaultMovement.referenceMobSpeed()),
-            number(movement, "sneak_speed", defaultMovement.sneakSpeed()),
-            number(movement, "walk_speed", defaultMovement.walkSpeed()),
-            number(movement, "sprint_speed", defaultMovement.sprintSpeed()),
-            decimal(movement, "sideways_multiplier", defaultMovement.sidewaysMultiplier()),
-            decimal(movement, "backward_multiplier", defaultMovement.backwardMultiplier()),
-            decimal(movement, "water_input_multiplier", defaultMovement.waterInputMultiplier()),
-            bool(movement, "charged_jump", defaultMovement.chargedJump()),
-            decimal(movement, "slow_fall_multiplier", defaultMovement.slowFallMultiplier()),
-            bool(movement, "wing_animation", defaultMovement.wingAnimation()),
-            bool(movement, "quadruped_turning", defaultMovement.quadrupedTurning()),
-            clampedDecimal(
-                movement,
-                "quadruped_turn_speed",
-                defaultMovement.quadrupedTurnSpeed(),
-                0.1F,
-                30.0F),
-            new MorphConfig.RabbitHop(
-                bool(rabbit, "enabled", defaultHop.enabled()),
-                integer(rabbit, "sneak_cooldown", defaultHop.sneakCooldown()),
-                integer(rabbit, "walk_cooldown", defaultHop.walkCooldown()),
-                integer(rabbit, "sprint_cooldown", defaultHop.sprintCooldown()),
-                decimal(rabbit, "sneak_horizontal_speed", defaultHop.sneakHorizontalSpeed()),
-                decimal(rabbit, "walk_horizontal_speed", defaultHop.walkHorizontalSpeed()),
-                decimal(rabbit, "sprint_horizontal_speed", defaultHop.sprintHorizontalSpeed()),
-                number(rabbit, "sneak_jump_velocity", defaultHop.sneakJumpVelocity()),
-                number(rabbit, "walk_jump_velocity", defaultHop.walkJumpVelocity()),
-                number(rabbit, "sprint_jump_velocity", defaultHop.sprintJumpVelocity()))),
+        movement(morph, movement, defaultMovement),
         new MorphConfig.Diet(
             strings(diet, "foods", defaultDiet.foods()),
             integer(diet, "nutrition", defaultDiet.nutrition()),
@@ -226,7 +221,7 @@ final class MorphConfigCodec {
             integer(sleep, "required_ticks", defaultSleep.requiredTicks())),
         new MorphConfig.Outline(
             bool(outline, "enabled", defaultOutline.enabled()),
-            clampedNumber(outline, "range", defaultOutline.range(), 0.0, 128.0)),
+            number(outline, "range", defaultOutline.range())),
         instinct(instinct, defaultInstinct),
         new MorphConfig.Abilities(ability(root, "abilities", defaults.abilities().value())),
         new MorphConfig.Traits(traits(root, "traits", defaults.traits().values())));
@@ -234,35 +229,372 @@ final class MorphConfigCodec {
 
   private static JsonObject movementJson(MorphConfig.Movement movement) {
     JsonObject movementJson = new JsonObject();
-    movementJson.addProperty("reference_mob_speed", movement.referenceMobSpeed());
-    movementJson.addProperty("sneak_speed", movement.sneakSpeed());
-    movementJson.addProperty("walk_speed", movement.walkSpeed());
-    movementJson.addProperty("sprint_speed", movement.sprintSpeed());
-    movementJson.addProperty("sideways_multiplier", movement.sidewaysMultiplier());
-    movementJson.addProperty("backward_multiplier", movement.backwardMultiplier());
-    movementJson.addProperty("water_input_multiplier", movement.waterInputMultiplier());
-    movementJson.addProperty("charged_jump", movement.chargedJump());
-    movementJson.addProperty("slow_fall_multiplier", movement.slowFallMultiplier());
-    movementJson.addProperty("wing_animation", movement.wingAnimation());
-    movementJson.addProperty("quadruped_turning", movement.quadrupedTurning());
-    movementJson.addProperty("quadruped_turn_speed", movement.quadrupedTurnSpeed());
-    movementJson.add("rabbit_hop", rabbitHopJson(movement.rabbitHop()));
+    for (MorphConfig.MovementState state : MorphConfig.MovementState.values()) {
+      MorphConfig.MovementValue value = movement.states().get(state);
+      if (value == null) {
+        continue;
+      }
+      JsonObject stateJson = new JsonObject();
+      stateJson.addProperty("goal_speed_modifier", value.goalSpeedModifier());
+      stateJson.addProperty(
+          "movement_speed_attribute_multiplier", value.movementSpeedAttributeMultiplier());
+      movementJson.add(state.id(), stateJson);
+    }
     return movementJson;
   }
 
-  private static JsonObject rabbitHopJson(MorphConfig.RabbitHop rabbitHop) {
-    JsonObject rabbitJson = new JsonObject();
-    rabbitJson.addProperty("enabled", rabbitHop.enabled());
-    rabbitJson.addProperty("sneak_cooldown", rabbitHop.sneakCooldown());
-    rabbitJson.addProperty("walk_cooldown", rabbitHop.walkCooldown());
-    rabbitJson.addProperty("sprint_cooldown", rabbitHop.sprintCooldown());
-    rabbitJson.addProperty("sneak_horizontal_speed", rabbitHop.sneakHorizontalSpeed());
-    rabbitJson.addProperty("walk_horizontal_speed", rabbitHop.walkHorizontalSpeed());
-    rabbitJson.addProperty("sprint_horizontal_speed", rabbitHop.sprintHorizontalSpeed());
-    rabbitJson.addProperty("sneak_jump_velocity", rabbitHop.sneakJumpVelocity());
-    rabbitJson.addProperty("walk_jump_velocity", rabbitHop.walkJumpVelocity());
-    rabbitJson.addProperty("sprint_jump_velocity", rabbitHop.sprintJumpVelocity());
-    return rabbitJson;
+  private static MorphConfig.Movement movement(
+      MorphType morph, JsonObject json, MorphConfig.Movement fallback) {
+    EnumMap<MorphConfig.MovementState, MorphConfig.MovementValue> states =
+        new EnumMap<>(MorphConfig.MovementState.class);
+    for (MorphConfig.MovementState state : supportedStates(morph)) {
+      MorphConfig.MovementValue fallbackValue = fallback.states().get(state);
+      JsonObject valueJson = object(json, state.id());
+      if (valueJson.isEmpty()) {
+        throw new IllegalArgumentException("movement." + state.id() + " is required");
+      }
+      if (!valueJson.has("goal_speed_modifier")
+          || !valueJson.has("movement_speed_attribute_multiplier")) {
+        throw new IllegalArgumentException(
+            "movement." + state.id() + " must define both speed values");
+      }
+      states.put(
+          state,
+          new MorphConfig.MovementValue(
+              number(
+                  valueJson,
+                  "goal_speed_modifier",
+                  fallbackValue != null ? fallbackValue.goalSpeedModifier() : 1.0),
+              number(
+                  valueJson,
+                  "movement_speed_attribute_multiplier",
+                  fallbackValue != null ? fallbackValue.movementSpeedAttributeMultiplier() : 1.0)));
+    }
+    return new MorphConfig.Movement(states);
+  }
+
+  private static Set<MorphConfig.MovementState> supportedStates(MorphType morph) {
+    return morph == MorphType.CAT || morph == MorphType.OCELOT
+        ? EnumSet.allOf(MorphConfig.MovementState.class)
+        : EnumSet.of(MorphConfig.MovementState.WALK, MorphConfig.MovementState.SPRINT);
+  }
+
+  private static void requireSchemaVersion(JsonObject root) {
+    JsonElement element = root.get("schema_version");
+    if (element == null || !isExactInteger(element, 2)) {
+      throw new IllegalArgumentException("$.schema_version must be the integer 2");
+    }
+  }
+
+  private static boolean isExactInteger(JsonElement element, int expected) {
+    if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+      return false;
+    }
+    double value = element.getAsDouble();
+    return Double.isFinite(value) && value == expected;
+  }
+
+  private static void validateMovement(MorphType morph, JsonElement element) {
+    if (element == null) {
+      return;
+    }
+    JsonObject movement = requiredObject(element, "$.movement");
+    Set<String> supported = new java.util.HashSet<>();
+    for (MorphConfig.MovementState state : supportedStates(morph)) {
+      supported.add(state.id());
+    }
+    keys(movement, "$.movement", supported);
+    for (Map.Entry<String, JsonElement> entry : movement.entrySet()) {
+      String path = "$.movement." + entry.getKey();
+      JsonObject state = requiredObject(entry.getValue(), path);
+      keys(state, path, Set.of("goal_speed_modifier", "movement_speed_attribute_multiplier"));
+      optionalNumber(state, "goal_speed_modifier", path, 0.0, 4.0);
+      optionalNumber(state, "movement_speed_attribute_multiplier", path, 0.0, 4.0);
+    }
+  }
+
+  private static void validateDiet(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.diet");
+    if (value == null) return;
+    keys(value, "$.diet", Set.of("foods", "nutrition", "saturation_modifier"));
+    optionalStrings(value, "foods", "$.diet");
+    optionalInteger(value, "nutrition", "$.diet", 0, 100);
+    optionalNumber(value, "saturation_modifier", "$.diet", 0.0, 10.0);
+  }
+
+  private static void validateVision(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.vision");
+    if (value == null) return;
+    keys(
+        value,
+        "$.vision",
+        Set.of(
+            "profile",
+            "field_of_view_multiplier",
+            "red_response",
+            "green_response",
+            "blue_response",
+            "effect_start_distance",
+            "full_blur_distance",
+            "full_darkening_distance",
+            "full_fog_distance",
+            "maximum_blur_radius",
+            "peripheral_edge_brightness",
+            "haze_strength",
+            "retained_saturation",
+            "contrast",
+            "brightness",
+            "peripheral_blur_radius",
+            "peripheral_start",
+            "low_light_brightness"));
+    optionalString(value, "profile", "$.vision");
+    optionalNumber(value, "field_of_view_multiplier", "$.vision", 0.1, 4.0);
+    optionalColor(value, "red_response", "$.vision");
+    optionalColor(value, "green_response", "$.vision");
+    optionalColor(value, "blue_response", "$.vision");
+    optionalNumber(value, "effect_start_distance", "$.vision", 0.0, 512.0);
+    optionalNumber(value, "full_blur_distance", "$.vision", 0.0, 512.0);
+    optionalNumber(value, "full_darkening_distance", "$.vision", 0.0, 512.0);
+    optionalNumber(value, "full_fog_distance", "$.vision", 0.0, 512.0);
+    optionalNumber(value, "maximum_blur_radius", "$.vision", 0.0, 64.0);
+    optionalNumber(value, "peripheral_edge_brightness", "$.vision", 0.0, 4.0);
+    optionalNumber(value, "haze_strength", "$.vision", 0.0, 4.0);
+    optionalNumber(value, "retained_saturation", "$.vision", 0.0, 4.0);
+    optionalNumber(value, "contrast", "$.vision", 0.0, 4.0);
+    optionalNumber(value, "brightness", "$.vision", 0.0, 4.0);
+    optionalNumber(value, "peripheral_blur_radius", "$.vision", 0.0, 64.0);
+    optionalNumber(value, "peripheral_start", "$.vision", 0.0, 512.0);
+    optionalNumber(value, "low_light_brightness", "$.vision", 0.0, 4.0);
+  }
+
+  private static void validateCombat(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.combat");
+    if (value == null) return;
+    keys(
+        value,
+        "$.combat",
+        Set.of(
+            "attack_mode",
+            "attack_damage",
+            "leap_attack",
+            "predators",
+            "avoided_by",
+            "hostile_detection_multiplier"));
+    optionalEnum(value, "attack_mode", "$.combat", Set.of("none", "always", "evil_rabbit"));
+    optionalNumber(value, "attack_damage", "$.combat", -1.0, 2048.0);
+    optionalStrings(value, "predators", "$.combat");
+    optionalStrings(value, "avoided_by", "$.combat");
+    optionalNumber(value, "hostile_detection_multiplier", "$.combat", 0.0, 8.0);
+    JsonObject leap = optionalObject(value.get("leap_attack"), "$.combat.leap_attack");
+    if (leap != null) {
+      keys(
+          leap,
+          "$.combat.leap_attack",
+          Set.of("horizontal_speed", "vertical_speed", "maximum_distance"));
+      optionalNumber(leap, "horizontal_speed", "$.combat.leap_attack", 0.0, 8.0);
+      optionalNumber(leap, "vertical_speed", "$.combat.leap_attack", 0.0, 8.0);
+      optionalNumber(leap, "maximum_distance", "$.combat.leap_attack", 0.0, 128.0);
+    }
+  }
+
+  private static void validateAttributes(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.attributes");
+    if (value == null) return;
+    keys(
+        value,
+        "$.attributes",
+        Set.of("mining_speed", "maximum_food", "block_reach_scale", "entity_reach_scale"));
+    optionalNumber(value, "mining_speed", "$.attributes", 0.0, 64.0);
+    optionalInteger(value, "maximum_food", "$.attributes", 1, 100);
+    optionalNumber(value, "block_reach_scale", "$.attributes", 0.0, 8.0);
+    optionalNumber(value, "entity_reach_scale", "$.attributes", 0.0, 8.0);
+  }
+
+  private static void validateInventory(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.inventory");
+    if (value == null) return;
+    keys(value, "$.inventory", Set.of("hotbar_slots", "inventory_slots", "chest_bonus_slots"));
+    optionalInteger(value, "hotbar_slots", "$.inventory", 0, 9);
+    optionalInteger(value, "inventory_slots", "$.inventory", 0, 27);
+    optionalInteger(value, "chest_bonus_slots", "$.inventory", 0, 27);
+  }
+
+  private static void validateSleep(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.sleep");
+    if (value == null) return;
+    keys(value, "$.sleep", Set.of("schedule", "without_bed", "required_ticks"));
+    optionalEnum(value, "schedule", "$.sleep", Set.of("normal", "day", "never"));
+    optionalBoolean(value, "without_bed", "$.sleep");
+    optionalInteger(value, "required_ticks", "$.sleep", 0, 24_000);
+  }
+
+  private static void validateOutline(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.outline");
+    if (value == null) return;
+    keys(value, "$.outline", Set.of("enabled", "range"));
+    optionalBoolean(value, "enabled", "$.outline");
+    optionalNumber(value, "range", "$.outline", 0.0, 128.0);
+  }
+
+  private static void validateInstinct(JsonElement element) {
+    JsonObject value = optionalObject(element, "$.instinct");
+    if (value == null) return;
+    keys(value, "$.instinct", Set.of("profile", "forage"));
+    optionalString(value, "profile", "$.instinct");
+    JsonObject forage = optionalObject(value.get("forage"), "$.instinct.forage");
+    if (forage != null) {
+      keys(forage, "$.instinct.forage", Set.of("nutrition", "saturation_modifier"));
+      optionalInteger(forage, "nutrition", "$.instinct.forage", 0, Integer.MAX_VALUE);
+      optionalNumber(forage, "saturation_modifier", "$.instinct.forage", 0.0, Float.MAX_VALUE);
+    }
+  }
+
+  private static void validateAbilities(JsonElement element) {
+    if (element == null) return;
+    if (!element.isJsonArray() || element.getAsJsonArray().size() != 1) {
+      throw new IllegalArgumentException("$.abilities must be an array with exactly one value");
+    }
+    JsonElement value = element.getAsJsonArray().get(0);
+    if (!isString(value) || !Set.of("none", "egg_laying").contains(value.getAsString())) {
+      throw new IllegalArgumentException("$.abilities[0] is unknown");
+    }
+  }
+
+  private static void validateTraits(JsonElement element) {
+    if (element == null) return;
+    if (!element.isJsonArray()) {
+      throw new IllegalArgumentException("$.traits must be an array");
+    }
+    Set<String> allowed =
+        Set.of(
+            "fall_damage_immune",
+            "night_vision",
+            "eats_grass",
+            "can_equip_saddle",
+            "can_equip_horse_armor",
+            "can_equip_wolf_armor",
+            "can_equip_chest");
+    Set<String> seen = new java.util.HashSet<>();
+    int index = 0;
+    for (JsonElement value : element.getAsJsonArray()) {
+      if (!isString(value) || !allowed.contains(value.getAsString())) {
+        throw new IllegalArgumentException("$.traits[" + index + "] is unknown");
+      }
+      if (!seen.add(value.getAsString())) {
+        throw new IllegalArgumentException("$.traits contains duplicate " + value.getAsString());
+      }
+      index++;
+    }
+  }
+
+  private static void keys(JsonObject object, String path, Set<String> allowed) {
+    for (String key : object.keySet()) {
+      if (!allowed.contains(key)) {
+        throw new IllegalArgumentException(path + "." + key + " is not supported");
+      }
+    }
+  }
+
+  private static JsonObject optionalObject(JsonElement element, String path) {
+    return element == null ? null : requiredObject(element, path);
+  }
+
+  private static JsonObject requiredObject(JsonElement element, String path) {
+    if (!element.isJsonObject()) {
+      throw new IllegalArgumentException(path + " must be an object");
+    }
+    return element.getAsJsonObject();
+  }
+
+  private static void optionalString(JsonObject object, String name, String path) {
+    JsonElement value = object.get(name);
+    if (value != null && !isString(value)) {
+      throw new IllegalArgumentException(path + "." + name + " must be a string");
+    }
+  }
+
+  private static void optionalEnum(
+      JsonObject object, String name, String path, Set<String> allowed) {
+    optionalString(object, name, path);
+    JsonElement value = object.get(name);
+    if (value != null && !allowed.contains(value.getAsString())) {
+      throw new IllegalArgumentException(path + "." + name + " is unknown");
+    }
+  }
+
+  private static void optionalBoolean(JsonObject object, String name, String path) {
+    JsonElement value = object.get(name);
+    if (value != null && (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isBoolean())) {
+      throw new IllegalArgumentException(path + "." + name + " must be a boolean");
+    }
+  }
+
+  private static void optionalInteger(
+      JsonObject object, String name, String path, int minimum, int maximum) {
+    JsonElement element = object.get(name);
+    if (element == null) return;
+    double value = requiredNumber(element, path + "." + name);
+    if (value != Math.rint(value) || value < minimum || value > maximum) {
+      throw new IllegalArgumentException(
+          path + "." + name + " must be an integer between " + minimum + " and " + maximum);
+    }
+  }
+
+  private static void optionalNumber(
+      JsonObject object, String name, String path, double minimum, double maximum) {
+    JsonElement element = object.get(name);
+    if (element == null) return;
+    double value = requiredNumber(element, path + "." + name);
+    if (value < minimum || value > maximum) {
+      throw new IllegalArgumentException(
+          path + "." + name + " must be between " + minimum + " and " + maximum);
+    }
+  }
+
+  private static double requiredNumber(JsonElement element, String path) {
+    if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
+      throw new IllegalArgumentException(path + " must be a number");
+    }
+    double value = element.getAsDouble();
+    if (!Double.isFinite(value)) {
+      throw new IllegalArgumentException(path + " must be finite");
+    }
+    return value;
+  }
+
+  private static void optionalStrings(JsonObject object, String name, String path) {
+    JsonElement element = object.get(name);
+    if (element == null) return;
+    if (!element.isJsonArray()) {
+      throw new IllegalArgumentException(path + "." + name + " must be an array");
+    }
+    int index = 0;
+    for (JsonElement value : element.getAsJsonArray()) {
+      if (!isString(value)) {
+        throw new IllegalArgumentException(path + "." + name + "[" + index + "] must be a string");
+      }
+      index++;
+    }
+  }
+
+  private static void optionalColor(JsonObject object, String name, String path) {
+    JsonElement element = object.get(name);
+    if (element == null) return;
+    if (!element.isJsonArray() || element.getAsJsonArray().size() != 3) {
+      throw new IllegalArgumentException(path + "." + name + " must contain three numbers");
+    }
+    for (int index = 0; index < 3; index++) {
+      double value =
+          requiredNumber(
+              element.getAsJsonArray().get(index), path + "." + name + "[" + index + "]");
+      if (value < -4.0 || value > 4.0) {
+        throw new IllegalArgumentException(path + "." + name + " values must be between -4 and 4");
+      }
+    }
+  }
+
+  private static boolean isString(JsonElement element) {
+    return element.isJsonPrimitive() && element.getAsJsonPrimitive().isString();
   }
 
   private static JsonObject dietJson(MorphConfig.Diet diet) {
@@ -359,54 +691,49 @@ final class MorphConfigCodec {
     if (instinctElement == null) {
       return fallback;
     }
-    try {
-      if (!instinctElement.isJsonObject()) {
-        throw new IllegalArgumentException("instinct must be an object");
-      }
-      JsonObject instinct = instinctElement.getAsJsonObject();
-      JsonElement profileElement = instinct.get("profile");
-      if (profileElement == null
-          || !profileElement.isJsonPrimitive()
-          || !profileElement.getAsJsonPrimitive().isString()) {
-        throw new IllegalArgumentException("instinct.profile must be a string");
-      }
-      String profile = profileElement.getAsString();
-      if (profile.isBlank()) {
-        return MorphConfig.Instinct.unsupported();
-      }
-      JsonElement forageElement = instinct.get("forage");
-      if (forageElement == null || !forageElement.isJsonObject()) {
-        throw new IllegalArgumentException("instinct.forage must be an object");
-      }
-      JsonObject forage = forageElement.getAsJsonObject();
-      JsonElement nutritionElement = forage.get("nutrition");
-      JsonElement saturationElement = forage.get("saturation_modifier");
-      if (nutritionElement == null
-          || !nutritionElement.isJsonPrimitive()
-          || !nutritionElement.getAsJsonPrimitive().isNumber()) {
-        throw new IllegalArgumentException("instinct.forage.nutrition must be an integer");
-      }
-      double rawNutrition = nutritionElement.getAsDouble();
-      if (!Double.isFinite(rawNutrition)
-          || rawNutrition < 0.0
-          || rawNutrition > Integer.MAX_VALUE
-          || rawNutrition != Math.rint(rawNutrition)) {
-        throw new IllegalArgumentException(
-            "instinct.forage.nutrition must be a non-negative integer");
-      }
-      if (saturationElement == null
-          || !saturationElement.isJsonPrimitive()
-          || !saturationElement.getAsJsonPrimitive().isNumber()) {
-        throw new IllegalArgumentException("instinct.forage.saturation_modifier must be a number");
-      }
-      float saturation = saturationElement.getAsFloat();
-      return new MorphConfig.Instinct(
-          profile, new MorphConfig.Forage((int) rawNutrition, saturation));
-    } catch (RuntimeException exception) {
-      cc.attodao.mob_life.MobLife.LOGGER.error(
-          "Disabling invalid instinct configuration", exception);
-      return MorphConfig.Instinct.unsupported();
+    if (!instinctElement.isJsonObject()) {
+      throw new IllegalArgumentException("instinct must be an object");
     }
+    JsonObject instinct = instinctElement.getAsJsonObject();
+    JsonElement profileElement = instinct.get("profile");
+    if (profileElement == null
+        || !profileElement.isJsonPrimitive()
+        || !profileElement.getAsJsonPrimitive().isString()
+        || profileElement.getAsString().isBlank()) {
+      throw new IllegalArgumentException("instinct.profile must be a non-empty string");
+    }
+    JsonElement forageElement = instinct.get("forage");
+    if (forageElement == null || !forageElement.isJsonObject()) {
+      throw new IllegalArgumentException("instinct.forage must be an object");
+    }
+    JsonObject forage = forageElement.getAsJsonObject();
+    JsonElement nutritionElement = forage.get("nutrition");
+    JsonElement saturationElement = forage.get("saturation_modifier");
+    if (nutritionElement == null
+        || !nutritionElement.isJsonPrimitive()
+        || !nutritionElement.getAsJsonPrimitive().isNumber()) {
+      throw new IllegalArgumentException("instinct.forage.nutrition must be an integer");
+    }
+    double rawNutrition = nutritionElement.getAsDouble();
+    if (!Double.isFinite(rawNutrition)
+        || rawNutrition < 0.0
+        || rawNutrition > Integer.MAX_VALUE
+        || rawNutrition != Math.rint(rawNutrition)) {
+      throw new IllegalArgumentException(
+          "instinct.forage.nutrition must be a non-negative integer");
+    }
+    if (saturationElement == null
+        || !saturationElement.isJsonPrimitive()
+        || !saturationElement.getAsJsonPrimitive().isNumber()) {
+      throw new IllegalArgumentException("instinct.forage.saturation_modifier must be a number");
+    }
+    float saturation = saturationElement.getAsFloat();
+    if (!Float.isFinite(saturation) || saturation < 0.0F) {
+      throw new IllegalArgumentException(
+          "instinct.forage.saturation_modifier must be finite and non-negative");
+    }
+    return new MorphConfig.Instinct(
+        profileElement.getAsString(), new MorphConfig.Forage((int) rawNutrition, saturation));
   }
 
   private static JsonArray abilitiesJson(MorphConfig.Abilities abilities) {
@@ -428,103 +755,38 @@ final class MorphConfigCodec {
 
   private static String string(JsonObject object, String name, String fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonPrimitive()) {
-      return fallback;
-    }
-    try {
-      return element.getAsString();
-    } catch (RuntimeException exception) {
-      return fallback;
-    }
+    return element == null ? fallback : element.getAsString();
   }
 
   private static boolean bool(JsonObject object, String name, boolean fallback) {
     JsonElement element = object.get(name);
-    if (element == null
-        || !element.isJsonPrimitive()
-        || !element.getAsJsonPrimitive().isBoolean()) {
-      return fallback;
-    }
-    try {
-      return element.getAsBoolean();
-    } catch (RuntimeException exception) {
-      return fallback;
-    }
+    return element == null ? fallback : element.getAsBoolean();
   }
 
   private static int integer(JsonObject object, String name, int fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-      return fallback;
-    }
-    try {
-      double value = element.getAsDouble();
-      if (!Double.isFinite(value) || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
-        return fallback;
-      }
-      return (int) value;
-    } catch (RuntimeException exception) {
-      return fallback;
-    }
+    return element == null ? fallback : element.getAsInt();
   }
 
   private static float decimal(JsonObject object, String name, float fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-      return fallback;
-    }
-    try {
-      float value = element.getAsFloat();
-      return Float.isFinite(value) ? value : fallback;
-    } catch (RuntimeException exception) {
-      return fallback;
-    }
+    return element == null ? fallback : element.getAsFloat();
   }
 
   private static double number(JsonObject object, String name, double fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-      return fallback;
-    }
-    try {
-      double value = element.getAsDouble();
-      return Double.isFinite(value) ? value : fallback;
-    } catch (RuntimeException exception) {
-      return fallback;
-    }
-  }
-
-  private static int clampedInteger(
-      JsonObject object, String name, int fallback, int minimum, int maximum) {
-    return Math.clamp(integer(object, name, fallback), minimum, maximum);
-  }
-
-  private static float clampedDecimal(
-      JsonObject object, String name, float fallback, float minimum, float maximum) {
-    return Math.clamp(decimal(object, name, fallback), minimum, maximum);
-  }
-
-  private static double clampedNumber(
-      JsonObject object, String name, double fallback, double minimum, double maximum) {
-    return Math.clamp(number(object, name, fallback), minimum, maximum);
+    return element == null ? fallback : element.getAsDouble();
   }
 
   private static List<String> strings(JsonObject object, String name, List<String> fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonArray()) {
+    if (element == null) {
       return fallback;
     }
 
     List<String> values = new ArrayList<>();
     for (JsonElement value : element.getAsJsonArray()) {
-      if (!value.isJsonPrimitive()) {
-        continue;
-      }
-      try {
-        values.add(value.getAsString());
-      } catch (RuntimeException ignored) {
-        // Malformed datapack entries are ignored without invalidating the whole morph definition.
-      }
+      values.add(value.getAsString());
     }
     return List.copyOf(values);
   }
@@ -532,19 +794,13 @@ final class MorphConfigCodec {
   private static Set<MorphConfig.Trait> traits(
       JsonObject object, String name, Set<MorphConfig.Trait> fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonArray()) {
+    if (element == null) {
       return fallback;
     }
 
     EnumSet<MorphConfig.Trait> values = EnumSet.noneOf(MorphConfig.Trait.class);
     for (JsonElement value : element.getAsJsonArray()) {
-      if (!value.isJsonPrimitive()) {
-        continue;
-      }
-      MorphConfig.Trait trait = MorphConfig.Trait.fromIdOrNull(value.getAsString());
-      if (trait != null) {
-        values.add(trait);
-      }
+      values.add(MorphConfig.Trait.fromIdOrNull(value.getAsString()));
     }
     return Set.copyOf(values);
   }
@@ -552,42 +808,28 @@ final class MorphConfigCodec {
   private static MorphConfig.Ability ability(
       JsonObject object, String name, MorphConfig.Ability fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonArray()) {
+    if (element == null) {
       return fallback;
     }
 
     JsonArray values = element.getAsJsonArray();
-    if (values.size() != 1 || !values.get(0).isJsonPrimitive()) {
-      return fallback;
-    }
     return MorphConfig.Ability.fromId(values.get(0).getAsString(), fallback);
   }
 
   private static MorphConfig.ColorResponse color(
       JsonObject object, String name, MorphConfig.ColorResponse fallback) {
     JsonElement element = object.get(name);
-    if (element == null || !element.isJsonArray() || element.getAsJsonArray().size() != 3) {
+    if (element == null) {
       return fallback;
     }
 
     JsonArray values = element.getAsJsonArray();
     return new MorphConfig.ColorResponse(
-        decimalAt(values, 0, fallback.red()),
-        decimalAt(values, 1, fallback.green()),
-        decimalAt(values, 2, fallback.blue()));
+        decimalAt(values, 0), decimalAt(values, 1), decimalAt(values, 2));
   }
 
-  private static float decimalAt(JsonArray values, int index, float fallback) {
-    JsonElement element = values.get(index);
-    if (!element.isJsonPrimitive() || !element.getAsJsonPrimitive().isNumber()) {
-      return fallback;
-    }
-    try {
-      float value = element.getAsFloat();
-      return Float.isFinite(value) ? value : fallback;
-    } catch (RuntimeException exception) {
-      return fallback;
-    }
+  private static float decimalAt(JsonArray values, int index) {
+    return values.get(index).getAsFloat();
   }
 
   private static JsonArray color(MorphConfig.ColorResponse response) {

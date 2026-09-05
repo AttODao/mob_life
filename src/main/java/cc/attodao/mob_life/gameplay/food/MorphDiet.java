@@ -44,7 +44,7 @@ public final class MorphDiet {
 
   public static boolean isConfiguredFood(ItemStack stack) {
     for (MorphType morph : MorphType.values()) {
-      if (matchesAny(stack, MorphConfigManager.get(morph).diet().foods())) {
+      if (!morph.isPlayer() && matchesAny(stack, MorphConfigManager.get(morph).diet().foods())) {
         return true;
       }
     }

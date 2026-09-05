@@ -24,12 +24,21 @@ public final class MorphConfigReloadListener
   protected Map<MorphType, MorphConfig> prepare(
       ResourceManager resourceManager, ProfilerFiller profiler) {
     EnumMap<MorphType, MorphConfig> loaded = new EnumMap<>(MorphType.class);
+    boolean invalid = false;
     for (Map.Entry<Identifier, List<Resource>> entry :
         CONVERTER.listMatchingResourceStacks(resourceManager).entrySet()) {
       Identifier configId = CONVERTER.fileToId(entry.getKey());
       MorphType morph = MorphType.fromId(configId.getPath());
-      if (!morph.id().equals(configId.getPath())) {
-        MobLife.LOGGER.warn("Ignoring unknown morph config {}", configId);
+      if (!configId.getNamespace().equals(MobLife.MOD_ID)
+          || morph.isPlayer()
+          || !morph.id().equals(configId.getPath())) {
+        for (Resource resource : entry.getValue()) {
+          MobLife.LOGGER.error(
+              "Invalid morph config path {} from {}: unknown namespace/form or unsupported player.json",
+              entry.getKey(),
+              resource.sourcePackId());
+        }
+        invalid = true;
         continue;
       }
 
@@ -37,23 +46,31 @@ public final class MorphConfigReloadListener
       MorphConfig config = null;
       for (Resource resource : entry.getValue()) {
         try (Reader reader = resource.openAsReader()) {
-          JsonObject candidate = merge(merged, StrictJsonParser.parse(reader).getAsJsonObject());
+          JsonObject layer = StrictJsonParser.parse(reader).getAsJsonObject();
+          MorphConfigCodec.validateLayer(morph, layer);
+          JsonObject candidate = merge(merged, layer);
           MorphConfig parsed = MorphConfig.fromJson(morph, candidate);
           merged = candidate;
           config = parsed;
         } catch (Exception exception) {
           MobLife.LOGGER.error(
-              "Ignoring invalid morph config {} from {}; using the previous valid resource",
-              configId,
+              "Invalid morph config path {} from {}: {}",
+              entry.getKey(),
               resource.sourcePackId(),
-              exception);
+              reason(exception));
+          invalid = true;
         }
       }
       if (config != null) {
         loaded.put(morph, config);
       }
     }
-    return loaded;
+    return invalid ? Map.of() : loaded;
+  }
+
+  private static String reason(Exception exception) {
+    String message = exception.getMessage();
+    return message != null && !message.isBlank() ? message : exception.getClass().getSimpleName();
   }
 
   private static JsonObject merge(JsonObject base, JsonObject override) {
@@ -77,6 +94,10 @@ public final class MorphConfigReloadListener
       ResourceManager resourceManager,
       ProfilerFiller profiler) {
     MorphConfigManager.replace(loaded);
-    MobLife.LOGGER.info("Loaded {} Mob Life morph configs", loaded.size());
+    if (loaded.isEmpty()) {
+      MobLife.LOGGER.error("Morph config reload failed; installed all built-in configs");
+    } else {
+      MobLife.LOGGER.info("Loaded {} Mob Life morph configs", loaded.size());
+    }
   }
 }

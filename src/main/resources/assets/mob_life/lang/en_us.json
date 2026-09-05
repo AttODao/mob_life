@@ -91,6 +91,7 @@
 	"mob_life.world_select.movement.charged_jump": "Charged jump: %s",
 	"mob_life.world_select.movement.slow_fall": "Slow fall multiplier: %s",
 	"mob_life.world_select.movement.rabbit_hop": "Rabbit hop",
+	"mob_life.world_select.player.vanilla": "Uses vanilla player movement and abilities",
 	"mob_life.world_select.movement.wing_animation": "Wing animation: %s",
 	"mob_life.world_select.attack.damage": "Attack damage: %s",
 	"mob_life.world_select.attack.leap": "Leap attack",

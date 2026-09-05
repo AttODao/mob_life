@@ -3,6 +3,7 @@ package cc.attodao.mob_life.client.state;
 import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
 import cc.attodao.mob_life.network.MobLifeNetworking;
+import java.util.ArrayDeque;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
@@ -14,9 +15,16 @@ import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec2;
 
 public final class ClientInstinctState {
+  private static final int MAX_VIEW_BOB_SAMPLES = 5;
+  private static final int MAX_VIEW_BOB_SAMPLES_PER_TICK = 2;
+  private static final int VIEW_BOB_SPEED_HOLD_TICKS = 5;
+  private static final float VANILLA_WALK_DISTANCE_SCALE = 0.6F;
+  private static final float VANILLA_MAX_BOB_SPEED = 0.1F;
+  private static final ArrayDeque<ViewBobSample> VIEW_BOB_SAMPLES = new ArrayDeque<>();
   private static Vec2 rawMovement = Vec2.ZERO;
   private static Input rawKeys = Input.EMPTY;
   private static boolean active;
@@ -27,14 +35,19 @@ public final class ClientInstinctState {
   private static int activity;
   private static boolean lookingAtTarget;
   private static int lockedHotbarSlot;
-  private static float cameraYawOffset;
-  private static float cameraPitchOffset;
+  private static float cameraYaw;
+  private static float cameraPitch;
   private static float pendingCameraDelta;
   private static double authoritativeX;
   private static double authoritativeY;
   private static double authoritativeZ;
   private static boolean authoritativeOnGround;
   private static boolean hasAuthoritativePosition;
+  private static float lastViewBobSpeed;
+  private static int viewBobTicksWithoutSample = VIEW_BOB_SPEED_HOLD_TICKS + 1;
+  private static LocalPlayer viewBobPlayer;
+  private static Level viewBobLevel;
+  private static boolean viewBobPlayerWasDead;
 
   private ClientInstinctState() {}
 
@@ -68,12 +81,19 @@ public final class ClientInstinctState {
       return false;
     }
 
-    float previousYawOffset = cameraYawOffset;
-    float previousPitchOffset = cameraPitchOffset;
-    cameraYawOffset = Mth.clamp(previousYawOffset + yawDelta, -75.0F, 75.0F);
-    cameraPitchOffset = Mth.clamp(previousPitchOffset + pitchDelta, -40.0F, 40.0F);
-    applyCameraInput(
-        player, cameraYawOffset - previousYawOffset, cameraPitchOffset - previousPitchOffset);
+    float currentYawOffset = Mth.wrapDegrees(cameraYaw - bodyYaw);
+    float wantedYawOffset = Mth.wrapDegrees(currentYawOffset + yawDelta);
+    if (Math.abs(wantedYawOffset) > 75.0F
+        && Math.abs(wantedYawOffset) > Math.abs(currentYawOffset)) {
+      yawDelta = 0.0F;
+    }
+    float wantedPitch = cameraPitch + pitchDelta;
+    if (Math.abs(wantedPitch) > 40.0F && Math.abs(wantedPitch) > Math.abs(cameraPitch)) {
+      pitchDelta = 0.0F;
+    }
+    cameraYaw += yawDelta;
+    cameraPitch = Mth.clamp(cameraPitch + pitchDelta, -40.0F, 40.0F);
+    applyImmediateCamera(player);
     return true;
   }
 
@@ -87,9 +107,11 @@ public final class ClientInstinctState {
     }
     if (active && !wasActive && player != null) {
       lockedHotbarSlot = player.getInventory().getSelectedSlot();
-      cameraYawOffset =
-          Mth.clamp(Mth.wrapDegrees(player.getYRot() - payload.bodyYaw()), -75.0F, 75.0F);
-      cameraPitchOffset = Mth.clamp(player.getXRot(), -40.0F, 40.0F);
+      cameraYaw = player.getYRot();
+      cameraPitch = Mth.clamp(player.getXRot(), -40.0F, 40.0F);
+      viewBobPlayer = player;
+      viewBobLevel = player.level();
+      viewBobPlayerWasDead = player.isDeadOrDying();
     }
     level = Mth.clamp(payload.level(), 0.0F, 100.0F);
     bodyYaw += Mth.wrapDegrees(payload.bodyYaw() - bodyYaw);
@@ -102,11 +124,18 @@ public final class ClientInstinctState {
     hasAuthoritativePosition = active;
     lookingAtTarget = payload.lookingAtTarget();
     activity = payload.activity();
+    if (active != wasActive) {
+      ClientMorphState.resetLocomotion();
+      clearViewBobSamples();
+    }
+    if (active && !ClientMorphState.rabbitHopEnabled()) {
+      enqueueViewBobSample(payload.horizontalDisplacement(), payload.horizontalSpeed());
+    }
     if (!active) {
       rawMovement = Vec2.ZERO;
       rawKeys = Input.EMPTY;
-      cameraYawOffset = 0.0F;
-      cameraPitchOffset = 0.0F;
+      cameraYaw = 0.0F;
+      cameraPitch = 0.0F;
       hasAuthoritativePosition = false;
     }
   }
@@ -127,12 +156,9 @@ public final class ClientInstinctState {
       client.gui.setScreen(null);
     }
 
-    float desiredYawOffset =
-        lookingAtTarget ? Mth.clamp(Mth.wrapDegrees(headYaw - bodyYaw), -75.0F, 75.0F) : 0.0F;
-    float desiredPitch = lookingAtTarget ? headPitch : 0.0F;
-    cameraYawOffset = approachCamera(cameraYawOffset, desiredYawOffset);
-    cameraPitchOffset = approachCamera(cameraPitchOffset, desiredPitch);
-    applyCamera(player);
+    cameraYaw = Mth.rotateIfNecessary(cameraYaw, headYaw, 30.0F);
+    cameraPitch = Mth.approach(cameraPitch, headPitch, 30.0F);
+    applyInterpolatedCamera(player);
     player.yBodyRot = bodyYaw;
     player.yBodyRotO = bodyYaw;
     player.setYHeadRot(Mth.clamp(headYaw, bodyYaw - 75.0F, bodyYaw + 75.0F));
@@ -142,8 +168,12 @@ public final class ClientInstinctState {
 
   public static void clear() {
     LocalPlayer player = Minecraft.getInstance().player;
+    boolean resetViewBob = active || ClientMorphState.rabbitHopEnabled();
     if (player != null) {
       InstinctState.get(player).setActive(false);
+      if (resetViewBob) {
+        resetViewBobImmediately(player);
+      }
     }
     active = false;
     level = 0.0F;
@@ -154,10 +184,62 @@ public final class ClientInstinctState {
     lookingAtTarget = false;
     rawMovement = Vec2.ZERO;
     rawKeys = Input.EMPTY;
-    cameraYawOffset = 0.0F;
-    cameraPitchOffset = 0.0F;
+    cameraYaw = 0.0F;
+    cameraPitch = 0.0F;
     pendingCameraDelta = 0.0F;
     hasAuthoritativePosition = false;
+    clearViewBobSamples();
+    viewBobPlayer = null;
+    viewBobLevel = null;
+    viewBobPlayerWasDead = false;
+  }
+
+  public static boolean updateViewBob(LocalPlayer player) {
+    boolean rabbitHop = ClientMorphState.rabbitHopEnabled();
+    if (viewBobPlayer != null || active || rabbitHop) {
+      trackViewBobLifecycle(player);
+    }
+    if (!active && !rabbitHop) {
+      return false;
+    }
+
+    if (rabbitHop) {
+      clearViewBobSamples();
+      resetViewBobImmediately(player);
+      return true;
+    }
+
+    float walkedDistance = 0.0F;
+    ViewBobSample newest = null;
+    for (int consumed = 0;
+        consumed < MAX_VIEW_BOB_SAMPLES_PER_TICK && !VIEW_BOB_SAMPLES.isEmpty();
+        consumed++) {
+      newest = VIEW_BOB_SAMPLES.removeFirst();
+      walkedDistance += newest.horizontalDisplacement();
+    }
+    if (walkedDistance > 0.0F) {
+      player.avatarState().addWalkDistance(walkedDistance * VANILLA_WALK_DISTANCE_SCALE);
+    }
+    if (newest != null) {
+      lastViewBobSpeed = newest.horizontalSpeed();
+      viewBobTicksWithoutSample = 0;
+    } else if (++viewBobTicksWithoutSample > VIEW_BOB_SPEED_HOLD_TICKS) {
+      lastViewBobSpeed = 0.0F;
+    }
+
+    float target =
+        player.onGround()
+                && !player.isDeadOrDying()
+                && !player.isSwimming()
+                && !player.isPassenger()
+            ? Math.min(VANILLA_MAX_BOB_SPEED, lastViewBobSpeed)
+            : 0.0F;
+    player.avatarState().updateBob(target);
+    return true;
+  }
+
+  public static boolean freezesViewBobWalkDistance() {
+    return ClientMorphState.rabbitHopEnabled();
   }
 
   public static void applyAuthoritativePosition(LocalPlayer player) {
@@ -199,26 +281,53 @@ public final class ClientInstinctState {
             screenMode));
   }
 
+  private static void enqueueViewBobSample(float horizontalDisplacement, float horizontalSpeed) {
+    if (VIEW_BOB_SAMPLES.size() >= MAX_VIEW_BOB_SAMPLES) {
+      VIEW_BOB_SAMPLES.removeFirst();
+    }
+    VIEW_BOB_SAMPLES.addLast(new ViewBobSample(horizontalDisplacement, horizontalSpeed));
+  }
+
+  private static void clearViewBobSamples() {
+    VIEW_BOB_SAMPLES.clear();
+    lastViewBobSpeed = 0.0F;
+    viewBobTicksWithoutSample = VIEW_BOB_SPEED_HOLD_TICKS + 1;
+  }
+
+  private static void trackViewBobLifecycle(LocalPlayer player) {
+    boolean dead = player.isDeadOrDying();
+    if (viewBobPlayer != player
+        || viewBobLevel != player.level()
+        || dead && !viewBobPlayerWasDead) {
+      clearViewBobSamples();
+      resetViewBobImmediately(player);
+    }
+    viewBobPlayer = player;
+    viewBobLevel = player.level();
+    viewBobPlayerWasDead = dead;
+  }
+
+  private static void resetViewBobImmediately(LocalPlayer player) {
+    player.avatarState().resetBob();
+    player.avatarState().resetBob();
+  }
+
   private static float consumeCameraDelta() {
     float result = pendingCameraDelta;
     pendingCameraDelta = 0.0F;
     return result;
   }
 
-  private static float approachCamera(float current, float target) {
-    return Mth.approach(current, target, Math.min(0.5F, Math.abs(target - current) * 0.05F));
-  }
-
-  private static void applyCamera(LocalPlayer player) {
-    float yaw = bodyYaw + cameraYawOffset;
-    float pitch = cameraPitchOffset;
-    player.setYRot(player.getYRot() + Mth.wrapDegrees(yaw - player.getYRot()));
-    player.setXRot(pitch);
-  }
-
-  private static void applyCameraInput(LocalPlayer player, float yawDelta, float pitchDelta) {
+  private static void applyInterpolatedCamera(LocalPlayer player) {
+    float yawDelta = Mth.wrapDegrees(cameraYaw - player.getYRot());
     player.setYRot(player.getYRot() + yawDelta);
-    player.setXRot(player.getXRot() + pitchDelta);
+    player.setXRot(cameraPitch);
+  }
+
+  private static void applyImmediateCamera(LocalPlayer player) {
+    float yawDelta = Mth.wrapDegrees(cameraYaw - player.getYRot());
+    float pitchDelta = cameraPitch - player.getXRot();
+    applyInterpolatedCamera(player);
     player.yRotO += yawDelta;
     player.xRotO += pitchDelta;
   }
@@ -229,4 +338,6 @@ public final class ClientInstinctState {
         || client.gui.screen() instanceof OptionsScreen
         || client.gui.screen() instanceof OptionsSubScreen;
   }
+
+  private record ViewBobSample(float horizontalDisplacement, float horizontalSpeed) {}
 }

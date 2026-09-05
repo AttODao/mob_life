@@ -1,48 +1,20 @@
 package cc.attodao.mob_life.gameplay.movement;
 
-import cc.attodao.mob_life.config.MorphConfig;
-import cc.attodao.mob_life.config.MorphConfigManager;
-import cc.attodao.mob_life.gameplay.inventory.MorphEquipment;
-import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.player.Input;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.phys.Vec3;
-
 public final class RabbitHopMovement {
+  public static final int WALK_COOLDOWN_TICKS = 10;
+  public static final int SPRINT_COOLDOWN_TICKS = 3;
+  public static final double SOURCE_JUMP_STRENGTH = 0.42;
+  public static final float WALK_JUMP_POWER = 0.2F;
+  public static final float SPRINT_JUMP_POWER = 0.3F;
+  public static final float MANUAL_JUMP_POWER = 0.5F;
 
   private RabbitHopMovement() {}
 
-  public static void launch(Player player, Input input) {
-    MorphConfig.RabbitHop config = config(player);
-    boolean sneaking = input.shift();
-    boolean sprinting = player.isSprinting() && !sneaking;
-    double jumpVelocity =
-        input.jump()
-            ? player.getAttributeValue(Attributes.JUMP_STRENGTH) + player.getJumpBoostPower()
-            : sprinting
-                ? config.sprintJumpVelocity()
-                : sneaking ? config.sneakJumpVelocity() : config.walkJumpVelocity();
-    float sideways = (input.left() ? 1.0F : 0.0F) - (input.right() ? 1.0F : 0.0F);
-    float forward = (input.forward() ? 1.0F : 0.0F) - (input.backward() ? 1.0F : 0.0F);
-
-    player.setDeltaMovement(0.0, jumpVelocity, 0.0);
-    float horizontalSpeed =
-        sprinting
-            ? config.sprintHorizontalSpeed()
-            : sneaking ? config.sneakHorizontalSpeed() : config.walkHorizontalSpeed();
-    player.moveRelative(horizontalSpeed, new Vec3(sideways, 0.0, forward));
+  public static int landingCooldown(boolean sprinting) {
+    return sprinting ? SPRINT_COOLDOWN_TICKS : WALK_COOLDOWN_TICKS;
   }
 
-  /** Matches Rabbit's native 10-tick normal and 3-tick fast landing delays. */
-  public static int landingCooldown(Player player, Input input) {
-    MorphConfig.RabbitHop config = config(player);
-    if (input.shift()) {
-      return config.sneakCooldown();
-    }
-    return player.isSprinting() ? config.sprintCooldown() : config.walkCooldown();
-  }
-
-  private static MorphConfig.RabbitHop config(Player player) {
-    return MorphConfigManager.get(MorphEquipment.morph(player)).movement().rabbitHop();
+  public static float jumpScale(float desiredSourcePower) {
+    return (float) (desiredSourcePower / SOURCE_JUMP_STRENGTH);
   }
 }

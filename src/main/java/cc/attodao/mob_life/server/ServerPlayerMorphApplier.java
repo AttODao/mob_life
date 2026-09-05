@@ -1,6 +1,5 @@
 package cc.attodao.mob_life.server;
 
-import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.combat.MorphAttackDamage;
@@ -41,6 +40,7 @@ final class ServerPlayerMorphApplier {
       MorphInventoryCapacity.apply(player, morph);
       MorphFoodCapacity.apply(player, morph);
       restorePlayerAttributes(player, preserveHealthRatio);
+      player.setNoGravity(false);
     } else {
       applyMobAttributes(player, definition, preserveHealthRatio);
       moveDisabledCraftingItems(player);
@@ -52,9 +52,7 @@ final class ServerPlayerMorphApplier {
     ServerMorphManager.clearMorphNightVisionEffect(player);
     syncInventory(player);
     ServerPlayNetworking.send(
-        player,
-        new MobLifeNetworking.MorphSelectionPayload(
-            morph.id(), definition.nbt(), MorphConfigManager.encode(morph)));
+        player, new MobLifeNetworking.MorphSelectionPayload(morph.id(), definition.nbt()));
   }
 
   /** Reconciles server-controlled transient modifiers after a server config change. */
@@ -77,14 +75,9 @@ final class ServerPlayerMorphApplier {
         player,
         Attributes.MOVEMENT_SPEED,
         MorphAttributeModifiers.SPEED,
-        MorphMovementSpeed.walkingSpeed(
-            definition.type(), livingMorph.getAttributeValue(Attributes.MOVEMENT_SPEED)));
-    MorphConfig.Movement movement = MorphConfigManager.get(definition.type()).movement();
+        livingMorph.getAttributeValue(Attributes.MOVEMENT_SPEED));
     setAttributeValue(
-        player,
-        Attributes.SNEAKING_SPEED,
-        MorphAttributeModifiers.SNEAKING_SPEED,
-        sneakingSpeed(movement));
+        player, Attributes.SNEAKING_SPEED, MorphAttributeModifiers.SNEAKING_SPEED, 1.0);
     setAttributeValue(
         player,
         Attributes.ATTACK_DAMAGE,
@@ -93,7 +86,8 @@ final class ServerPlayerMorphApplier {
     applyMaxHealth(player, livingMorph, definition, preserveHealthRatio);
     applyBlockBreakSpeed(player, definition.type(), dimensions.height());
     applyInteractionRanges(player, definition.type(), dimensions.height());
-    applyMobMovementAttributes(player, livingMorph, definition.type(), dimensions.height());
+    applyMobMovementAttributes(player, livingMorph);
+    player.setNoGravity(livingMorph.isNoGravity());
   }
 
   private static void restorePlayerAttributes(ServerPlayer player, boolean preserveHealthRatio) {
@@ -103,19 +97,38 @@ final class ServerPlayerMorphApplier {
     updateHealth(player, oldHealth, oldMaxHealth, preserveHealthRatio);
   }
 
-  private static void applyMobMovementAttributes(
-      ServerPlayer player, LivingEntity livingMorph, MorphType morph, float morphHeight) {
-    double stepHeight =
-        morph.isEquine()
-            ? livingMorph.getAttributeValue(Attributes.STEP_HEIGHT)
-            : Math.clamp(0.6 * morphHeight / PLAYER_HEIGHT, 0.1, 1.5);
+  private static void applyMobMovementAttributes(ServerPlayer player, LivingEntity livingMorph) {
     setAttributeValue(
-        player, Attributes.STEP_HEIGHT, MorphAttributeModifiers.STEP_HEIGHT, stepHeight);
+        player,
+        Attributes.STEP_HEIGHT,
+        MorphAttributeModifiers.STEP_HEIGHT,
+        livingMorph.getAttributeValue(Attributes.STEP_HEIGHT));
     setAttributeValue(
         player,
         Attributes.GRAVITY,
         MorphAttributeModifiers.GRAVITY,
         livingMorph.getAttributeValue(Attributes.GRAVITY));
+    copyAttribute(
+        player,
+        livingMorph,
+        Attributes.FRICTION_MODIFIER,
+        MorphAttributeModifiers.FRICTION_MODIFIER);
+    copyAttribute(
+        player,
+        livingMorph,
+        Attributes.AIR_DRAG_MODIFIER,
+        MorphAttributeModifiers.AIR_DRAG_MODIFIER);
+    copyAttribute(
+        player,
+        livingMorph,
+        Attributes.MOVEMENT_EFFICIENCY,
+        MorphAttributeModifiers.MOVEMENT_EFFICIENCY);
+    copyAttribute(
+        player,
+        livingMorph,
+        Attributes.WATER_MOVEMENT_EFFICIENCY,
+        MorphAttributeModifiers.WATER_MOVEMENT_EFFICIENCY);
+    copyAttribute(player, livingMorph, Attributes.BOUNCINESS, MorphAttributeModifiers.BOUNCINESS);
     setAttributeValue(
         player,
         Attributes.SAFE_FALL_DISTANCE,
@@ -126,16 +139,19 @@ final class ServerPlayerMorphApplier {
         Attributes.FALL_DAMAGE_MULTIPLIER,
         MorphAttributeModifiers.FALL_DAMAGE_MULTIPLIER,
         livingMorph.getAttributeValue(Attributes.FALL_DAMAGE_MULTIPLIER));
-    if (morph.isEquine()) {
-      setAttributeValue(
-          player,
-          Attributes.JUMP_STRENGTH,
-          MorphAttributeModifiers.JUMP_STRENGTH,
-          livingMorph.getAttributeValue(Attributes.JUMP_STRENGTH));
-    } else {
-      MorphAttributeModifiers.remove(
-          player, Attributes.JUMP_STRENGTH, MorphAttributeModifiers.JUMP_STRENGTH);
-    }
+    setAttributeValue(
+        player,
+        Attributes.JUMP_STRENGTH,
+        MorphAttributeModifiers.JUMP_STRENGTH,
+        livingMorph.getAttributeValue(Attributes.JUMP_STRENGTH));
+  }
+
+  private static void copyAttribute(
+      ServerPlayer player,
+      LivingEntity source,
+      Holder<Attribute> attribute,
+      Identifier modifierId) {
+    setAttributeValue(player, attribute, modifierId, source.getAttributeValue(attribute));
   }
 
   private static void applyMaxHealth(
@@ -222,13 +238,6 @@ final class ServerPlayerMorphApplier {
             modifierId,
             targetValue - attribute.getBaseValue(),
             AttributeModifier.Operation.ADD_VALUE));
-  }
-
-  private static double sneakingSpeed(MorphConfig.Movement movement) {
-    if (movement.walkSpeed() <= 0.0) {
-      return 0.0;
-    }
-    return Math.clamp(movement.sneakSpeed() / movement.walkSpeed(), 0.0, 1.0);
   }
 
   private static void updateHealth(

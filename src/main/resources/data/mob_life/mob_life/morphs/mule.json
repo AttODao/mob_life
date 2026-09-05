@@ -1,28 +1,8 @@
 {
+  "schema_version": 2,
   "movement": {
-    "reference_mob_speed": 0.225,
-    "sneak_speed": 0.0421875,
-    "walk_speed": 0.05625,
-    "sprint_speed": 0.225,
-    "sideways_multiplier": 0.5,
-    "backward_multiplier": 0.25,
-    "water_input_multiplier": 1,
-    "charged_jump": true,
-    "slow_fall_multiplier": 1,
-    "wing_animation": false,
-    "quadruped_turning": true,
-    "rabbit_hop": {
-      "enabled": false,
-      "sneak_cooldown": 10,
-      "walk_cooldown": 10,
-      "sprint_cooldown": 3,
-      "sneak_horizontal_speed": 0.15,
-      "walk_horizontal_speed": 0.2,
-      "sprint_horizontal_speed": 0.35,
-      "sneak_jump_velocity": 0.2,
-      "walk_jump_velocity": 0.2,
-      "sprint_jump_velocity": 0.3
-    }
+    "walk": { "goal_speed_modifier": 0.7, "movement_speed_attribute_multiplier": 1.0 },
+    "sprint": { "goal_speed_modifier": 1.0, "movement_speed_attribute_multiplier": 1.0 }
   },
   "diet": {
     "foods": [

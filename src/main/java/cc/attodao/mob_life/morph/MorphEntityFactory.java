@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.equine.AbstractHorse;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
@@ -44,9 +45,19 @@ public final class MorphEntityFactory {
     mob.snapTo(pos, level.getRandom().nextFloat() * 360.0F, 0.0F);
     mob.finalizeSpawn(
         level, level.getCurrentDifficultyAt(pos), EntitySpawnReason.CHUNK_GENERATION, null);
-    if (definition.type() == MorphType.DONKEY || definition.type() == MorphType.MULE) {
-      mob.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(randomHorseSpeed(level));
-      mob.getAttribute(Attributes.JUMP_STRENGTH).setBaseValue(randomHorseJumpStrength(level));
+    if (definition.type() == MorphType.DONKEY) {
+      mob.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0.175);
+      mob.getAttribute(Attributes.JUMP_STRENGTH).setBaseValue(0.5);
+    } else if (definition.type() == MorphType.MULE) {
+      double horseSpeed = randomHorseSpeed(level);
+      double horseJump = randomHorseJumpStrength(level);
+      mob.getAttribute(Attributes.MOVEMENT_SPEED)
+          .setBaseValue(
+              AbstractHorse.createOffspringAttribute(
+                  horseSpeed, 0.175, 0.1125, 0.3375, level.getRandom()));
+      mob.getAttribute(Attributes.JUMP_STRENGTH)
+          .setBaseValue(
+              AbstractHorse.createOffspringAttribute(horseJump, 0.5, 0.4, 1.0, level.getRandom()));
     }
     if (!requestedNbt.isEmpty()) {
       mob.load(

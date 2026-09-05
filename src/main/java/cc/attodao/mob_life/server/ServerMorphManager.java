@@ -13,10 +13,8 @@ import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
 import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
-import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
-import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
+import cc.attodao.mob_life.gameplay.jump.GaitType;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
-import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
 import cc.attodao.mob_life.gameplay.targeting.MorphNearbyEntities;
 import cc.attodao.mob_life.gameplay.targeting.MorphPredatorOutlineManager;
 import cc.attodao.mob_life.mixin.sound.LivingEntitySoundAccessor;
@@ -25,7 +23,6 @@ import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
-import cc.attodao.mob_life.network.MobLifeNetworking.MorphConfigEntry;
 import cc.attodao.mob_life.network.MobLifeNetworking.WorldMorphSelectionPromptPayload;
 import cc.attodao.mob_life.world.MorphInitialSpawn;
 import cc.attodao.mob_life.world.MorphVariantRequest;
@@ -60,7 +57,6 @@ import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.phys.Vec3;
 
 public final class ServerMorphManager {
 
@@ -84,7 +80,6 @@ public final class ServerMorphManager {
   private static MorphConfig activeConfig;
   private static EntityDimensions activeDimensions;
   private static float activeEyeHeight;
-  private static float activeWaterMovementInputScale = 1.0F;
   private static boolean activeFallDamageImmune;
   private static boolean activeHasAttackAi;
   private static Mob activeSoundMob;
@@ -144,6 +139,7 @@ public final class ServerMorphManager {
           MorphNearbyEntities.clear();
           setActiveDefinition(server, activeDefinition);
           for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sendMorphProfiles(player);
             ServerPlayerMorphApplier.apply(player, activeDefinition, true);
             MorphInstinct.onReload(player, activeDefinition);
           }
@@ -203,6 +199,7 @@ public final class ServerMorphManager {
 
     setActiveDefinition(server, data.definition());
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+      sendMorphProfiles(player);
       ServerPlayerMorphApplier.apply(player, data.definition(), true);
     }
   }
@@ -217,10 +214,6 @@ public final class ServerMorphManager {
 
   public static float activeEyeHeight() {
     return activeEyeHeight;
-  }
-
-  public static float activeWaterMovementInputScale() {
-    return activeWaterMovementInputScale;
   }
 
   public static boolean hasMobForm() {
@@ -254,18 +247,16 @@ public final class ServerMorphManager {
     return true;
   }
 
-  public static void performChargedJump(ServerPlayer player, int chargeAmount) {
-    if (!hasMobForm() || activeConfig().movement().rabbitHop().enabled()) {
+  public static void handleGaitEvent(ServerPlayer player, GaitType gaitType) {
+    if (!hasMobForm()) {
       return;
     }
-
-    syncJumpCooldown(player);
-    if (!isJumpGrounded(player) || isJumpCoolingDown(player)) {
+    if (gaitType == GaitType.RABBIT) {
+      player
+          .level()
+          .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
       return;
     }
-
-    float jumpScale = MobChargedJump.jumpScale(chargeAmount);
-    ((ChargedJumpingPlayer) player).mobLife$performChargedJump(jumpScale);
     player.awardStat(Stats.JUMP);
     player.causeFoodExhaustion(0.4F);
   }
@@ -355,6 +346,7 @@ public final class ServerMorphManager {
     setActiveDefinition(server, data.definition());
 
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+      sendMorphProfiles(player);
       ServerPlayerMorphApplier.apply(player, data.definition(), true);
     }
 
@@ -401,6 +393,7 @@ public final class ServerMorphManager {
     }
     setActiveDefinition(server, data.definition());
     for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+      sendMorphProfiles(player);
       ServerPlayerMorphApplier.apply(player, data.definition(), true);
     }
 
@@ -413,6 +406,7 @@ public final class ServerMorphManager {
 
   private static void initializePlayer(ServerPlayer player) {
     sendServerConfig(player);
+    sendMorphProfiles(player);
     WorldMorphData data = worldData(player.level().getServer());
     if (!data.selectionChosen()) {
       sendWorldSelectionPrompt(player);
@@ -437,18 +431,28 @@ public final class ServerMorphManager {
     }
     syncAwkwardness(player, true);
     MorphInstinct.onReload(player, definition);
-    if (!activeConfig().movement().rabbitHop().enabled()) {
-      syncJumpCooldown(player);
-    }
   }
 
   private static void sendWorldSelectionPrompt(ServerPlayer player) {
     var morphs = ServerMobLifeConfig.selectableMorphs();
-    ArrayList<MorphConfigEntry> configs = new ArrayList<>(morphs.size());
+    ArrayList<String> morphIds = new ArrayList<>(morphs.size());
     for (MorphType morph : morphs) {
-      configs.add(new MorphConfigEntry(morph.id(), MorphConfigManager.encode(morph)));
+      morphIds.add(morph.id());
     }
-    ServerPlayNetworking.send(player, new WorldMorphSelectionPromptPayload(configs));
+    ServerPlayNetworking.send(player, new WorldMorphSelectionPromptPayload(morphIds));
+  }
+
+  private static void sendMorphProfiles(ServerPlayer player) {
+    ArrayList<MobLifeNetworking.MorphConfigEntry> configs = new ArrayList<>();
+    for (MorphType morph : MorphType.values()) {
+      if (!morph.isPlayer()) {
+        configs.add(
+            new MobLifeNetworking.MorphConfigEntry(morph.id(), MorphConfigManager.encode(morph)));
+      }
+    }
+    ServerPlayNetworking.send(
+        player,
+        new MobLifeNetworking.MorphProfilesPayload(MorphConfigManager.generation(), configs));
   }
 
   private static void sendServerConfig(ServerPlayer player) {
@@ -470,7 +474,8 @@ public final class ServerMorphManager {
   }
 
   private static void setActiveDefinition(MinecraftServer server, MorphDefinition definition) {
-    if (activeDefinition != null && !activeDefinition.equals(definition)) {
+    boolean changed = activeDefinition == null || !activeDefinition.equals(definition);
+    if (activeDefinition != null && changed) {
       for (ServerPlayer player : server.getPlayerList().getPlayers()) {
         MorphInstinct.onMorphChanged(player);
       }
@@ -480,10 +485,13 @@ public final class ServerMorphManager {
     clearPerMorphEffectState();
     resetActiveMorph();
     activeDefinition = definition;
-    activeConfig = MorphConfigManager.get(definition.type());
+    if (changed) {
+      MorphConfigManager.markRuntimeProfilesChanged();
+    }
     if (!definition.hasMobForm()) {
       return;
     }
+    activeConfig = MorphConfigManager.get(definition.type());
 
     Entity entity = MorphEntityFactory.create(definition, server.overworld());
     if (entity != null) {
@@ -496,7 +504,6 @@ public final class ServerMorphManager {
     activeConfig = null;
     activeDimensions = null;
     activeEyeHeight = 0.0F;
-    activeWaterMovementInputScale = 1.0F;
     activeFallDamageImmune = false;
     activeHasAttackAi = false;
     activeSoundMob = null;
@@ -518,11 +525,6 @@ public final class ServerMorphManager {
     activeFallDamageImmune = config.traits().fallDamageImmune();
     if (entity instanceof net.minecraft.world.entity.LivingEntity living) {
       activeHasAttackAi = MorphAttackDamage.hasAttackAi(definition.type(), living);
-      activeWaterMovementInputScale =
-          (float)
-                  living.getAttributeValue(
-                      net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED)
-              * config.movement().waterInputMultiplier();
     }
     if (entity instanceof Mob mob) {
       activeSoundMob = mob;
@@ -557,16 +559,6 @@ public final class ServerMorphManager {
       }
     }
     clearMorphNightVisionEffect(player);
-
-    MorphConfig.Movement movement = activeConfig().movement();
-    if (movement.slowFallMultiplier() < 1.0F) {
-      slowChickenFall(player);
-    }
-    if (movement.rabbitHop().enabled()) {
-      tickRabbitHop(player);
-    } else {
-      syncJumpCooldown(player);
-    }
   }
 
   private static void tickAmbientSound(ServerPlayer player) {
@@ -618,70 +610,6 @@ public final class ServerMorphManager {
     if (effect != null && isMorphNightVision(effect)) {
       player.removeEffect(MobEffects.NIGHT_VISION);
     }
-  }
-
-  private static void slowChickenFall(ServerPlayer player) {
-    if (player.onGround() || player.isInWater() || player.getAbilities().flying) {
-      return;
-    }
-
-    Vec3 velocity = player.getDeltaMovement();
-    if (velocity.y < 0.0) {
-      player.setDeltaMovement(
-          velocity.x, velocity.y * activeConfig().movement().slowFallMultiplier(), velocity.z);
-    }
-  }
-
-  private static void tickRabbitHop(ServerPlayer player) {
-    PlayerMorphRuntimeState runtimeState = runtimeState(player);
-    Input input = player.getLastClientInput();
-    boolean moving = hasMovementInput(input);
-    boolean jumping = input.jump();
-    boolean groundedOnLand = player.onGround() && !player.isInWater() && !player.isInLava();
-    boolean wasGrounded =
-        runtimeState.rabbitHopGroundedKnown ? runtimeState.rabbitHopGrounded : groundedOnLand;
-    if (groundedOnLand && !wasGrounded) {
-      runtimeState.rabbitHopCooldown = RabbitHopMovement.landingCooldown(player, input);
-    } else if (runtimeState.rabbitHopCooldown > 0) {
-      runtimeState.rabbitHopCooldown--;
-    }
-    runtimeState.rabbitHopGrounded = groundedOnLand;
-    runtimeState.rabbitHopGroundedKnown = true;
-    if ((!moving && !jumping)
-        || runtimeState.rabbitHopCooldown > 0
-        || !groundedOnLand
-        || player.isPassenger()
-        || player.getAbilities().flying) {
-      return;
-    }
-
-    RabbitHopMovement.launch(player, input);
-    player
-        .level()
-        .playSound(null, player, SoundEvents.RABBIT_JUMP, SoundSource.PLAYERS, 1.0F, 1.0F);
-  }
-
-  private static void syncJumpCooldown(ServerPlayer player) {
-    PlayerMorphRuntimeState runtimeState = runtimeState(player);
-    boolean grounded = isJumpGrounded(player);
-    boolean wasGrounded = runtimeState.jumpGroundedKnown ? runtimeState.jumpGrounded : grounded;
-    if (grounded && !wasGrounded) {
-      runtimeState.jumpCooldownUntilTick =
-          player.level().getGameTime() + MobChargedJump.COOLDOWN_TICKS;
-    }
-    runtimeState.jumpGrounded = grounded;
-    runtimeState.jumpGroundedKnown = true;
-  }
-
-  private static boolean isJumpCoolingDown(ServerPlayer player) {
-    return player.level().getGameTime() < runtimeState(player).jumpCooldownUntilTick;
-  }
-
-  private static boolean isJumpGrounded(ServerPlayer player) {
-    return player.onGround()
-        && !player.isInWater()
-        && !player.isInLava()
-        && !player.getAbilities().flying;
   }
 
   private static void addMovementExhaustion(ServerPlayer player) {
