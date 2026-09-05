@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.mixin.render;
 
+import cc.attodao.mob_life.client.state.ClientInstinctState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
@@ -20,6 +21,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(PostPass.class)
 public abstract class PostPassDistanceUniformMixin {
   private static final int DISTANCE_BLUR_UBO_SIZE = 128;
+  private static final int INSTINCT_VIGNETTE_UBO_SIZE = 16;
   private static final float NEAR_PLANE = 0.05F;
   private static final float MIN_DISTANCE_EFFECT_START = 8.0F;
   private static final float PERIPHERAL_BLUR_MULTIPLIER = 16.0F;
@@ -32,6 +34,7 @@ public abstract class PostPassDistanceUniformMixin {
 
     PostPassAccessor accessor = (PostPassAccessor) this;
     Map<String, GpuBuffer> customUniforms = accessor.mobLife$getCustomUniforms();
+    mobLife$updateInstinctVignette(customUniforms);
     if (!customUniforms.containsKey("DistanceBlur")) {
       return;
     }
@@ -96,6 +99,25 @@ public abstract class PostPassDistanceUniformMixin {
               .putVec4(vision.peripheralStart(), vision.lowLightBrightness(), 0.0F, 0.0F);
       var encoder = RenderSystem.getDevice().createCommandEncoder();
       encoder.writeToBuffer(distanceBlur.slice(), distanceBlurData.get());
+    }
+  }
+
+  private static void mobLife$updateInstinctVignette(Map<String, GpuBuffer> customUniforms) {
+    GpuBuffer uniform =
+        mobLife$writableUniform(customUniforms, "InstinctVignette", INSTINCT_VIGNETTE_UBO_SIZE);
+    if (uniform == null) {
+      return;
+    }
+
+    float strength =
+        ClientInstinctState.active()
+            ? 0.55F * Mth.clamp(ClientInstinctState.level() / 100.0F, 0.0F, 1.0F)
+            : 0.0F;
+    try (MemoryStack stack = MemoryStack.stackPush()) {
+      var data =
+          Std140Builder.onStack(stack, INSTINCT_VIGNETTE_UBO_SIZE)
+              .putVec4(63.0F / 255.0F, 40.0F / 255.0F, 24.0F / 255.0F, strength);
+      RenderSystem.getDevice().createCommandEncoder().writeToBuffer(uniform.slice(), data.get());
     }
   }
 

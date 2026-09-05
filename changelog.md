@@ -4,6 +4,36 @@ Future changes should be recorded here with the date and version.
 
 ## 2026-09-03 - v1.3.0
 
+- Rebuilt normal-mode mob locomotion around client-side vanilla travel. Mob
+  forms now use W to move forward, A/D to turn the body and view, ignore
+  backward input, preserve native friction, drag, collision, and external
+  forces, and keep server-side movement logic out of the client prediction
+  path.
+- Replaced morph movement data with schema-versioned walk, sprint, and feline
+  sneak states based on native Goal speed modifiers. Morph JSON now uses strict
+  key, type, range, and enum validation; any invalid layer restores every form
+  to built-in values instead of partially accepting or clamping the reload.
+- Reworked jumping into fixed form gaits. Ordinary forms use their effective
+  jump-strength attribute without a landing cooldown, Rabbits use native-style
+  automatic hops and landing cadence, and equines disable walking jumps while
+  offering the vanilla horse charge curve only during sprinting.
+- Copied movement speed, friction, air drag, movement efficiency, water
+  efficiency, gravity, bounciness, step height, jump strength, and NoGravity
+  from the NBT-loaded morph entity. Horse keeps vanilla random attributes,
+  Donkey uses fixed speed and jump strength, and Mule derives those values with
+  the vanilla offspring sampler.
+- Separated body, head, and camera rotation in both normal and Instinct modes.
+  Normal body yaw now synchronizes to current and late trackers, while Instinct
+  body and head turns retain native AI targets and the independent camera
+  follows at a bounded rate to avoid abrupt rotation. Normal lateral turns and
+  view recovery interpolate between ticks; recovery uses 2 degrees per tick and
+  pauses while attacking or using a targeted block or entity. Instinct head
+  and camera orientation also recover to body forward at 2 degrees per tick
+  when neither native LookControl nor direct camera input supplies a target.
+- Made resolved morph-profile synchronization atomic and generation-based.
+  Clients receive all Mob form profiles in one validated batch, Player form no
+  longer has a JSON profile, and malformed or incomplete batches disconnect
+  instead of mixing profile generations.
 - Reimplemented instinct mode from scratch around a hidden native mob proxy.
   Supported forms now run their own goals, navigation, movement attributes,
   physics, body rotation, and head rotation instead of using a shared generic
@@ -23,12 +53,22 @@ Future changes should be recorded here with the date and version.
 - Added server-authoritative proxy movement and client interpolation, including
   fixes for resting slide, stale movement targets, Rabbit hop direction,
   water-entry inertia, excessive swimming speed, and camera snapping during
-  body turns.
+  body turns. Instinct now suppresses the duplicate ServerPlayer travel pass so
+  proxy step traversal, gravity, collision, and external motion advance only
+  once per tick.
+- Restored vanilla movement view bob during Instinct movement using the proxy's
+  confirmed horizontal displacement and velocity, with a short bounded queue
+  to smooth packet bursts. Rabbit forms now suppress movement view bob in both
+  normal and Instinct modes while leaving jump motion, hurt
+  effects, and the vanilla View Bobbing option unchanged.
 - Locked normal player actions during instinct mode, including inventory and
   container access, item use, hotbar changes, block and entity interaction,
   item pickup, and experience-orb attraction. Held items are ignored by the AI,
   the crosshair and targeting focus are hidden, and first-person view is
   enforced with a brown edge effect and locked hotbar display.
+- Moved the Instinct brown edge effect from banded HUD rectangles into the base
+  post shader with a continuous rounded-edge mask and removed the non-shader
+  fallback.
 - Added native hunting, foraging, feeding, panic, avoidance, and love behavior.
   Instinct kills use datapack-defined prey nutrition, suppress item and
   experience drops, and recover food only after feeding completes. Sheep graze

@@ -8,6 +8,9 @@
 - The base pass progressively blurs the peripheral view. The client multiplies
   peripheral blur by 16 and leaves peripheral darkening disabled, so low-FOV
   forms get a much stronger edge treatment without changing the distance pass.
+- The base pass also blends the Instinct `#3F2818` vignette through a continuous
+  rounded-edge mask. `InstinctVignette.Color.a` is zero outside Instinct and
+  rises to 0.55 at level 100. There is no non-shader fallback.
 - The base pass generally preserves the source luminance, and distant darkening
   and haze use the current sky brightness so daytime and nighttime remain
   distinguishable. High `low_light_brightness` profiles also use local darkness

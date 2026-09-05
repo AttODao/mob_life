@@ -25,6 +25,10 @@ layout(std140) uniform VisionPass {
     vec4 Mode;
 };
 
+layout(std140) uniform InstinctVignette {
+    vec4 Color;
+};
+
 out vec4 fragColor;
 
 const vec3 LUMINANCE_RESPONSE = vec3(0.2126, 0.7152, 0.0722);
@@ -35,6 +39,15 @@ float peripheralAmount() {
         0.25
     );
     return smoothstep(VisionBehavior.x, 1.0, roundedEdgeDistance);
+}
+
+float instinctVignetteAmount() {
+    vec2 edgePosition = abs(texCoord * 2.0 - 1.0);
+    float roundedEdgeDistance = pow(
+        pow(edgePosition.x, 4.0) + pow(edgePosition.y, 4.0),
+        0.25
+    );
+    return smoothstep(0.75, 1.0, roundedEdgeDistance) * Color.a;
 }
 
 vec3 samplePeripheralBlur(float blurAmount) {
@@ -186,10 +199,12 @@ void main() {
             * lowLightBrightness
             * sensitivityBoost
             / transformedLuminance;
-        fragColor = vec4(
+        vec3 finalBaseColor = mix(
             clamp(baseVisionColor, 0.0, 1.0),
-            sourceColor.a
+            Color.rgb,
+            instinctVignetteAmount()
         );
+        fragColor = vec4(finalBaseColor, sourceColor.a);
         return;
     }
 

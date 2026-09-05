@@ -26,7 +26,13 @@
 - Instinct Mode forces first person, hides the crosshair, replaces block/entity
   focus with a miss, and leaves first person selected after exit. A brown
   `#3F2818` peripheral vignette scales from transparent to 55% alpha with the
-  Instinct level. The hotbar and item icons stay at 50% brightness, with one
-  centered padlock interpolating from red at level 100 to gray at zero.
+  Instinct level. It is rendered only in the base post shader with a continuous
+  rounded-edge mask and is disabled with shader post-processing. The hotbar and
+  item icons stay at 50% brightness, with one centered padlock interpolating
+  from red at level 100 to gray at zero.
+- Instinct locomotion uses the vanilla movement view-bob renderer and the
+  player's View Bobbing option. The visual transform remains separate from
+  Instinct look offsets and AI direction. Rabbit form suppresses only this
+  movement bob, not physical hop height or hurt effects.
 - The silent AI proxy never emits duplicate ambient sounds. Feeding chew sounds
   are sent only to the transformed player.

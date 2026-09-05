@@ -153,42 +153,6 @@ public abstract class GuiMixin {
     }
   }
 
-  @Inject(method = "extractCameraOverlays", at = @At("TAIL"))
-  private void mobLife$renderInstinctVignette(
-      GuiGraphicsExtractor graphics, DeltaTracker deltaTracker, CallbackInfo ci) {
-    if (!ClientInstinctState.active()) {
-      return;
-    }
-    float ratio = Mth.clamp(ClientInstinctState.level() / 100.0F, 0.0F, 1.0F);
-    int alpha = Math.round(255.0F * 0.55F * ratio);
-    int color = alpha << 24 | 0x003F2818;
-    int width = Math.max(20, graphics.guiWidth() / 8);
-    int height = Math.max(14, graphics.guiHeight() / 8);
-    graphics.fillGradient(0, 0, graphics.guiWidth(), height, color, 0x003F2818);
-    graphics.fillGradient(
-        0,
-        graphics.guiHeight() - height,
-        graphics.guiWidth(),
-        graphics.guiHeight(),
-        0x003F2818,
-        color);
-    int bands = Math.min(12, width);
-    for (int band = 0; band < bands; band++) {
-      float edge = 1.0F - band / (float) bands;
-      int bandAlpha = Math.round(alpha * edge * edge);
-      int bandColor = bandAlpha << 24 | 0x003F2818;
-      int x0 = band * width / bands;
-      int x1 = (band + 1) * width / bands;
-      graphics.fill(x0, height, x1, graphics.guiHeight() - height, bandColor);
-      graphics.fill(
-          graphics.guiWidth() - x1,
-          height,
-          graphics.guiWidth() - x0,
-          graphics.guiHeight() - height,
-          bandColor);
-    }
-  }
-
   private static void mobLife$renderInstinctHotbarLock(GuiGraphicsExtractor graphics) {
     if (!ClientInstinctState.active()) {
       return;
