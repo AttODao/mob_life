@@ -32,8 +32,6 @@ import net.minecraft.world.phys.Vec3;
 final class InstinctController {
   private static final double[] GUIDED_WANDER_DISTANCES = {10.0, 8.0, 6.0, 4.0};
   private static final float[] GUIDED_WANDER_OFFSETS = {0.0F, -7.5F, 7.5F, -15.0F, 15.0F};
-  private static final double RABBIT_WATER_RETAINED_HORIZONTAL_SPEED = 0.02;
-  private static final int RABBIT_WATER_EXTERNAL_MOTION_TICKS = 5;
   private static final float HEAD_TRACK_PER_TICK = 10.0F;
   private static final float HEAD_RECOVERY_PER_TICK = 2.0F;
 
@@ -51,8 +49,6 @@ final class InstinctController {
   private boolean restFacingLocked;
   private long lastHungrySearchTick = Long.MIN_VALUE;
   private boolean motionInitialized;
-  private boolean wasInWater;
-  private int rabbitWaterExternalMotionTicks;
 
   InstinctController(MorphDefinition definition, ServerPlayer player) {
     morph = definition.type();
@@ -71,7 +67,6 @@ final class InstinctController {
     proxy.xRotO = player.getXRot();
     proxy.setInvulnerable(true);
     proxy.setSilent(true);
-    wasInWater = player.isInWater();
     fixedBaby = proxy instanceof AgeableMob ageable && ageable.isBaby();
     if (proxy instanceof AbstractHorse horse) {
       horse.setTamed(true);
@@ -105,7 +100,6 @@ final class InstinctController {
       InstinctStateData state,
       DamageSource pendingDamage) {
     mirror(player, pendingDamage != null);
-    constrainRabbitWaterMotion(player, pendingDamage != null);
     applyBiologicalState(state);
     if (proxy instanceof Chicken chicken) {
       chicken.eggTime = Integer.MAX_VALUE;
@@ -521,33 +515,6 @@ final class InstinctController {
   private void clearHorizontalMotion() {
     Vec3 motion = proxy.getDeltaMovement();
     proxy.setDeltaMovement(0.0, motion.y, 0.0);
-  }
-
-  private void constrainRabbitWaterMotion(ServerPlayer player, boolean preserveExternalMotion) {
-    boolean inWater = player.isInWater();
-    if (preserveExternalMotion) {
-      rabbitWaterExternalMotionTicks = RABBIT_WATER_EXTERNAL_MOTION_TICKS;
-    }
-    if (proxy instanceof Rabbit rabbit && inWater && rabbitWaterExternalMotionTicks == 0) {
-      Vec3 motion = proxy.getDeltaMovement();
-      double horizontalSpeed = motion.horizontalDistance();
-      double horizontalScale =
-          horizontalSpeed > RABBIT_WATER_RETAINED_HORIZONTAL_SPEED
-              ? RABBIT_WATER_RETAINED_HORIZONTAL_SPEED / horizontalSpeed
-              : 1.0;
-      proxy.setDeltaMovement(
-          motion.x * horizontalScale, Math.min(motion.y, 0.0), motion.z * horizontalScale);
-      if (!wasInWater) {
-        rabbit.setJumping(false);
-      }
-    }
-    if (rabbitWaterExternalMotionTicks > 0) {
-      rabbitWaterExternalMotionTicks--;
-    }
-    if (!inWater) {
-      rabbitWaterExternalMotionTicks = 0;
-    }
-    wasInWater = inWater;
   }
 
   private boolean startGuidedWander(InstinctInput input) {

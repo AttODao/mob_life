@@ -76,6 +76,10 @@
   share the normal-mode client controller. ServerPlayer travel is suppressed
   while Instinct is active so gravity, step traversal, and external motion are
   integrated exactly once by the proxy rather than once per entity.
+- Instinct water movement retains the native Mob's fluid velocity, FloatGoal,
+  MoveControl, and fluid-exit jump. Gaze-biased random strolling is disabled
+  while the proxy is in water so WaterAvoidingRandomStrollGoal keeps its native
+  land destination and can drive GroundPathNavigation toward a reachable bank.
 - Instinct body yaw follows native AI by at most 90 degrees per tick. Head yaw
   follows active LookControl or direct camera input by at most 10; without
   either it recovers to body forward and zero pitch by at most 2 degrees per

@@ -28,7 +28,7 @@ public abstract class RandomStrollInstinctMixin {
 
   @Inject(method = "canUse", at = @At("RETURN"), cancellable = true)
   private void mobLife$biasInstinctExploration(CallbackInfoReturnable<Boolean> cir) {
-    if (!cir.getReturnValueZ()) {
+    if (!cir.getReturnValueZ() || mob.isInWater()) {
       return;
     }
     float centerYaw = InstinctAiContext.explorationYaw(mob);
