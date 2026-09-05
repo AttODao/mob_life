@@ -82,9 +82,10 @@
   land destination and can drive GroundPathNavigation toward a reachable bank.
 - Instinct body yaw follows native AI by at most 90 degrees per tick. Head yaw
   follows active LookControl or direct camera input by at most 10; without
-  either it recovers to body forward and zero pitch by at most 2 degrees per
-  tick. Head yaw hard-clamps to body +/-75 and pitch to +/-40. The independent
-  camera follows head at most 30 degrees per tick with render interpolation, so
+  either it recovers to body forward and zero pitch by at most 2 degrees per tick
+  from every yaw, including across the wrapped +/-180-degree boundary. Head yaw
+  hard-clamps to body +/-75 and pitch to +/-40. The independent camera follows
+  head at most 30 degrees per tick with render interpolation, so
   it may temporarily lag outside the body/head limit. Direct view input remains
   immediate and bounded.
 - Instinct movement feeds confirmed proxy horizontal displacement and final

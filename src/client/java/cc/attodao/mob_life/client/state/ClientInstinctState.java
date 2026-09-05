@@ -1,5 +1,6 @@
 package cc.attodao.mob_life.client.state;
 
+import cc.attodao.mob_life.gameplay.instinct.InstinctAngles;
 import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -156,12 +157,12 @@ public final class ClientInstinctState {
       client.gui.setScreen(null);
     }
 
-    cameraYaw = Mth.rotateIfNecessary(cameraYaw, headYaw, 30.0F);
+    cameraYaw = InstinctAngles.approachYaw(cameraYaw, headYaw, 30.0F);
     cameraPitch = Mth.approach(cameraPitch, headPitch, 30.0F);
     applyInterpolatedCamera(player);
     player.yBodyRot = bodyYaw;
     player.yBodyRotO = bodyYaw;
-    player.setYHeadRot(Mth.clamp(headYaw, bodyYaw - 75.0F, bodyYaw + 75.0F));
+    player.setYHeadRot(InstinctAngles.clampHeadYawToBody(headYaw, bodyYaw, 75.0F));
     player.yHeadRotO = player.getYHeadRot();
     sendInput(client, player, consumeCameraDelta());
   }

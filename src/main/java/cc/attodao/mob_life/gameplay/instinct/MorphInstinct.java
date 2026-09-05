@@ -445,9 +445,8 @@ public final class MorphInstinct {
       double dy = session.feedingPoint.y - (player.getY() + player.getEyeHeight());
       double dz = session.feedingPoint.z - player.getZ();
       float desiredHeadYaw = (float) (Mth.atan2(dz, dx) * 180.0 / Math.PI) - 90.0F;
-      float headYaw = Mth.rotateIfNecessary(player.getYHeadRot(), desiredHeadYaw, 10.0F);
-      player.setYHeadRot(
-          player.yBodyRot + Mth.clamp(Mth.wrapDegrees(headYaw - player.yBodyRot), -75.0F, 75.0F));
+      float headYaw = InstinctAngles.approachYaw(player.getYHeadRot(), desiredHeadYaw, 10.0F);
+      player.setYHeadRot(InstinctAngles.clampHeadYawToBody(headYaw, player.yBodyRot, 75.0F));
       double horizontal = Math.sqrt(dx * dx + dz * dz);
       float desiredPitch =
           Mth.clamp((float) -(Mth.atan2(dy, horizontal) * 180.0 / Math.PI), -40.0F, 40.0F);

@@ -196,7 +196,7 @@ final class InstinctController {
     if (proxy instanceof Rabbit) {
       if (motion.horizontalDistanceSqr() > 1.0E-4) {
         float motionYaw = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-motion.x, motion.z)));
-        restoreBodyFacing(Mth.rotateIfNecessary(bodyYawBeforeTick, motionYaw, 15.0F));
+        restoreBodyFacing(InstinctAngles.approachYaw(bodyYawBeforeTick, motionYaw, 15.0F));
       } else if (!manualRestTurn
           && acceptsResistance
           && (activityBeforeTick == InstinctActivity.REST
@@ -397,7 +397,7 @@ final class InstinctController {
     float nativeBodyYaw = proxy.getYRot();
     float nativeHeadYaw = proxy.getYHeadRot();
     float nativeHeadPitch = proxy.getXRot();
-    float bodyYaw = Mth.rotateIfNecessary(previousBodyYaw, nativeBodyYaw, 90.0F);
+    float bodyYaw = InstinctAngles.approachYaw(previousBodyYaw, nativeBodyYaw, 90.0F);
     boolean directCameraInput = input.cameraDelta() > 0.0F;
     float desiredHeadYaw =
         aiLookTarget ? nativeHeadYaw : directCameraInput ? input.cameraYaw() : bodyYaw;
@@ -405,8 +405,8 @@ final class InstinctController {
         aiLookTarget ? nativeHeadPitch : directCameraInput ? input.cameraPitch() : 0.0F;
     float headStep =
         aiLookTarget || directCameraInput ? HEAD_TRACK_PER_TICK : HEAD_RECOVERY_PER_TICK;
-    float headYaw = Mth.rotateIfNecessary(previousHeadYaw, desiredHeadYaw, headStep);
-    headYaw = bodyYaw + Mth.clamp(Mth.wrapDegrees(headYaw - bodyYaw), -75.0F, 75.0F);
+    float headYaw = InstinctAngles.approachYaw(previousHeadYaw, desiredHeadYaw, headStep);
+    headYaw = InstinctAngles.clampHeadYawToBody(headYaw, bodyYaw, 75.0F);
     float headPitch =
         Mth.approach(previousHeadPitch, Mth.clamp(desiredHeadPitch, -40.0F, 40.0F), headStep);
     proxy.setYRot(bodyYaw);
@@ -480,14 +480,13 @@ final class InstinctController {
     proxy.yRotO = bodyYaw;
     proxy.yBodyRot = bodyYaw;
     proxy.yBodyRotO = bodyYaw;
-    float headYaw = bodyYaw + Mth.clamp(headOffset, -75.0F, 75.0F);
+    float headYaw = InstinctAngles.clampHeadYawToBody(bodyYaw + headOffset, bodyYaw, 75.0F);
     proxy.setYHeadRot(headYaw);
     proxy.yHeadRotO = headYaw;
   }
 
   private void restoreBodyFacingKeepingHead(float bodyYaw) {
-    float headYaw =
-        bodyYaw + Mth.clamp(Mth.wrapDegrees(proxy.getYHeadRot() - bodyYaw), -75.0F, 75.0F);
+    float headYaw = InstinctAngles.clampHeadYawToBody(proxy.getYHeadRot(), bodyYaw, 75.0F);
     proxy.setYRot(bodyYaw);
     proxy.yRotO = bodyYaw;
     proxy.yBodyRot = bodyYaw;
