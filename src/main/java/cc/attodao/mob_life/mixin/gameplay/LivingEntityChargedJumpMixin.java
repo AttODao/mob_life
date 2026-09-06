@@ -19,7 +19,7 @@ public abstract class LivingEntityChargedJumpMixin implements ChargedJumpingPlay
 
   @Inject(method = "jumpFromGround", at = @At("HEAD"), cancellable = true)
   private void mobLife$preventRepeatedMobJump(CallbackInfo ci) {
-    if ((Object) this instanceof ServerPlayer player && ServerMorphManager.hasMobForm()) {
+    if ((Object) this instanceof ServerPlayer && ServerMorphManager.hasMobForm()) {
       ci.cancel();
     }
   }

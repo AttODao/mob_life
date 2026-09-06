@@ -1,6 +1,8 @@
 package cc.attodao.mob_life.client.mixin.render;
 
 import cc.attodao.mob_life.client.render.MobVisionRendering;
+import com.mojang.blaze3d.framegraph.FrameGraphBuilder;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.resource.CrossFrameResourcePool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -59,6 +61,12 @@ public abstract class GameRendererMixin {
       return;
     }
 
-    chain.process(minecraft.gameRenderer.mainRenderTarget(), resourcePool);
+    RenderTarget mainTarget = minecraft.gameRenderer.mainRenderTarget();
+    FrameGraphBuilder frame = new FrameGraphBuilder();
+    PostChain.TargetBundle targets =
+        PostChain.TargetBundle.of(
+            PostChain.MAIN_TARGET_ID, frame.importExternal("main", mainTarget));
+    chain.addToFrame(frame, mainTarget.width, mainTarget.height, targets);
+    frame.execute(resourcePool);
   }
 }

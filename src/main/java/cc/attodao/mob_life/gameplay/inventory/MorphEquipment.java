@@ -2,7 +2,10 @@ package cc.attodao.mob_life.gameplay.inventory;
 
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.morph.MorphType;
+import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Inventory;
@@ -37,13 +40,13 @@ public final class MorphEquipment {
     Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
     if (equippable == null
         || equippable.slot() != EquipmentSlot.BODY
-        || !equippable.canBeEquippedBy(morph.entityType().builtInRegistryHolder())) {
+        || !equippable.canBeEquippedBy(entityTypeHolder(morph.entityType()))) {
       return false;
     }
     return (morph.canEquipHorseArmor()
-            && equippable.canBeEquippedBy(EntityTypes.HORSE.builtInRegistryHolder()))
+            && equippable.canBeEquippedBy(entityTypeHolder(EntityTypes.HORSE)))
         || (morph.canEquipWolfArmor()
-            && equippable.canBeEquippedBy(EntityTypes.WOLF.builtInRegistryHolder()));
+            && equippable.canBeEquippedBy(entityTypeHolder(EntityTypes.WOLF)));
   }
 
   public static boolean mayPlaceSaddle(Player player, ItemStack stack) {
@@ -82,7 +85,11 @@ public final class MorphEquipment {
     Equippable equippable = stack.get(DataComponents.EQUIPPABLE);
     return (equippable != null
         && equippable.slot() == slot
-        && equippable.canBeEquippedBy(morph.entityType().builtInRegistryHolder()));
+        && equippable.canBeEquippedBy(entityTypeHolder(morph.entityType())));
+  }
+
+  private static Holder<EntityType<?>> entityTypeHolder(EntityType<?> entityType) {
+    return BuiltInRegistries.ENTITY_TYPE.wrapAsHolder(entityType);
   }
 
   public static MorphType morph(Player player) {
