@@ -3,8 +3,8 @@
 - Shared shader: `assets/mob_life/shaders/post/mob_vision.fsh`
 - The shared shader applies form-specific dichromatic color and mild
   desaturation across the full image. The distant pass linearizes the world
-  depth buffer, then uses the current camera FOV to approximate player distance
-  across the screen. Sky/depth-clear pixels remain full-distance scenery.
+  depth buffer, then uses the existing minimum screen-edge compensation to
+  approximate player distance. Sky/depth-clear pixels remain full-distance scenery.
 - The base pass progressively blurs the peripheral view. The client multiplies
   peripheral blur by 16 and leaves peripheral darkening disabled, so low-FOV
   forms get a much stronger edge treatment without changing the distance pass.
@@ -25,6 +25,11 @@
   depth clear, so the world projection matrix still matches the world depth
   buffer. `vision_base` runs after first-person hand rendering without
   consulting depth.
+- `gameplay/vision/MobVisionPolicy` owns deterministic per-frame value
+  derivation and the named std140 layout. `client/render/MobVisionRendering`
+  owns dynamic uniform-buffer repair and writes. `GameRendererMixin` keeps only
+  render ordering and post-chain lookup, while `PostPassDistanceUniformMixin`
+  keeps only the `PostPass` adapter call.
 - Post chains:
   - `assets/mob_life/post_effect/vision_distance.json`
   - `assets/mob_life/post_effect/vision_base.json`
@@ -43,8 +48,8 @@
 - `DistanceBlur.DepthRange` is updated every frame with Iris-compatible near
   and far planes (`0.05` and effective render distance in blocks), plus the
   interference scalar used by the shader. `VisionPass.Mode.x` selects the
-  distance or base pass. `VisionBehavior.z` carries `tan(cameraFov / 2)` for
-  distance compensation toward the screen edges.
+  distance or base pass. `VisionBehavior.z` remains the reserved zero value;
+  the shader clamps it to its minimum while reconstructing edge distance.
 - `DistanceBlur.DepthRange.w` stays at the base `1.0` through 70
   awkwardness, then increases to `2.0` at 100. The base therefore uses the
   former 100-awkwardness vision strength without additional awkwardness
@@ -54,3 +59,7 @@
   retained saturation, contrast, low-light brightness, peripheral degradation,
   and distance-effect parameters are loaded from each morph's data-pack JSON
   and synchronized to the client.
+- `DistanceBlur` is eight declaration-ordered `vec4` values (128 bytes), and
+  `InstinctVignette` is one `vec4` (16 bytes). Tests compare the Java-owned names
+  and order with both post-chain JSON files and `mob_vision.fsh` so layout drift
+  fails the build.
