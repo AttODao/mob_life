@@ -30,6 +30,33 @@ class MorphGaitControlTest {
   }
 
   @Test
+  void rabbitMovementJumpInputUsesManualHeightWithoutDoubleHop() {
+    MorphGaitControl.RabbitFrame walking =
+        MorphGaitControl.advanceRabbit(
+            MorphGaitControl.RabbitState.INITIAL, true, false, true, true);
+    assertTrue(walking.requestJump());
+    assertEquals(RabbitHopMovement.MANUAL_JUMP_POWER, walking.sourcePower());
+    assertTrue(walking.manualJump());
+
+    MorphGaitControl.RabbitFrame sprinting =
+        MorphGaitControl.advanceRabbit(
+            MorphGaitControl.RabbitState.INITIAL, true, true, true, true);
+    assertTrue(sprinting.requestJump());
+    assertEquals(RabbitHopMovement.MANUAL_JUMP_POWER, sprinting.sourcePower());
+    assertTrue(sprinting.manualJump());
+  }
+
+  @Test
+  void rabbitJumpInputStillUsesManualHeightWhenStandingStill() {
+    MorphGaitControl.RabbitFrame frame =
+        MorphGaitControl.advanceRabbit(
+            MorphGaitControl.RabbitState.INITIAL, true, false, true, false);
+    assertTrue(frame.requestJump());
+    assertEquals(RabbitHopMovement.MANUAL_JUMP_POWER, frame.sourcePower());
+    assertTrue(frame.manualJump());
+  }
+
+  @Test
   void equineChargeStartsOnANewPressAndRequestsJumpOnRelease() {
     MorphGaitControl.EquineState state = MorphGaitControl.EquineState.initial(false);
     MorphGaitControl.EquineFrame frame = MorphGaitControl.advanceEquine(state, true, true, true);

@@ -44,9 +44,11 @@
   landing. There is no landing cooldown or sprint forward boost.
 - Rabbit auto-hops from W or jump, but not A/D alone. Walk uses `.2` vertical
   power and a 10-tick landing cooldown; sprint uses `.3` and 3 ticks; manual
-  jump uses `.5`. All scale against Rabbit's `.42` source jump strength, so NBT,
-  block factor, and Jump Boost remain effective.
-- A low-speed Rabbit hop invokes vanilla `moveRelative(.1, vector)` with adult
+  jump uses `.5`, including while walking. W plus jump applies that manual jump
+  once and removes the movement hop's additional upward component; W alone keeps
+  the native-style hop. All scale against Rabbit's `.42` source jump strength,
+  so NBT, block factor, and Jump Boost remain effective.
+- A low-speed W-only Rabbit hop invokes vanilla `moveRelative(.1, vector)` with adult
   `(0, 1.5, 1)` or baby `(0, .5, 1)`, without snapping yaw. Ground W input is
   suppressed during the post-landing cooldown to prevent sliding.
 - Rabbit form freezes vanilla camera walk phase and clears movement-bob

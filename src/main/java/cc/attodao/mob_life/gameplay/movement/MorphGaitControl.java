@@ -11,7 +11,11 @@ public final class MorphGaitControl {
   }
 
   public record RabbitFrame(
-      RabbitState state, boolean requestJump, float sourcePower, boolean allowForward) {}
+      RabbitState state,
+      boolean requestJump,
+      float sourcePower,
+      boolean allowForward,
+      boolean manualJump) {}
 
   public static RabbitFrame advanceRabbit(
       RabbitState state, boolean grounded, boolean sprinting, boolean jumpDown, boolean forward) {
@@ -25,15 +29,17 @@ public final class MorphGaitControl {
     }
 
     boolean requestJump = grounded && cooldown == 0 && (jumpDown || forward);
+    boolean manualJump = jumpDown;
     float sourcePower =
-        jumpDown
+        manualJump
             ? RabbitHopMovement.MANUAL_JUMP_POWER
             : sprinting ? RabbitHopMovement.SPRINT_JUMP_POWER : RabbitHopMovement.WALK_JUMP_POWER;
     return new RabbitFrame(
         new RabbitState(grounded, true, cooldown),
         requestJump,
         sourcePower,
-        forward && !(grounded && cooldown > 0));
+        forward && !(grounded && cooldown > 0),
+        manualJump);
   }
 
   public record EquineState(int chargeTicks, long jumpBarUntilTick, boolean jumpWasDown) {

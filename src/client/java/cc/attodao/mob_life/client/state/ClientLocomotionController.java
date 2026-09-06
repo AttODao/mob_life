@@ -284,8 +284,11 @@ public final class ClientLocomotionController {
               .mobLife$performMorphJump(
                   RabbitHopMovement.jumpScale(frame.sourcePower()), 0.0F, false);
       if (jumped) {
-        if (currentPlayer.getDeltaMovement().horizontalDistanceSqr() < 0.01) {
-          currentPlayer.moveRelative(0.1F, new Vec3(0.0, baby ? 0.5 : 1.5, 1.0));
+        // A manual jump already contains its full vertical impulse. Keep the Rabbit's low-speed
+        // forward kick while removing the movement hop's upward component from that same jump.
+        if (forward && currentPlayer.getDeltaMovement().horizontalDistanceSqr() < 0.01) {
+          currentPlayer.moveRelative(
+              0.1F, new Vec3(0.0, frame.manualJump() ? 0.0 : baby ? 0.5 : 1.5, 1.0));
         }
         sendGait(GaitType.RABBIT);
       }
