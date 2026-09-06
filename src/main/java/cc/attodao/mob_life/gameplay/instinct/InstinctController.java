@@ -1,6 +1,6 @@
 package cc.attodao.mob_life.gameplay.instinct;
 
-import cc.attodao.mob_life.gameplay.movement.MorphViewRecovery;
+import cc.attodao.mob_life.gameplay.view.MorphViewControl;
 import cc.attodao.mob_life.mixin.instinct.LivingEntityDamageAccessor;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphEntityFactory;
@@ -33,9 +33,6 @@ import net.minecraft.world.phys.Vec3;
 final class InstinctController {
   private static final double[] GUIDED_WANDER_DISTANCES = {10.0, 8.0, 6.0, 4.0};
   private static final float[] GUIDED_WANDER_OFFSETS = {0.0F, -7.5F, 7.5F, -15.0F, 15.0F};
-  private static final float HEAD_TRACK_PER_TICK = 10.0F;
-  private static final float HEAD_RECOVERY_PER_TICK = 2.0F;
-
   private final MorphType morph;
   private final Mob proxy;
   private final boolean fixedBaby;
@@ -94,7 +91,7 @@ final class InstinctController {
     return proxy instanceof Chicken chicken && !fixedBaby && !chicken.isChickenJockey();
   }
 
-  Output tick(
+  InstinctSyncState tick(
       ServerPlayer player,
       InstinctInput input,
       boolean criticallyHungry,
@@ -167,10 +164,15 @@ final class InstinctController {
       proxy.setYya(0.0F);
       proxy.setZza(0.0F);
     }
+    MorphViewControl.InstinctServer.State viewState = currentViewState();
     boolean groundedRest = activity == InstinctActivity.REST && proxy.onGround();
     if (groundedRest) {
-      if (endedWander && Math.abs(Mth.wrapDegrees(proxy.getYRot() - bodyYawBeforeTick)) > 90.0F) {
-        restoreBodyFacing(bodyYawBeforeTick);
+      if (endedWander
+          && Math.abs(Mth.wrapDegrees(viewState.pose().bodyYaw() - bodyYawBeforeTick)) > 90.0F) {
+        viewState =
+            MorphViewControl.InstinctServer.reduce(
+                viewState,
+                new MorphViewControl.InstinctServer.RestoreBodyPreservingOffset(bodyYawBeforeTick));
       }
       clearHorizontalMotion();
     }
@@ -183,7 +185,11 @@ final class InstinctController {
         restFacingLocked = true;
       }
       if (restFacingLocked && input.forward() < 0.2F) {
-        applyRestTurn(input, bodyYawBeforeTick);
+        viewState =
+            MorphViewControl.InstinctServer.reduce(
+                viewState,
+                new MorphViewControl.InstinctServer.TurnRestingBody(
+                    bodyYawBeforeTick, input.sideways()));
         manualRestTurn = true;
       }
     }
@@ -197,31 +203,47 @@ final class InstinctController {
     if (proxy instanceof Rabbit) {
       if (motion.horizontalDistanceSqr() > 1.0E-4) {
         float motionYaw = Mth.wrapDegrees((float) Math.toDegrees(Math.atan2(-motion.x, motion.z)));
-        restoreBodyFacing(InstinctAngles.approachYaw(bodyYawBeforeTick, motionYaw, 15.0F));
+        viewState =
+            MorphViewControl.InstinctServer.reduce(
+                viewState,
+                new MorphViewControl.InstinctServer.FaceRabbitMotion(bodyYawBeforeTick, motionYaw));
       } else if (!manualRestTurn
           && acceptsResistance
           && (activityBeforeTick == InstinctActivity.REST
               || activityBeforeTick == InstinctActivity.WANDER)
           && (activity == InstinctActivity.REST || activity == InstinctActivity.WANDER)) {
-        restoreBodyFacingKeepingHead(bodyYawBeforeTick);
+        viewState =
+            MorphViewControl.InstinctServer.reduce(
+                viewState,
+                new MorphViewControl.InstinctServer.RestoreBodyKeepingHead(bodyYawBeforeTick));
       }
     }
     boolean lookingAtTarget = proxy.getLookControl().isLookingAtTarget();
-    constrainBodyAndHead(
-        input, bodyYawBeforeTick, headYawBeforeTick, headPitchBeforeTick, lookingAtTarget);
+    viewState =
+        MorphViewControl.InstinctServer.reduce(
+            viewState,
+            new MorphViewControl.InstinctServer.ResolveAuthority(
+                new MorphViewControl.Pose(
+                    bodyYawBeforeTick, headYawBeforeTick, headPitchBeforeTick),
+                new MorphViewControl.View(input.cameraYaw(), input.cameraPitch()),
+                input.cameraDelta(),
+                lookingAtTarget));
+    applyViewState(viewState);
     double horizontalSpeed = proxy.getDeltaMovement().horizontalDistance();
     if (!Double.isFinite(horizontalSpeed)) {
       horizontalSpeed = 0.0;
     }
-    return new Output(
-        motion,
-        (float) horizontalSpeed,
-        proxy.getYRot(),
-        proxy.getYHeadRot(),
-        proxy.getXRot(),
-        proxy.onGround(),
+    MorphViewControl.Pose pose = viewState.pose();
+    applyProxyResult(player, motion, pose, proxy.onGround());
+    return new InstinctSyncState(
+        state.active(),
+        state.level(),
+        player.position(),
+        player.onGround(),
+        pose,
         lookingAtTarget,
-        activity);
+        activity,
+        new InstinctSyncState.Motion((float) motion.horizontalDistance(), (float) horizontalSpeed));
   }
 
   boolean hasReachableNaturalTarget(ServerPlayer player) {
@@ -389,35 +411,32 @@ final class InstinctController {
     state.setBreedingCooldown(Math.max(0, animal.getAge()));
   }
 
-  private void constrainBodyAndHead(
-      InstinctInput input,
-      float previousBodyYaw,
-      float previousHeadYaw,
-      float previousHeadPitch,
-      boolean aiLookTarget) {
-    float nativeBodyYaw = proxy.getYRot();
-    float nativeHeadYaw = proxy.getYHeadRot();
-    float nativeHeadPitch = proxy.getXRot();
-    float bodyYaw = InstinctAngles.approachYaw(previousBodyYaw, nativeBodyYaw, 90.0F);
-    boolean directCameraInput = MorphViewRecovery.cameraInputBlocksRecovery(input.cameraDelta());
-    float desiredHeadYaw =
-        aiLookTarget ? nativeHeadYaw : directCameraInput ? input.cameraYaw() : bodyYaw;
-    float desiredHeadPitch =
-        aiLookTarget ? nativeHeadPitch : directCameraInput ? input.cameraPitch() : 0.0F;
-    float headStep =
-        aiLookTarget || directCameraInput ? HEAD_TRACK_PER_TICK : HEAD_RECOVERY_PER_TICK;
-    float headYaw = InstinctAngles.approachYaw(previousHeadYaw, desiredHeadYaw, headStep);
-    headYaw = InstinctAngles.clampHeadYawToBody(headYaw, bodyYaw, 75.0F);
-    float headPitch =
-        Mth.approach(previousHeadPitch, Mth.clamp(desiredHeadPitch, -40.0F, 40.0F), headStep);
-    proxy.setYRot(bodyYaw);
-    proxy.yRotO = bodyYaw;
-    proxy.yBodyRot = bodyYaw;
-    proxy.yBodyRotO = bodyYaw;
-    proxy.setYHeadRot(headYaw);
-    proxy.yHeadRotO = headYaw;
-    proxy.setXRot(headPitch);
-    proxy.xRotO = headPitch;
+  private MorphViewControl.InstinctServer.State currentViewState() {
+    return new MorphViewControl.InstinctServer.State(
+        new MorphViewControl.Pose(proxy.getYRot(), proxy.getYHeadRot(), proxy.getXRot()));
+  }
+
+  private void applyViewState(MorphViewControl.InstinctServer.State state) {
+    MorphViewControl.Pose pose = state.pose();
+    proxy.setYRot(pose.bodyYaw());
+    proxy.yRotO = pose.bodyYaw();
+    proxy.yBodyRot = pose.bodyYaw();
+    proxy.yBodyRotO = pose.bodyYaw();
+    proxy.setYHeadRot(pose.headYaw());
+    proxy.yHeadRotO = pose.headYaw();
+    proxy.setXRot(pose.headPitch());
+    proxy.xRotO = pose.headPitch();
+  }
+
+  private static void applyProxyResult(
+      ServerPlayer player, Vec3 displacement, MorphViewControl.Pose pose, boolean onGround) {
+    player.setPos(player.position().add(displacement));
+    player.setDeltaMovement(Vec3.ZERO);
+    player.setOnGround(onGround);
+    player.yBodyRot = pose.bodyYaw();
+    player.yBodyRotO = pose.bodyYaw();
+    player.setYHeadRot(pose.headYaw());
+    player.yHeadRotO = pose.headYaw();
   }
 
   private void applyResistanceBias(InstinctInput input) {
@@ -462,38 +481,6 @@ final class InstinctController {
       steeringCooldown = steeringRetryPending ? 2 : 10;
     }
     previousSteeringInput = input.sideways();
-  }
-
-  private void applyRestTurn(InstinctInput input, float bodyYawBeforeTick) {
-    float bodyYaw = bodyYawBeforeTick;
-    if (Math.abs(input.sideways()) >= 0.2F) {
-      bodyYaw = Mth.wrapDegrees(bodyYaw + input.sideways() * 10.0F);
-    }
-    proxy.setYRot(bodyYaw);
-    proxy.yRotO = bodyYaw;
-    proxy.yBodyRot = bodyYaw;
-    proxy.yBodyRotO = bodyYaw;
-  }
-
-  private void restoreBodyFacing(float bodyYaw) {
-    float headOffset = Mth.wrapDegrees(proxy.getYHeadRot() - proxy.getYRot());
-    proxy.setYRot(bodyYaw);
-    proxy.yRotO = bodyYaw;
-    proxy.yBodyRot = bodyYaw;
-    proxy.yBodyRotO = bodyYaw;
-    float headYaw = InstinctAngles.clampHeadYawToBody(bodyYaw + headOffset, bodyYaw, 75.0F);
-    proxy.setYHeadRot(headYaw);
-    proxy.yHeadRotO = headYaw;
-  }
-
-  private void restoreBodyFacingKeepingHead(float bodyYaw) {
-    float headYaw = InstinctAngles.clampHeadYawToBody(proxy.getYHeadRot(), bodyYaw, 75.0F);
-    proxy.setYRot(bodyYaw);
-    proxy.yRotO = bodyYaw;
-    proxy.yBodyRot = bodyYaw;
-    proxy.yBodyRotO = bodyYaw;
-    proxy.setYHeadRot(headYaw);
-    proxy.yHeadRotO = headYaw;
   }
 
   private void stopWandering() {
@@ -640,16 +627,6 @@ final class InstinctController {
     }
     return proxy.getNavigation().isDone() ? InstinctActivity.REST : InstinctActivity.WANDER;
   }
-
-  record Output(
-      Vec3 displacement,
-      float horizontalSpeed,
-      float bodyYaw,
-      float headYaw,
-      float headPitch,
-      boolean onGround,
-      boolean lookingAtTarget,
-      InstinctActivity activity) {}
 
   /** Native Rabbit avoids Wolf entities; this bridge preserves that relation for player forms. */
   private static final class TransformedWolfAvoidGoal extends Goal {

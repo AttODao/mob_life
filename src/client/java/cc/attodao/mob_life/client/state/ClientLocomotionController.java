@@ -1,59 +1,127 @@
 package cc.attodao.mob_life.client.state;
 
+import cc.attodao.mob_life.client.network.ClientLocomotionPackets;
 import cc.attodao.mob_life.config.MorphConfig;
 import cc.attodao.mob_life.config.MorphConfigManager;
 import cc.attodao.mob_life.gameplay.jump.ChargedJumpingPlayer;
 import cc.attodao.mob_life.gameplay.jump.GaitType;
 import cc.attodao.mob_life.gameplay.jump.MobChargedJump;
+import cc.attodao.mob_life.gameplay.movement.MorphGaitControl;
 import cc.attodao.mob_life.gameplay.movement.MorphMovementSpeed;
-import cc.attodao.mob_life.gameplay.movement.MorphViewRecovery;
 import cc.attodao.mob_life.gameplay.movement.RabbitHopMovement;
+import cc.attodao.mob_life.gameplay.view.MorphViewControl;
 import cc.attodao.mob_life.morph.MorphType;
-import cc.attodao.mob_life.network.MobLifeNetworking;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Input;
+import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
+import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
+import net.minecraft.world.phys.Vec2;
 import net.minecraft.world.phys.Vec3;
 
-final class ClientLocomotionController {
-  private static final float BODY_TURN_PER_TICK = 10.0F;
-  private static final float VIEW_RECOVERY_PER_TICK = 2.0F;
-  private static final float MAX_HEAD_YAW = 75.0F;
-  private static final float MAX_HEAD_PITCH = 40.0F;
+public final class ClientLocomotionController {
+  private static final ClientLocomotionController INSTANCE = new ClientLocomotionController();
   private static final float EQUINE_SIDEWAYS_INPUT = 0.5F;
   private static final float EQUINE_FORWARD_JUMP = 0.4F;
 
   private Input keys = Input.EMPTY;
   private MorphType morph;
+  private boolean baby;
+  private boolean instinctActive;
   private LocalPlayer player;
-  private boolean orientationKnown;
-  private float bodyYaw;
-  private int rabbitCooldown;
-  private boolean rabbitGrounded;
-  private boolean rabbitGroundedKnown;
-  private int chargeTicks = -1;
-  private long jumpBarUntilTick;
-  private boolean jumpWasDown;
+  private MorphViewControl.Normal.State viewState = MorphViewControl.Normal.initial();
+  private MorphGaitControl.RabbitState rabbitState = MorphGaitControl.RabbitState.INITIAL;
+  private MorphGaitControl.EquineState equineState = MorphGaitControl.EquineState.initial(false);
   private int bodyYawSentTick = Integer.MIN_VALUE;
   private boolean sentBodyYawKnown;
   private float sentBodyYaw;
-  private float pendingCameraDelta;
 
-  void capture(Input input) {
+  private ClientLocomotionController() {}
+
+  public static ClientLocomotionController get() {
+    return INSTANCE;
+  }
+
+  public void selectMorph(MorphType morph, boolean baby) {
+    this.morph = morph;
+    this.baby = baby;
+    resetProgress();
+  }
+
+  public void setInstinctActive(boolean active) {
+    if (instinctActive == active) {
+      return;
+    }
+    instinctActive = active;
+    resetProgress();
+  }
+
+  public void profilesReloaded() {
+    resetProgress();
+  }
+
+  public void teleported() {
+    resetProgress();
+  }
+
+  private void capture(Input input) {
     keys = input != null ? input : Input.EMPTY;
   }
 
-  MotionInput apply(LocalPlayer currentPlayer, MorphType currentMorph, boolean baby) {
-    resetForIdentity(currentPlayer, currentMorph);
-    if (currentMorph == null || ClientInstinctState.active()) {
+  public PolledInput captureAndFilter(LocalPlayer currentPlayer, Input input, Vec2 movement) {
+    if (instinctActive) {
+      return new PolledInput(Input.EMPTY, Vec2.ZERO, true);
+    }
+    capture(input);
+    if (morph == null) {
+      return new PolledInput(input, movement, false);
+    }
+
+    Input filtered =
+        new Input(
+            input.forward(),
+            false,
+            input.left(),
+            input.right(),
+            input.jump(),
+            input.shift(),
+            input.sprint());
+    Vec2 filteredMovement =
+        new Vec2(
+            (input.left() ? 1.0F : 0.0F) - (input.right() ? 1.0F : 0.0F),
+            input.forward() ? 1.0F : 0.0F);
+    if (usesRestrictedVehicle(currentPlayer)) {
+      filtered = dismountOnly(filtered);
+      return new PolledInput(filtered, filteredMovement, true);
+    }
+    return new PolledInput(filtered, filteredMovement, false);
+  }
+
+  public PolledInput filterOngoingVehicleInput(
+      LocalPlayer currentPlayer, Input input, Vec2 movement) {
+    if (instinctActive) {
+      return new PolledInput(Input.EMPTY, Vec2.ZERO, true);
+    }
+    if (morph == null || !usesRestrictedVehicle(currentPlayer)) {
+      return new PolledInput(input, movement, false);
+    }
+    return new PolledInput(dismountOnly(input), movement, true);
+  }
+
+  public MotionInput apply(LocalPlayer currentPlayer) {
+    bindPlayer(currentPlayer);
+    if (morph == null || instinctActive) {
       return MotionInput.VANILLA;
     }
 
-    ensureOrientation(currentPlayer);
     if (usesVanillaLocomotion(currentPlayer)) {
       resetGait();
-      orientationKnown = false;
+      viewState =
+          MorphViewControl.Normal.reduce(
+                  viewState,
+                  new MorphViewControl.Normal.BodyTick(
+                      currentView(currentPlayer), 0.0F, MorphViewControl.Normal.BodyMode.SUSPEND))
+              .state();
       return MotionInput.VANILLA;
     }
 
@@ -67,17 +135,21 @@ final class ClientLocomotionController {
     float steering = left ? 1.0F : right ? -1.0F : 0.0F;
     boolean forward = keys.forward();
     boolean sprinting = currentPlayer.isSprinting() && !currentPlayer.isInWater();
-    boolean equineSprint = currentMorph.isEquine() && sprinting;
+    boolean equineSprint = morph.isEquine() && sprinting;
 
-    if (equineSprint) {
-      bodyYaw = currentPlayer.getYRot();
-    } else if (steering != 0.0F) {
-      float turn = -steering * BODY_TURN_PER_TICK;
-      bodyYaw += turn;
-      turnInterpolatedView(currentPlayer, turn, 0.0F);
-    }
+    MorphViewControl.Normal.Transition bodyTransition =
+        MorphViewControl.Normal.reduce(
+            viewState,
+            new MorphViewControl.Normal.BodyTick(
+                currentView(currentPlayer),
+                steering,
+                equineSprint
+                    ? MorphViewControl.Normal.BodyMode.ALIGN
+                    : MorphViewControl.Normal.BodyMode.TURN));
+    viewState = bodyTransition.state();
+    applyRotation(currentPlayer, bodyTransition.rotation());
 
-    MorphConfig.Movement movement = MorphConfigManager.get(currentMorph).movement();
+    MorphConfig.Movement movement = MorphConfigManager.get(morph).movement();
     MorphConfig.MovementState state =
         sprinting
             ? MorphConfig.MovementState.SPRINT
@@ -87,7 +159,7 @@ final class ClientLocomotionController {
     float speed =
         (float)
             MorphMovementSpeed.controllerSpeed(
-                currentMorph,
+                morph,
                 state,
                 currentPlayer.getAttributeValue(
                     net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED));
@@ -95,40 +167,43 @@ final class ClientLocomotionController {
 
     boolean allowVanillaJump = currentPlayer.isInWater() || currentPlayer.isInLava();
     if (!allowVanillaJump) {
-      if (currentMorph == MorphType.RABBIT) {
+      if (morph == MorphType.RABBIT) {
         forward = applyRabbit(currentPlayer, sprinting, forward, baby);
-      } else if (currentMorph.isEquine()) {
+      } else if (morph.isEquine()) {
         applyEquine(currentPlayer, sprinting, forward);
       } else {
         applyOrdinaryJump(currentPlayer);
       }
-    } else if (currentMorph.isEquine()) {
-      jumpWasDown = keys.jump();
+    } else if (morph.isEquine()) {
+      equineState = MorphGaitControl.observeEquineJump(equineState, keys.jump());
     }
 
     float sidewaysInput = equineSprint ? steering * EQUINE_SIDEWAYS_INPUT * speed : 0.0F;
     float forwardInput = 0.0F;
     if (forward) {
       MorphMovementSpeed.RelativeInput bodyForward =
-          MorphMovementSpeed.bodyForwardInput(bodyYaw, currentPlayer.getYRot(), speed);
+          MorphMovementSpeed.bodyForwardInput(viewState.bodyYaw(), currentPlayer.getYRot(), speed);
       sidewaysInput += bodyForward.sideways();
       forwardInput = bodyForward.forward();
     }
     return new MotionInput(sidewaysInput, forwardInput, allowVanillaJump && keys.jump());
   }
 
-  void afterTick(LocalPlayer currentPlayer, MorphType currentMorph) {
-    resetForIdentity(currentPlayer, currentMorph);
-    if (currentMorph == null
-        || ClientInstinctState.active()
-        || usesVanillaLocomotion(currentPlayer)) {
+  public void afterTick(LocalPlayer currentPlayer) {
+    bindPlayer(currentPlayer);
+    if (morph == null || instinctActive || usesVanillaLocomotion(currentPlayer)) {
       return;
     }
-    ensureOrientation(currentPlayer);
+    viewState =
+        MorphViewControl.Normal.reduce(
+                viewState,
+                new MorphViewControl.Normal.BodyTick(
+                    currentView(currentPlayer), 0.0F, MorphViewControl.Normal.BodyMode.TURN))
+            .state();
     currentPlayer.setYHeadRot(currentPlayer.getYRot());
     sendBodyYaw(currentPlayer);
 
-    if (currentMorph == MorphType.CHICKEN
+    if (morph == MorphType.CHICKEN
         && !currentPlayer.onGround()
         && !currentPlayer.isInWater()
         && !currentPlayer.getAbilities().flying) {
@@ -139,104 +214,74 @@ final class ClientLocomotionController {
     }
   }
 
-  void recoverView(
-      LocalPlayer currentPlayer, MorphType currentMorph, boolean aimingInteractionActive) {
-    resetForIdentity(currentPlayer, currentMorph);
-    boolean cameraInputBlocksRecovery =
-        MorphViewRecovery.cameraInputBlocksRecovery(consumeCameraDelta());
-    if (currentMorph == null
-        || ClientInstinctState.active()
-        || usesVanillaLocomotion(currentPlayer)) {
-      return;
-    }
-    ensureOrientation(currentPlayer);
-    if (keys.left() == keys.right() && !aimingInteractionActive && !cameraInputBlocksRecovery) {
-      float yawDelta =
-          Mth.clamp(
-              Mth.wrapDegrees(bodyYaw - currentPlayer.getYRot()),
-              -VIEW_RECOVERY_PER_TICK,
-              VIEW_RECOVERY_PER_TICK);
-      float pitchDelta =
-          Mth.clamp(-currentPlayer.getXRot(), -VIEW_RECOVERY_PER_TICK, VIEW_RECOVERY_PER_TICK);
-      turnInterpolatedView(currentPlayer, yawDelta, pitchDelta);
-    }
+  public void recoverView(LocalPlayer currentPlayer, boolean aimingInteractionActive) {
+    bindPlayer(currentPlayer);
+    boolean active = morph != null && !instinctActive && !usesVanillaLocomotion(currentPlayer);
+    MorphViewControl.Normal.Transition transition =
+        MorphViewControl.Normal.reduce(
+            viewState,
+            new MorphViewControl.Normal.RecoveryTick(
+                currentView(currentPlayer),
+                active,
+                keys.left() == keys.right() && !aimingInteractionActive));
+    viewState = transition.state();
+    applyRotation(currentPlayer, transition.rotation());
   }
 
-  boolean captureLook(LocalPlayer currentPlayer, MorphType currentMorph, double yaw, double pitch) {
-    if (currentMorph == null || ClientInstinctState.active()) {
+  public boolean captureLook(LocalPlayer currentPlayer, double yaw, double pitch) {
+    if (morph == null || instinctActive) {
       return false;
     }
-    resetForIdentity(currentPlayer, currentMorph);
-    ensureOrientation(currentPlayer);
-    float yawDelta = finiteDelta(yaw);
-    float pitchDelta = finiteDelta(pitch);
-    pendingCameraDelta =
-        MorphViewRecovery.accumulateCameraDelta(pendingCameraDelta, yawDelta, pitchDelta);
-    float currentYawOffset = Mth.wrapDegrees(currentPlayer.getYRot() - bodyYaw);
-    float wantedYawOffset = Mth.wrapDegrees(currentYawOffset + yawDelta);
-    if (Math.abs(wantedYawOffset) > MAX_HEAD_YAW
-        && Math.abs(wantedYawOffset) > Math.abs(currentYawOffset)) {
-      yawDelta = 0.0F;
-    }
-    float wantedPitch = currentPlayer.getXRot() + pitchDelta;
-    if (Math.abs(wantedPitch) > MAX_HEAD_PITCH
-        && Math.abs(wantedPitch) > Math.abs(currentPlayer.getXRot())) {
-      pitchDelta = 0.0F;
-    }
-    turnImmediateView(currentPlayer, yawDelta, pitchDelta);
+    bindPlayer(currentPlayer);
+    MorphViewControl.Normal.Transition transition =
+        MorphViewControl.Normal.reduce(
+            viewState,
+            new MorphViewControl.Normal.LookInput(
+                currentView(currentPlayer), previousView(currentPlayer), yaw, pitch));
+    viewState = transition.state();
+    applyRotation(currentPlayer, transition.rotation());
     return true;
   }
 
-  boolean shouldShowJumpBar() {
-    return chargeTicks >= 0 || player != null && player.level().getGameTime() < jumpBarUntilTick;
+  public boolean shouldShowJumpBar() {
+    return equineState.chargeTicks() >= 0
+        || player != null && player.level().getGameTime() < equineState.jumpBarUntilTick();
   }
 
-  float jumpBarScale() {
-    return chargeTicks >= 0 ? MobChargedJump.chargeScale(chargeTicks) : 0.0F;
+  public float jumpBarScale() {
+    return equineState.chargeTicks() >= 0
+        ? MobChargedJump.chargeScale(equineState.chargeTicks())
+        : 0.0F;
   }
 
-  boolean isJumpBarCoolingDown() {
-    return chargeTicks < 0 && player != null && player.level().getGameTime() < jumpBarUntilTick;
+  public boolean isJumpBarCoolingDown() {
+    return equineState.chargeTicks() < 0
+        && player != null
+        && player.level().getGameTime() < equineState.jumpBarUntilTick();
   }
 
-  float bodyYaw() {
-    return bodyYaw;
+  public float bodyYaw() {
+    return viewState.bodyYaw();
   }
 
-  void reset() {
-    player = null;
+  public void clear() {
     morph = null;
-    keys = Input.EMPTY;
-    orientationKnown = false;
-    bodyYaw = 0.0F;
-    resetGait();
-    jumpWasDown = false;
-    bodyYawSentTick = Integer.MIN_VALUE;
-    sentBodyYawKnown = false;
-    pendingCameraDelta = 0.0F;
+    baby = false;
+    instinctActive = false;
+    resetProgress();
   }
 
   private boolean applyRabbit(
       LocalPlayer currentPlayer, boolean sprinting, boolean forward, boolean baby) {
     boolean grounded = currentPlayer.onGround();
-    if (!rabbitGroundedKnown) {
-      rabbitGrounded = grounded;
-      rabbitGroundedKnown = true;
-    } else if (grounded && !rabbitGrounded) {
-      rabbitCooldown = RabbitHopMovement.landingCooldown(sprinting);
-    } else if (rabbitCooldown > 0) {
-      rabbitCooldown--;
-    }
-    rabbitGrounded = grounded;
-
-    if (grounded && rabbitCooldown == 0 && (keys.jump() || forward)) {
-      float sourcePower =
-          keys.jump()
-              ? RabbitHopMovement.MANUAL_JUMP_POWER
-              : sprinting ? RabbitHopMovement.SPRINT_JUMP_POWER : RabbitHopMovement.WALK_JUMP_POWER;
+    MorphGaitControl.RabbitFrame frame =
+        MorphGaitControl.advanceRabbit(rabbitState, grounded, sprinting, keys.jump(), forward);
+    rabbitState = frame.state();
+    if (frame.requestJump()) {
       boolean jumped =
           ((ChargedJumpingPlayer) currentPlayer)
-              .mobLife$performMorphJump(RabbitHopMovement.jumpScale(sourcePower), 0.0F, false);
+              .mobLife$performMorphJump(
+                  RabbitHopMovement.jumpScale(frame.sourcePower()), 0.0F, false);
       if (jumped) {
         if (currentPlayer.getDeltaMovement().horizontalDistanceSqr() < 0.01) {
           currentPlayer.moveRelative(0.1F, new Vec3(0.0, baby ? 0.5 : 1.5, 1.0));
@@ -244,7 +289,7 @@ final class ClientLocomotionController {
         sendGait(GaitType.RABBIT);
       }
     }
-    return forward && !(grounded && rabbitCooldown > 0);
+    return frame.allowForward();
   }
 
   private void applyOrdinaryJump(LocalPlayer currentPlayer) {
@@ -256,106 +301,107 @@ final class ClientLocomotionController {
   }
 
   private void applyEquine(LocalPlayer currentPlayer, boolean sprinting, boolean forward) {
-    if (!sprinting || !currentPlayer.onGround()) {
-      chargeTicks = -1;
-    } else if (keys.jump()) {
-      if (!jumpWasDown) {
-        chargeTicks = 1;
-      } else if (chargeTicks >= 0) {
-        chargeTicks++;
-      }
-    } else if (jumpWasDown && chargeTicks >= 0) {
-      float charge = MobChargedJump.chargeScale(chargeTicks);
+    MorphGaitControl.EquineFrame frame =
+        MorphGaitControl.advanceEquine(
+            equineState, sprinting, currentPlayer.onGround(), keys.jump());
+    equineState = frame.state();
+    if (frame.requestJump()) {
+      float charge = frame.charge();
       boolean jumped =
           ((ChargedJumpingPlayer) currentPlayer)
               .mobLife$performMorphJump(charge, EQUINE_FORWARD_JUMP * charge, forward);
       if (jumped) {
         sendGait(GaitType.EQUINE);
-        jumpBarUntilTick = currentPlayer.level().getGameTime() + MobChargedJump.COOLDOWN_TICKS;
+        equineState =
+            MorphGaitControl.completeEquineJump(
+                equineState, currentPlayer.level().getGameTime() + MobChargedJump.COOLDOWN_TICKS);
       }
-      chargeTicks = -1;
     }
-    jumpWasDown = keys.jump();
   }
 
-  private void resetForIdentity(LocalPlayer currentPlayer, MorphType currentMorph) {
-    if (player == currentPlayer && morph == currentMorph) {
+  private void bindPlayer(LocalPlayer currentPlayer) {
+    if (player == currentPlayer) {
       return;
     }
     player = currentPlayer;
-    morph = currentMorph;
-    orientationKnown = false;
-    pendingCameraDelta = 0.0F;
+    viewState = MorphViewControl.Normal.initial();
     resetGait();
-    jumpWasDown = keys.jump();
-  }
-
-  private void ensureOrientation(LocalPlayer currentPlayer) {
-    if (!orientationKnown) {
-      bodyYaw = currentPlayer.getYRot();
-      orientationKnown = true;
-    }
   }
 
   private void resetGait() {
-    rabbitCooldown = 0;
-    rabbitGroundedKnown = false;
-    chargeTicks = -1;
-    jumpBarUntilTick = 0L;
-    jumpWasDown = keys.jump();
+    rabbitState = MorphGaitControl.RabbitState.INITIAL;
+    equineState = MorphGaitControl.EquineState.initial(keys.jump());
+  }
+
+  private void resetProgress() {
+    player = null;
+    keys = Input.EMPTY;
+    viewState = MorphViewControl.Normal.initial();
+    resetGait();
+    bodyYawSentTick = Integer.MIN_VALUE;
+    sentBodyYawKnown = false;
   }
 
   private static boolean usesVanillaLocomotion(LocalPlayer player) {
     return player.isPassenger() || player.isFallFlying() || player.getAbilities().flying;
   }
 
+  private static boolean usesRestrictedVehicle(LocalPlayer player) {
+    return player.getVehicle() instanceof AbstractBoat
+        || player.getVehicle() instanceof AbstractMinecart;
+  }
+
+  private static Input dismountOnly(Input input) {
+    return new Input(false, false, false, false, false, input.shift(), false);
+  }
+
   private static void sendGait(GaitType type) {
-    ClientPlayNetworking.send(new MobLifeNetworking.GaitEventPayload(type));
+    ClientLocomotionPackets.sendGait(type);
   }
 
   private void sendBodyYaw(LocalPlayer currentPlayer) {
     if (bodyYawSentTick == currentPlayer.tickCount) {
       return;
     }
-    float normalized = Mth.wrapDegrees(bodyYaw);
+    float normalized = Mth.wrapDegrees(viewState.bodyYaw());
     if (sentBodyYawKnown && Math.abs(Mth.wrapDegrees(normalized - sentBodyYaw)) < 1.0E-4F) {
       return;
     }
     bodyYawSentTick = currentPlayer.tickCount;
     sentBodyYawKnown = true;
     sentBodyYaw = normalized;
-    ClientPlayNetworking.send(new MobLifeNetworking.MorphBodyYawUpdatePayload(normalized));
+    ClientLocomotionPackets.sendBodyYaw(normalized);
   }
 
-  private static float finiteDelta(double input) {
-    float delta = (float) input * 0.15F;
-    return Float.isFinite(delta) ? delta : 0.0F;
+  private static MorphViewControl.View currentView(LocalPlayer player) {
+    return new MorphViewControl.View(player.getYRot(), player.getXRot());
   }
 
-  private float consumeCameraDelta() {
-    float result = pendingCameraDelta;
-    pendingCameraDelta = 0.0F;
-    return result;
+  private static MorphViewControl.View previousView(LocalPlayer player) {
+    return new MorphViewControl.View(player.yRotO, player.xRotO);
   }
 
-  private static void turnInterpolatedView(LocalPlayer player, float yawDelta, float pitchDelta) {
-    player.setYRot(player.getYRot() + yawDelta);
-    player.setXRot(Mth.clamp(player.getXRot() + pitchDelta, -MAX_HEAD_PITCH, MAX_HEAD_PITCH));
+  private static void applyRotation(LocalPlayer player, MorphViewControl.Rotation rotation) {
+    if (!rotation.apply()) {
+      return;
+    }
+    player.setYRot(rotation.current().yaw());
+    player.setXRot(rotation.current().pitch());
     player.setYHeadRot(player.getYRot());
+    if (rotation.history() == MorphViewControl.History.SNAP) {
+      player.yRotO = rotation.previous().yaw();
+      player.xRotO = rotation.previous().pitch();
+      player.yHeadRotO += rotation.previousHeadYawDelta();
+    }
   }
 
-  private static void turnImmediateView(LocalPlayer player, float yawDelta, float pitchDelta) {
-    turnInterpolatedView(player, yawDelta, pitchDelta);
-    player.yRotO += yawDelta;
-    player.xRotO = Mth.clamp(player.xRotO + pitchDelta, -MAX_HEAD_PITCH, MAX_HEAD_PITCH);
-    player.yHeadRotO += yawDelta;
-  }
-
-  record MotionInput(float sideways, float forward, boolean jumping) {
+  public record MotionInput(float sideways, float forward, boolean jumping) {
     private static final MotionInput VANILLA = new MotionInput(Float.NaN, Float.NaN, false);
 
-    boolean isVanilla() {
+    public boolean isVanilla() {
       return Float.isNaN(sideways);
     }
   }
+
+  public record PolledInput(Input keys, Vec2 movement, boolean disableSprinting) {}
 }

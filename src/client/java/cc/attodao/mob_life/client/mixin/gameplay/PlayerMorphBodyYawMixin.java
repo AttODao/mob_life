@@ -1,6 +1,7 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
 import cc.attodao.mob_life.client.state.ClientInstinctState;
+import cc.attodao.mob_life.client.state.ClientLocomotionController;
 import cc.attodao.mob_life.client.state.ClientMorphBodyYawState;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import net.minecraft.client.player.LocalPlayer;
@@ -21,7 +22,7 @@ public abstract class PlayerMorphBodyYawMixin {
     Player player = (Player) (Object) this;
     if (player instanceof LocalPlayer) {
       if (!ClientInstinctState.active()) {
-        player.yBodyRot = ClientMorphState.bodyYaw();
+        player.yBodyRot = ClientLocomotionController.get().bodyYaw();
       }
     } else {
       ClientMorphBodyYawState.apply(player);

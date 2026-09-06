@@ -26,7 +26,6 @@ import net.minecraft.world.phys.HitResult;
 public final class ClientMorphState {
   private static final Map<UUID, Entity> RENDER_ENTITIES = new HashMap<>();
   private static final Map<Integer, Integer> GRASS_EATING_TICKS = new HashMap<>();
-  private static final ClientLocomotionController LOCOMOTION = new ClientLocomotionController();
   private static MorphDefinition definition;
   private static MorphType morph;
   private static EntityDimensions dimensions;
@@ -49,10 +48,10 @@ public final class ClientMorphState {
     baby = false;
     RENDER_ENTITIES.clear();
     GRASS_EATING_TICKS.clear();
-    LOCOMOTION.reset();
 
     Minecraft client = Minecraft.getInstance();
     if (client.level == null) {
+      ClientLocomotionController.get().selectMorph(morph, baby);
       return;
     }
 
@@ -64,6 +63,7 @@ public final class ClientMorphState {
         baby = template instanceof LivingEntity livingTemplate && livingTemplate.isBaby();
       }
     }
+    ClientLocomotionController.get().selectMorph(morph, baby);
     float morphHeight =
         dimensions != null ? dimensions.height() : newMorph.entityType().getDimensions().height();
     for (Player player : client.level.players()) {
@@ -81,15 +81,11 @@ public final class ClientMorphState {
   }
 
   public static void onProfilesReload() {
-    LOCOMOTION.reset();
+    ClientLocomotionController.get().profilesReloaded();
     RENDER_ENTITIES.clear();
     if (morph != null) {
       nightVision = MorphConfigManager.get(morph).traits().nightVision();
     }
-  }
-
-  public static void resetLocomotion() {
-    LOCOMOTION.reset();
   }
 
   public static MorphType morph() {
@@ -120,18 +116,6 @@ public final class ClientMorphState {
     return GRASS_EATING_TICKS.getOrDefault(player.getId(), 0);
   }
 
-  public static boolean shouldShowChargedJumpBar() {
-    return morph != null && LOCOMOTION.shouldShowJumpBar();
-  }
-
-  public static float chargedJumpScale() {
-    return LOCOMOTION.jumpBarScale();
-  }
-
-  public static boolean isChargedJumpCoolingDown() {
-    return LOCOMOTION.isJumpBarCoolingDown();
-  }
-
   public static EntityDimensions dimensions() {
     return dimensions;
   }
@@ -142,29 +126,6 @@ public final class ClientMorphState {
 
   public static boolean rabbitHopEnabled() {
     return morph == MorphType.RABBIT;
-  }
-
-  public static void captureMovementInput(net.minecraft.world.entity.player.Input input) {
-    LOCOMOTION.capture(input);
-  }
-
-  public static MovementInput applyMovement(LocalPlayer player) {
-    ClientLocomotionController.MotionInput output = LOCOMOTION.apply(player, morph, baby);
-    return new MovementInput(
-        output.sideways(), output.forward(), output.jumping(), output.isVanilla());
-  }
-
-  public static void afterMovement(LocalPlayer player) {
-    LOCOMOTION.afterTick(player, morph);
-  }
-
-  public static boolean captureLookInput(
-      LocalPlayer player, double rawYawInput, double rawPitchInput) {
-    return LOCOMOTION.captureLook(player, morph, rawYawInput, rawPitchInput);
-  }
-
-  public static float bodyYaw() {
-    return LOCOMOTION.bodyYaw();
   }
 
   public static Entity renderEntity(Player player) {
@@ -201,7 +162,8 @@ public final class ClientMorphState {
       tickChickenWings(client);
     }
     if (client.player != null) {
-      LOCOMOTION.recoverView(client.player, morph, isAimingInteractionActive(client));
+      ClientLocomotionController.get()
+          .recoverView(client.player, isAimingInteractionActive(client));
     }
   }
 
@@ -242,7 +204,7 @@ public final class ClientMorphState {
       MorphAttributeModifiers.removeAll(player);
     }
     RENDER_ENTITIES.clear();
-    LOCOMOTION.reset();
+    ClientLocomotionController.get().clear();
   }
 
   private static void tickChickenWings(Minecraft client) {
@@ -262,6 +224,4 @@ public final class ClientMorphState {
       }
     }
   }
-
-  public record MovementInput(float sideways, float forward, boolean jumping, boolean vanilla) {}
 }

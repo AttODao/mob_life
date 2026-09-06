@@ -1,16 +1,13 @@
 package cc.attodao.mob_life.client.mixin.gameplay;
 
 import cc.attodao.mob_life.client.state.ClientInstinctState;
+import cc.attodao.mob_life.client.state.ClientLocomotionController;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import com.llamalad7.mixinextras.injector.v2.WrapWithCondition;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.player.Input;
-import net.minecraft.world.entity.vehicle.boat.AbstractBoat;
-import net.minecraft.world.entity.vehicle.minecart.AbstractMinecart;
-import net.minecraft.world.phys.Vec2;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -35,21 +32,20 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
               shift = At.Shift.AFTER))
   private void mobLife$restrictVehicleInputAfterPolling(CallbackInfo ci) {
     ClientInstinctState.capture(input);
-    if (ClientInstinctState.active()) {
-      input.keyPresses = Input.EMPTY;
-      ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
+    ClientLocomotionController.PolledInput filtered =
+        ClientLocomotionController.get()
+            .captureAndFilter((LocalPlayer) (Object) this, input.keyPresses, input.getMoveVector());
+    input.keyPresses = filtered.keys();
+    ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(filtered.movement());
+    if (filtered.disableSprinting()) {
       setSprinting(false);
-      return;
     }
-    ClientMorphState.captureMovementInput(input.keyPresses);
-    mobLife$discardBackwardInput();
-    mobLife$keepOnlyDismountInput();
   }
 
   @Inject(method = "aiStep", at = @At("TAIL"))
   private void mobLife$restrictVehicleInputAfterMovement(CallbackInfo ci) {
-    mobLife$keepOnlyDismountInput();
-    ClientMorphState.afterMovement((LocalPlayer) (Object) this);
+    mobLife$applyOngoingInputPolicy();
+    ClientLocomotionController.get().afterTick((LocalPlayer) (Object) this);
   }
 
   @WrapWithCondition(
@@ -81,14 +77,14 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
 
   @Inject(method = "rideTick", at = @At("HEAD"))
   private void mobLife$restrictVehicleInputWhileRiding(CallbackInfo ci) {
-    mobLife$keepOnlyDismountInput();
+    mobLife$applyOngoingInputPolicy();
   }
 
   @Inject(method = "applyInput", at = @At("TAIL"))
   private void mobLife$applyMorphLocomotion(CallbackInfo ci) {
-    ClientMorphState.MovementInput movement =
-        ClientMorphState.applyMovement((LocalPlayer) (Object) this);
-    if (!movement.vanilla()) {
+    ClientLocomotionController.MotionInput movement =
+        ClientLocomotionController.get().apply((LocalPlayer) (Object) this);
+    if (!movement.isVanilla()) {
       xxa = movement.sideways();
       zza = movement.forward();
       jumping = movement.jumping();
@@ -102,36 +98,15 @@ public abstract class LocalPlayerMovementMixin extends LivingEntity {
     }
   }
 
-  private void mobLife$keepOnlyDismountInput() {
-    if (ClientInstinctState.active()) {
-      input.keyPresses = Input.EMPTY;
-      ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(Vec2.ZERO);
+  private void mobLife$applyOngoingInputPolicy() {
+    ClientLocomotionController.PolledInput filtered =
+        ClientLocomotionController.get()
+            .filterOngoingVehicleInput(
+                (LocalPlayer) (Object) this, input.keyPresses, input.getMoveVector());
+    input.keyPresses = filtered.keys();
+    ((ClientInputMoveVectorAccessor) input).mobLife$setMoveVector(filtered.movement());
+    if (filtered.disableSprinting()) {
       setSprinting(false);
-      return;
     }
-    if (ClientMorphState.morph() == null || !mobLife$isRestrictedVehicle()) {
-      return;
-    }
-
-    boolean dismount = input.keyPresses.shift();
-    input.keyPresses = new Input(false, false, false, false, false, dismount, false);
-    setSprinting(false);
-  }
-
-  private void mobLife$discardBackwardInput() {
-    if (ClientMorphState.morph() == null) {
-      return;
-    }
-    Input raw = input.keyPresses;
-    input.keyPresses =
-        new Input(
-            raw.forward(), false, raw.left(), raw.right(), raw.jump(), raw.shift(), raw.sprint());
-    float sideways = (raw.left() ? 1.0F : 0.0F) - (raw.right() ? 1.0F : 0.0F);
-    ((ClientInputMoveVectorAccessor) input)
-        .mobLife$setMoveVector(new Vec2(sideways, raw.forward() ? 1.0F : 0.0F));
-  }
-
-  private boolean mobLife$isRestrictedVehicle() {
-    return getVehicle() instanceof AbstractBoat || getVehicle() instanceof AbstractMinecart;
   }
 }

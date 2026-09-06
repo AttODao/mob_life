@@ -1,6 +1,6 @@
 package cc.attodao.mob_life.client.render;
 
-import cc.attodao.mob_life.client.state.ClientMorphState;
+import cc.attodao.mob_life.client.state.ClientLocomotionController;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.RenderPipelines;
@@ -23,12 +23,13 @@ public final class MorphJumpBarRenderer {
     int top = client.getWindow().getGuiScaledHeight() - 24 - 5;
     graphics.blitSprite(RenderPipelines.GUI_TEXTURED, BACKGROUND, left, top, 182, 5);
 
-    if (ClientMorphState.isChargedJumpCoolingDown()) {
+    ClientLocomotionController locomotion = ClientLocomotionController.get();
+    if (locomotion.isJumpBarCoolingDown()) {
       graphics.blitSprite(RenderPipelines.GUI_TEXTURED, COOLDOWN, left, top, 182, 5);
       return;
     }
 
-    int progress = Mth.lerpDiscrete(ClientMorphState.chargedJumpScale(), 0, 182);
+    int progress = Mth.lerpDiscrete(locomotion.jumpBarScale(), 0, 182);
     if (progress > 0) {
       graphics.blitSprite(
           RenderPipelines.GUI_TEXTURED, PROGRESS, 182, 5, 0, 0, left, top, progress, 5);

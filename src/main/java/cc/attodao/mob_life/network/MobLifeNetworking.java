@@ -3,11 +3,14 @@ package cc.attodao.mob_life.network;
 import cc.attodao.mob_life.MobLife;
 import cc.attodao.mob_life.config.ServerMobLifeConfig;
 import cc.attodao.mob_life.gameplay.ability.MorphAbility;
+import cc.attodao.mob_life.gameplay.instinct.InstinctActivity;
 import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
+import cc.attodao.mob_life.gameplay.instinct.InstinctSyncState;
 import cc.attodao.mob_life.gameplay.instinct.MorphInstinct;
 import cc.attodao.mob_life.gameplay.jump.GaitType;
 import cc.attodao.mob_life.gameplay.movement.MorphBodyYawSync;
 import cc.attodao.mob_life.gameplay.sleep.MorphSleep;
+import cc.attodao.mob_life.gameplay.view.MorphViewControl;
 import cc.attodao.mob_life.server.ServerMorphManager;
 import cc.attodao.mob_life.world.MorphVariantRequest;
 import java.util.ArrayList;
@@ -21,6 +24,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 
 public final class MobLifeNetworking {
 
@@ -531,6 +535,7 @@ public final class MobLifeNetworking {
       float horizontalDisplacement,
       float horizontalSpeed)
       implements CustomPacketPayload {
+    private static final InstinctActivity[] ACTIVITIES = InstinctActivity.values();
     public static final Type<InstinctStatePayload> TYPE =
         new Type<>(Identifier.fromNamespaceAndPath(MobLife.MOD_ID, "instinct_state"));
     public static final StreamCodec<RegistryFriendlyByteBuf, InstinctStatePayload> CODEC =
@@ -573,6 +578,39 @@ public final class MobLifeNetworking {
       if (!Float.isFinite(horizontalSpeed) || horizontalSpeed < 0.0F) {
         horizontalSpeed = 0.0F;
       }
+    }
+
+    public static InstinctStatePayload fromState(InstinctSyncState state) {
+      return new InstinctStatePayload(
+          state.active(),
+          state.level(),
+          state.position().x,
+          state.position().y,
+          state.position().z,
+          state.onGround(),
+          state.pose().bodyYaw(),
+          state.pose().headYaw(),
+          state.pose().headPitch(),
+          state.lookingAtTarget(),
+          state.activity().ordinal(),
+          state.motion().horizontalDisplacement(),
+          state.motion().horizontalSpeed());
+    }
+
+    public InstinctSyncState toState() {
+      InstinctActivity decodedActivity =
+          activity >= 0 && activity < ACTIVITIES.length
+              ? ACTIVITIES[activity]
+              : InstinctActivity.REST;
+      return new InstinctSyncState(
+          active,
+          level,
+          new Vec3(x, y, z),
+          onGround,
+          new MorphViewControl.Pose(bodyYaw, headYaw, headPitch),
+          lookingAtTarget,
+          decodedActivity,
+          new InstinctSyncState.Motion(horizontalDisplacement, horizontalSpeed));
     }
 
     @Override

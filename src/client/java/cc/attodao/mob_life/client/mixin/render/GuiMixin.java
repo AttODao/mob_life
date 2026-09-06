@@ -5,6 +5,7 @@ import cc.attodao.mob_life.client.render.AwkwardnessColor;
 import cc.attodao.mob_life.client.render.MorphJumpBarRenderer;
 import cc.attodao.mob_life.client.render.SizedHotbarRenderer;
 import cc.attodao.mob_life.client.state.ClientInstinctState;
+import cc.attodao.mob_life.client.state.ClientLocomotionController;
 import cc.attodao.mob_life.client.state.ClientMorphState;
 import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
@@ -89,7 +90,7 @@ public abstract class GuiMixin {
                   "Lnet/minecraft/client/gui/contextualbar/ContextualBar;extractBackground(Lnet/minecraft/client/gui/GuiGraphicsExtractor;Lnet/minecraft/client/DeltaTracker;)V"))
   private void mobLife$renderChargedJumpBar(
       ContextualBar renderer, GuiGraphicsExtractor graphics, DeltaTracker deltaTracker) {
-    if (ClientMorphState.shouldShowChargedJumpBar()) {
+    if (ClientMorphState.morph() != null && ClientLocomotionController.get().shouldShowJumpBar()) {
       MorphJumpBarRenderer.render(graphics);
     } else {
       renderer.extractBackground(graphics, deltaTracker);

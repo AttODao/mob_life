@@ -8,6 +8,7 @@ import cc.attodao.mob_life.gameplay.food.MorphFoodCapacity;
 import cc.attodao.mob_life.gameplay.inventory.MorphInventoryCapacity;
 import cc.attodao.mob_life.gameplay.movement.MorphBodyYawSync;
 import cc.attodao.mob_life.gameplay.targeting.MorphRelations;
+import cc.attodao.mob_life.gameplay.view.MorphViewControl;
 import cc.attodao.mob_life.morph.MorphDefinition;
 import cc.attodao.mob_life.morph.MorphType;
 import cc.attodao.mob_life.network.MobLifeNetworking;
@@ -382,7 +383,7 @@ public final class MorphInstinct {
         player.setDeltaMovement(Vec3.ZERO);
         sync(player, session, InstinctActivity.REST);
       } else {
-        InstinctController.Output output =
+        InstinctSyncState syncState =
             session.controller.tick(
                 player,
                 input,
@@ -391,23 +392,9 @@ public final class MorphInstinct {
                 session.pendingDamage);
         session.pendingDamage = null;
         session.pendingPanic = false;
-        Vec3 target = player.position().add(output.displacement());
-        player.setPos(target.x, target.y, target.z);
-        player.setDeltaMovement(Vec3.ZERO);
-        player.setOnGround(output.onGround());
-        player.yBodyRot = output.bodyYaw();
-        player.yBodyRotO = output.bodyYaw();
-        MorphBodyYawSync.receive(player, output.bodyYaw());
-        player.setYHeadRot(output.headYaw());
-        player.yHeadRotO = output.headYaw();
-        session.headPitch = output.headPitch();
-        sync(
-            player,
-            session,
-            output.activity(),
-            output.lookingAtTarget(),
-            (float) output.displacement().horizontalDistance(),
-            output.horizontalSpeed());
+        session.headPitch = syncState.pose().headPitch();
+        MorphBodyYawSync.receive(player, syncState.pose().bodyYaw());
+        sync(player, syncState);
       }
     }
 
@@ -445,12 +432,18 @@ public final class MorphInstinct {
       double dy = session.feedingPoint.y - (player.getY() + player.getEyeHeight());
       double dz = session.feedingPoint.z - player.getZ();
       float desiredHeadYaw = (float) (Mth.atan2(dz, dx) * 180.0 / Math.PI) - 90.0F;
-      float headYaw = InstinctAngles.approachYaw(player.getYHeadRot(), desiredHeadYaw, 10.0F);
-      player.setYHeadRot(InstinctAngles.clampHeadYawToBody(headYaw, player.yBodyRot, 75.0F));
       double horizontal = Math.sqrt(dx * dx + dz * dz);
       float desiredPitch =
           Mth.clamp((float) -(Mth.atan2(dy, horizontal) * 180.0 / Math.PI), -40.0F, 40.0F);
-      session.headPitch = Mth.approach(session.headPitch, desiredPitch, 10.0F);
+      MorphViewControl.InstinctServer.State viewState =
+          MorphViewControl.InstinctServer.reduce(
+              new MorphViewControl.InstinctServer.State(
+                  new MorphViewControl.Pose(
+                      player.yBodyRot, player.getYHeadRot(), session.headPitch)),
+              new MorphViewControl.InstinctServer.TrackFeedingTarget(
+                  new MorphViewControl.View(desiredHeadYaw, desiredPitch)));
+      player.setYHeadRot(viewState.pose().headYaw());
+      session.headPitch = viewState.pose().headPitch();
     }
     if (session.feedingTicks % 10 == 0) {
       player.connection.send(
@@ -570,33 +563,21 @@ public final class MorphInstinct {
 
   private static void sync(
       ServerPlayer player, Session session, InstinctActivity activity, boolean lookingAtTarget) {
-    sync(player, session, activity, lookingAtTarget, 0.0F, 0.0F);
+    sync(
+        player,
+        new InstinctSyncState(
+            InstinctState.isActive(player),
+            InstinctState.get(player).level(),
+            player.position(),
+            player.onGround(),
+            new MorphViewControl.Pose(player.yBodyRot, player.getYHeadRot(), session.headPitch),
+            lookingAtTarget,
+            activity,
+            InstinctSyncState.Motion.STATIONARY));
   }
 
-  private static void sync(
-      ServerPlayer player,
-      Session session,
-      InstinctActivity activity,
-      boolean lookingAtTarget,
-      float horizontalDisplacement,
-      float horizontalSpeed) {
-    float level = InstinctState.get(player).level();
-    ServerPlayNetworking.send(
-        player,
-        new MobLifeNetworking.InstinctStatePayload(
-            InstinctState.isActive(player),
-            level,
-            player.getX(),
-            player.getY(),
-            player.getZ(),
-            player.onGround(),
-            player.yBodyRot,
-            player.getYHeadRot(),
-            session.headPitch,
-            lookingAtTarget,
-            activity.ordinal(),
-            horizontalDisplacement,
-            horizontalSpeed));
+  private static void sync(ServerPlayer player, InstinctSyncState state) {
+    ServerPlayNetworking.send(player, MobLifeNetworking.InstinctStatePayload.fromState(state));
   }
 
   private static Session session(ServerPlayer player) {

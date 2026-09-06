@@ -140,7 +140,8 @@ public final class MobLifeClient implements ClientModInitializer {
                             payload.entityId(), payload.remainingTicks())));
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.InstinctStatePayload.TYPE,
-        (payload, context) -> context.client().execute(() -> ClientInstinctState.update(payload)));
+        (payload, context) ->
+            context.client().execute(() -> ClientInstinctState.update(payload.toState())));
     ClientPlayNetworking.registerGlobalReceiver(
         MobLifeNetworking.PredatorOutlinePayload.TYPE,
         (payload, context) ->

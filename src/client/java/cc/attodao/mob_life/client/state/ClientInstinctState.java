@@ -1,9 +1,9 @@
 package cc.attodao.mob_life.client.state;
 
-import cc.attodao.mob_life.gameplay.instinct.InstinctAngles;
 import cc.attodao.mob_life.gameplay.instinct.InstinctInput;
 import cc.attodao.mob_life.gameplay.instinct.InstinctState;
-import cc.attodao.mob_life.gameplay.movement.MorphViewRecovery;
+import cc.attodao.mob_life.gameplay.instinct.InstinctSyncState;
+import cc.attodao.mob_life.gameplay.view.MorphViewControl;
 import cc.attodao.mob_life.network.MobLifeNetworking;
 import java.util.ArrayDeque;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -15,7 +15,6 @@ import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
 import net.minecraft.client.player.ClientInput;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.util.Mth;
 import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec2;
@@ -29,24 +28,10 @@ public final class ClientInstinctState {
   private static final ArrayDeque<ViewBobSample> VIEW_BOB_SAMPLES = new ArrayDeque<>();
   private static Vec2 rawMovement = Vec2.ZERO;
   private static Input rawKeys = Input.EMPTY;
-  private static boolean active;
-  private static float level;
-  private static float bodyYaw;
-  private static float headYaw;
-  private static float headPitch;
-  private static int activity;
-  private static boolean lookingAtTarget;
+  private static MorphViewControl.InstinctClient.State viewState =
+      MorphViewControl.InstinctClient.initial();
+  private static InstinctSyncState syncState = InstinctSyncState.INACTIVE;
   private static int lockedHotbarSlot;
-  private static float cameraYaw;
-  private static float cameraPitch;
-  private static float requestedHeadYaw;
-  private static float requestedHeadPitch;
-  private static float pendingCameraDelta;
-  private static double authoritativeX;
-  private static double authoritativeY;
-  private static double authoritativeZ;
-  private static boolean authoritativeOnGround;
-  private static boolean hasAuthoritativePosition;
   private static float lastViewBobSpeed;
   private static int viewBobTicksWithoutSample = VIEW_BOB_SPEED_HOLD_TICKS + 1;
   private static LocalPlayer viewBobPlayer;
@@ -56,15 +41,15 @@ public final class ClientInstinctState {
   private ClientInstinctState() {}
 
   public static boolean active() {
-    return active;
+    return viewState.active();
   }
 
   public static float level() {
-    return level;
+    return syncState.level();
   }
 
   public static int activity() {
-    return activity;
+    return syncState.activity().ordinal();
   }
 
   public static void capture(ClientInput input) {
@@ -74,76 +59,49 @@ public final class ClientInstinctState {
 
   public static boolean captureLookInput(
       LocalPlayer player, double rawYawInput, double rawPitchInput) {
-    float yawDelta = (float) rawYawInput * 0.15F;
-    float pitchDelta = (float) rawPitchInput * 0.15F;
-    if (!Float.isFinite(yawDelta) || !Float.isFinite(pitchDelta)) {
-      return active;
-    }
-    pendingCameraDelta =
-        MorphViewRecovery.accumulateCameraDelta(pendingCameraDelta, yawDelta, pitchDelta);
-    if (!active) {
-      return false;
-    }
-
-    float currentYawOffset = Mth.wrapDegrees(requestedHeadYaw - bodyYaw);
-    float wantedYawOffset = Mth.wrapDegrees(currentYawOffset + yawDelta);
-    if (Math.abs(wantedYawOffset) > 75.0F
-        && Math.abs(wantedYawOffset) > Math.abs(currentYawOffset)) {
-      yawDelta = 0.0F;
-    }
-    float wantedPitch = requestedHeadPitch + pitchDelta;
-    if (Math.abs(wantedPitch) > 40.0F && Math.abs(wantedPitch) > Math.abs(requestedHeadPitch)) {
-      pitchDelta = 0.0F;
-    }
-    requestedHeadYaw += yawDelta;
-    requestedHeadPitch = Mth.clamp(requestedHeadPitch + pitchDelta, -40.0F, 40.0F);
-    return true;
+    MorphViewControl.InstinctClient.LookCapture capture =
+        MorphViewControl.InstinctClient.reduce(
+            viewState, new MorphViewControl.InstinctClient.LookInput(rawYawInput, rawPitchInput));
+    viewState = capture.state();
+    return capture.handled();
   }
 
-  public static void update(MobLifeNetworking.InstinctStatePayload payload) {
+  public static void update(InstinctSyncState state) {
     Minecraft client = Minecraft.getInstance();
     LocalPlayer player = client.player;
-    boolean wasActive = active;
-    active = payload.active();
+    boolean wasActive = viewState.active();
+    viewState =
+        MorphViewControl.InstinctClient.reduce(
+            viewState,
+            new MorphViewControl.InstinctClient.Snapshot(
+                state.active(),
+                state.pose(),
+                player != null,
+                player != null
+                    ? new MorphViewControl.View(player.getYRot(), player.getXRot())
+                    : MorphViewControl.View.ZERO));
+    syncState = state;
+    boolean active = viewState.active();
     if (player != null) {
       InstinctState.get(player).setActive(active);
     }
     if (active && !wasActive && player != null) {
       lockedHotbarSlot = player.getInventory().getSelectedSlot();
-      cameraYaw = player.getYRot();
-      cameraPitch = Mth.clamp(player.getXRot(), -40.0F, 40.0F);
-      requestedHeadYaw = cameraYaw;
-      requestedHeadPitch = cameraPitch;
       viewBobPlayer = player;
       viewBobLevel = player.level();
       viewBobPlayerWasDead = player.isDeadOrDying();
     }
-    level = Mth.clamp(payload.level(), 0.0F, 100.0F);
-    bodyYaw += Mth.wrapDegrees(payload.bodyYaw() - bodyYaw);
-    headYaw += Mth.wrapDegrees(payload.headYaw() - headYaw);
-    headPitch = payload.headPitch();
-    authoritativeX = payload.x();
-    authoritativeY = payload.y();
-    authoritativeZ = payload.z();
-    authoritativeOnGround = payload.onGround();
-    hasAuthoritativePosition = active;
-    lookingAtTarget = payload.lookingAtTarget();
-    activity = payload.activity();
     if (active != wasActive) {
-      ClientMorphState.resetLocomotion();
+      ClientLocomotionController.get().setInstinctActive(active);
       clearViewBobSamples();
     }
     if (active && !ClientMorphState.rabbitHopEnabled()) {
-      enqueueViewBobSample(payload.horizontalDisplacement(), payload.horizontalSpeed());
+      enqueueViewBobSample(
+          state.motion().horizontalDisplacement(), state.motion().horizontalSpeed());
     }
     if (!active) {
       rawMovement = Vec2.ZERO;
       rawKeys = Input.EMPTY;
-      cameraYaw = 0.0F;
-      cameraPitch = 0.0F;
-      requestedHeadYaw = 0.0F;
-      requestedHeadPitch = 0.0F;
-      hasAuthoritativePosition = false;
     }
   }
 
@@ -152,9 +110,16 @@ public final class ClientInstinctState {
     if (player == null) {
       return;
     }
-    float cameraDelta = consumeCameraDelta();
-    if (!active || ClientMorphState.morph() == null) {
-      sendInput(client, player, player.getYRot(), player.getXRot(), cameraDelta);
+    MorphViewControl.InstinctClient.Frame frame =
+        MorphViewControl.InstinctClient.reduce(
+            viewState,
+            new MorphViewControl.InstinctClient.Tick(
+                ClientMorphState.morph() != null,
+                new MorphViewControl.View(player.getYRot(), player.getXRot())));
+    viewState = frame.state();
+    if (!frame.applyAuthoritativeView()) {
+      sendInput(
+          client, player, frame.requested().yaw(), frame.requested().pitch(), frame.cameraInput());
       return;
     }
 
@@ -164,44 +129,30 @@ public final class ClientInstinctState {
       client.gui.setScreen(null);
     }
 
-    cameraYaw = InstinctAngles.approachYaw(cameraYaw, headYaw, 30.0F);
-    cameraPitch = Mth.approach(cameraPitch, headPitch, 30.0F);
-    applyInterpolatedCamera(player);
-    player.yBodyRot = bodyYaw;
-    player.yBodyRotO = bodyYaw;
-    player.setYHeadRot(InstinctAngles.clampHeadYawToBody(headYaw, bodyYaw, 75.0F));
+    applyRotation(player, frame.cameraRotation());
+    MorphViewControl.Pose rendered = frame.renderedPose();
+    player.yBodyRot = rendered.bodyYaw();
+    player.yBodyRotO = rendered.bodyYaw();
+    player.setYHeadRot(rendered.headYaw());
     player.yHeadRotO = player.getYHeadRot();
-    if (!MorphViewRecovery.cameraInputBlocksRecovery(cameraDelta)) {
-      requestedHeadYaw = headYaw;
-      requestedHeadPitch = headPitch;
-    }
-    sendInput(client, player, requestedHeadYaw, requestedHeadPitch, cameraDelta);
+    sendInput(
+        client, player, frame.requested().yaw(), frame.requested().pitch(), frame.cameraInput());
   }
 
   public static void clear() {
     LocalPlayer player = Minecraft.getInstance().player;
-    boolean resetViewBob = active || ClientMorphState.rabbitHopEnabled();
+    boolean resetViewBob = active() || ClientMorphState.rabbitHopEnabled();
     if (player != null) {
       InstinctState.get(player).setActive(false);
       if (resetViewBob) {
         resetViewBobImmediately(player);
       }
     }
-    active = false;
-    level = 0.0F;
-    bodyYaw = 0.0F;
-    headYaw = 0.0F;
-    headPitch = 0.0F;
-    activity = 0;
-    lookingAtTarget = false;
+    viewState = MorphViewControl.InstinctClient.initial();
+    syncState = InstinctSyncState.INACTIVE;
+    ClientLocomotionController.get().setInstinctActive(false);
     rawMovement = Vec2.ZERO;
     rawKeys = Input.EMPTY;
-    cameraYaw = 0.0F;
-    cameraPitch = 0.0F;
-    requestedHeadYaw = 0.0F;
-    requestedHeadPitch = 0.0F;
-    pendingCameraDelta = 0.0F;
-    hasAuthoritativePosition = false;
     clearViewBobSamples();
     viewBobPlayer = null;
     viewBobLevel = null;
@@ -210,10 +161,10 @@ public final class ClientInstinctState {
 
   public static boolean updateViewBob(LocalPlayer player) {
     boolean rabbitHop = ClientMorphState.rabbitHopEnabled();
-    if (viewBobPlayer != null || active || rabbitHop) {
+    if (viewBobPlayer != null || active() || rabbitHop) {
       trackViewBobLifecycle(player);
     }
-    if (!active && !rabbitHop) {
+    if (!active() && !rabbitHop) {
       return false;
     }
 
@@ -257,12 +208,12 @@ public final class ClientInstinctState {
   }
 
   public static void applyAuthoritativePosition(LocalPlayer player) {
-    if (!active || !hasAuthoritativePosition || player.isPassenger()) {
+    if (!active() || player.isPassenger()) {
       return;
     }
-    player.setPos(authoritativeX, authoritativeY, authoritativeZ);
+    player.setPos(syncState.position());
     player.setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
-    player.setOnGround(authoritativeOnGround);
+    player.setOnGround(syncState.onGround());
   }
 
   private static void sendInput(
@@ -282,7 +233,7 @@ public final class ClientInstinctState {
     buttons |= client.options.keySwapOffhand.isDown() ? InstinctInput.SWAP : 0;
     buttons |= client.options.keyTogglePerspective.isDown() ? InstinctInput.PERSPECTIVE : 0;
     buttons |=
-        active && player.getInventory().getSelectedSlot() != lockedHotbarSlot
+        active() && player.getInventory().getSelectedSlot() != lockedHotbarSlot
             ? InstinctInput.HOTBAR
             : 0;
     int screenMode =
@@ -331,16 +282,16 @@ public final class ClientInstinctState {
     player.avatarState().resetBob();
   }
 
-  private static float consumeCameraDelta() {
-    float result = pendingCameraDelta;
-    pendingCameraDelta = 0.0F;
-    return result;
-  }
-
-  private static void applyInterpolatedCamera(LocalPlayer player) {
-    float yawDelta = Mth.wrapDegrees(cameraYaw - player.getYRot());
-    player.setYRot(player.getYRot() + yawDelta);
-    player.setXRot(cameraPitch);
+  private static void applyRotation(LocalPlayer player, MorphViewControl.Rotation rotation) {
+    if (!rotation.apply()) {
+      return;
+    }
+    player.setYRot(rotation.current().yaw());
+    player.setXRot(rotation.current().pitch());
+    if (rotation.history() == MorphViewControl.History.SNAP) {
+      player.yRotO = rotation.previous().yaw();
+      player.xRotO = rotation.previous().pitch();
+    }
   }
 
   private static boolean isSafeScreen(Minecraft client) {
