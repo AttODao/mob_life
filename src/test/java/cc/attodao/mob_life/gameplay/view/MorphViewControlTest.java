@@ -41,15 +41,30 @@ class MorphViewControlTest {
 
     MorphViewControl.Normal.Transition blockedRecovery =
         MorphViewControl.Normal.reduce(
-            state, new MorphViewControl.Normal.RecoveryTick(look.rotation().current(), true, true));
+            state,
+            new MorphViewControl.Normal.RecoveryTick(look.rotation().current(), true, true, false));
     state = blockedRecovery.state();
     assertFalse(blockedRecovery.rotation().apply());
     assertEquals(0.0F, state.pendingCameraInput(), EPSILON);
 
     MorphViewControl.Normal.Transition recovery =
         MorphViewControl.Normal.reduce(
-            state, new MorphViewControl.Normal.RecoveryTick(look.rotation().current(), true, true));
+            state,
+            new MorphViewControl.Normal.RecoveryTick(look.rotation().current(), true, true, false));
     assertRotation(recovery.rotation(), 173.0F, 37.0F, MorphViewControl.History.INTERPOLATE);
+  }
+
+  @Test
+  void normalMovementRecoversThroughCameraInputAtThreeDegreesPerTick() {
+    MorphViewControl.Normal.State state = new MorphViewControl.Normal.State(true, 0.0F, 4.0F);
+
+    MorphViewControl.Normal.Transition recovery =
+        MorphViewControl.Normal.reduce(
+            state,
+            new MorphViewControl.Normal.RecoveryTick(
+                new MorphViewControl.View(20.0F, 10.0F), true, false, true));
+
+    assertRotation(recovery.rotation(), 17.0F, 7.0F, MorphViewControl.History.INTERPOLATE);
   }
 
   @Test

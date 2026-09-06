@@ -32,9 +32,8 @@
   shared turn-in-place behavior.
 - Normal-mode body orientation no longer auto-follows head yaw. Without A/D,
   head/camera yaw and pitch recover to body forward by at most 2 degrees per
-  tick. Recovery pauses when that tick's absolute yaw plus pitch camera input
-  totals at least 0.5 degrees, or while attack or use is held on a targeted
-  block/entity.
+  tick while idle. During any W/A/S/D input, recovery ignores camera input and
+  all other pause conditions and uses at most 3 degrees per tick.
   Tick-driven A/D and recovery retain their previous angles for render
   interpolation; direct view input updates current and previous angles together.
   Direct view input is bounded to body +/-75 yaw and +/-40 pitch. Changed body

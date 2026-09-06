@@ -11,6 +11,7 @@ public final class MorphViewControl {
   private static final float MAX_HEAD_PITCH = 40.0F;
   private static final float NORMAL_BODY_TURN = 10.0F;
   private static final float NORMAL_RECOVERY = 2.0F;
+  private static final float NORMAL_MOVEMENT_RECOVERY = 3.0F;
   private static final float INSTINCT_CAMERA_FOLLOW = 30.0F;
   private static final float INSTINCT_BODY_FOLLOW = 90.0F;
   private static final float INSTINCT_HEAD_FOLLOW = 10.0F;
@@ -54,7 +55,8 @@ public final class MorphViewControl {
 
     public record BodyTick(View current, float steering, BodyMode mode) {}
 
-    public record RecoveryTick(View current, boolean active, boolean conditionsAllowRecovery) {}
+    public record RecoveryTick(
+        View current, boolean active, boolean conditionsAllowRecovery, boolean movementInput) {}
 
     public record Transition(State state, Rotation rotation) {}
 
@@ -128,16 +130,15 @@ public final class MorphViewControl {
       }
 
       next = ensureBody(next, tick.current().yaw());
-      if (!tick.conditionsAllowRecovery() || blocksRecovery(cameraInput)) {
+      if (!tick.movementInput()
+          && (!tick.conditionsAllowRecovery() || blocksRecovery(cameraInput))) {
         return new Transition(next, Rotation.NONE);
       }
 
+      float recovery = tick.movementInput() ? NORMAL_MOVEMENT_RECOVERY : NORMAL_RECOVERY;
       float yawDelta =
-          Mth.clamp(
-              Mth.wrapDegrees(next.bodyYaw() - tick.current().yaw()),
-              -NORMAL_RECOVERY,
-              NORMAL_RECOVERY);
-      float pitchStep = Mth.clamp(-tick.current().pitch(), -NORMAL_RECOVERY, NORMAL_RECOVERY);
+          Mth.clamp(Mth.wrapDegrees(next.bodyYaw() - tick.current().yaw()), -recovery, recovery);
+      float pitchStep = Mth.clamp(-tick.current().pitch(), -recovery, recovery);
       return new Transition(
           next,
           new Rotation(

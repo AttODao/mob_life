@@ -223,7 +223,8 @@ public final class ClientLocomotionController {
             new MorphViewControl.Normal.RecoveryTick(
                 currentView(currentPlayer),
                 active,
-                keys.left() == keys.right() && !aimingInteractionActive));
+                keys.left() == keys.right() && !aimingInteractionActive,
+                keys.forward() || keys.backward() || keys.left() || keys.right()));
     viewState = transition.state();
     applyRotation(currentPlayer, transition.rotation());
   }
