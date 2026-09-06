@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-07 - v1.4.1
+
+- Normal-mode movement now keeps view recovery active during WASD input,
+  including camera movement, attacks, and item use, and recovers at up to 3
+  degrees per tick.
+- Fixed Rabbit manual jumps during movement so the jump input remains effective
+  without adding the movement hop's upward impulse a second time.
+
 ## 2026-09-06 - v1.4.0
 
 - Reworked normal Mob form movement. W moves forward, A and D turn the body and
