@@ -1,8 +1,6 @@
 package cc.attodao.mob_life.client.mixin.render;
 
-import cc.attodao.mob_life.MobLife;
-import cc.attodao.mob_life.client.config.ClientMobLifeConfig;
-import cc.attodao.mob_life.client.state.ClientMorphState;
+import cc.attodao.mob_life.client.render.MobVisionRendering;
 import com.mojang.blaze3d.resource.CrossFrameResourcePool;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
@@ -18,9 +16,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(GameRenderer.class)
 public abstract class GameRendererMixin {
-  private static final Identifier BASE_VISION_POST_EFFECT = MobLife.id("vision_base");
-  private static final Identifier DISTANCE_VISION_POST_EFFECT = MobLife.id("vision_distance");
-
   @Shadow @Nullable private Identifier postEffectId;
 
   @Shadow private boolean effectActive;
@@ -31,15 +26,11 @@ public abstract class GameRendererMixin {
 
   @Inject(method = "checkEntityPostEffect", at = @At("HEAD"), cancellable = true)
   private void mobLife$selectMorphVision(@Nullable Entity cameraEntity, CallbackInfo ci) {
-    if (!ClientMobLifeConfig.shaderEnabled()) {
+    if (!MobVisionRendering.enabled()) {
       return;
     }
 
-    if (ClientMorphState.morph() == null) {
-      return;
-    }
-
-    postEffectId = BASE_VISION_POST_EFFECT;
+    postEffectId = MobVisionRendering.BASE_POST_EFFECT;
     effectActive = true;
     ci.cancel();
   }
@@ -54,7 +45,7 @@ public abstract class GameRendererMixin {
               shift = At.Shift.AFTER))
   private void mobLife$applyDistanceVisionAfterLevelRender(
       net.minecraft.client.DeltaTracker deltaTracker, CallbackInfo ci) {
-    if (!effectActive || ClientMorphState.morph() == null) {
+    if (!effectActive || !MobVisionRendering.hasMorph()) {
       return;
     }
 
@@ -62,7 +53,7 @@ public abstract class GameRendererMixin {
         minecraft
             .getShaderManager()
             .getPostChain(
-                DISTANCE_VISION_POST_EFFECT,
+                MobVisionRendering.DISTANCE_POST_EFFECT,
                 net.minecraft.client.renderer.LevelTargetBundle.MAIN_TARGETS);
     if (chain == null) {
       return;
